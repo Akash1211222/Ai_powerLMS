@@ -7,6 +7,8 @@ import { HealthModule } from './health/health.module';
 import { AuditModule } from './audit/audit.module';
 import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
+import { AuthzModule } from './authz/authz.module';
+import { AdminModule } from './admin/admin.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -21,7 +23,8 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     MailModule,
     HealthModule,
     AuthModule,
-    // Authorization (permissions) guards are added in milestone M0.4.
+    AuthzModule,
+    AdminModule,
   ],
 })
 export class AppModule implements NestModule {
