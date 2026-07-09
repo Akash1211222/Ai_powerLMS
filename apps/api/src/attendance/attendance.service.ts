@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
+import { NotificationService } from '../notifications/notification.service';
 import { assertOrgAccess } from '../common/tenant';
 import { computeAttendanceRate } from './attendance.calc';
 import type {
@@ -23,6 +24,7 @@ export class AttendanceService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private async loadOwnedBatch(userId: string, batchId: string) {
@@ -227,6 +229,12 @@ export class AttendanceService {
       targetType: 'AttendanceRecord',
       targetId: correction.recordId,
       metadata: { correctionId },
+    });
+    await this.notifications.notify(correction.requestedById, {
+      type: 'ATTENDANCE_CORRECTION',
+      title: `Attendance correction ${approve ? 'approved' : 'rejected'}`,
+      body: `Your correction request for "${correction.record.session.title}" was ${approve ? 'approved' : 'rejected'}.`,
+      deepLink: '/dashboard',
     });
     return { success: true, decision: dto.decision };
   }

@@ -8,6 +8,7 @@ import { buildPaginationMeta, type Paginated } from '@fca/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
+import { NotificationService } from '../notifications/notification.service';
 import { assertOrgAccess } from '../common/tenant';
 import type {
   CreateBatchDto,
@@ -24,6 +25,7 @@ export class BatchesService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
+    private readonly notifications: NotificationService,
   ) {}
 
   async create(userId: string, dto: CreateBatchDto) {
@@ -173,6 +175,12 @@ export class BatchesService {
       targetType: 'Batch',
       targetId: batchId,
       metadata: { studentId },
+    });
+    await this.notifications.notify(studentId, {
+      type: 'ENROLLMENT',
+      title: 'You’ve been enrolled',
+      body: `You have been added to the batch "${batch.name}".`,
+      deepLink: '/dashboard',
     });
     return { success: true };
   }

@@ -16,6 +16,8 @@ import { DashboardModule } from './dashboard/dashboard.module';
 import { AttendanceModule } from './attendance/attendance.module';
 import { AssignmentsModule } from './assignments/assignments.module';
 import { AssessmentsModule } from './assessments/assessments.module';
+import { NotificationModule } from './notifications/notification.module';
+import { CalendarModule } from './calendar/calendar.module';
 import { QueueModule } from './queue/queue.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
@@ -39,8 +41,10 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     DashboardModule,
     AttendanceModule,
     QueueModule,
+    NotificationModule,
     AssignmentsModule,
     AssessmentsModule,
+    CalendarModule,
   ],
 })
 export class AppModule implements NestModule {

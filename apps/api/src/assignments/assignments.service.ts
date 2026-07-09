@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
 import { QueueService } from '../queue/queue.service';
+import { NotificationService } from '../notifications/notification.service';
 import { assertOrgAccess } from '../common/tenant';
 import type {
   CreateAssignmentDto,
@@ -23,7 +24,16 @@ export class AssignmentsService {
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
     private readonly queue: QueueService,
+    private readonly notifications: NotificationService,
   ) {}
+
+  private async batchStudentIds(batchId: string): Promise<string[]> {
+    const rows = await this.prisma.batchStudent.findMany({
+      where: { batchId, status: 'ACTIVE' },
+      select: { userId: true },
+    });
+    return rows.map((r) => r.userId);
+  }
 
   private async loadOwnedBatch(userId: string, batchId: string) {
     const batch = await this.prisma.batch.findUnique({ where: { id: batchId } });
@@ -92,11 +102,19 @@ export class AssignmentsService {
   }
 
   async publish(userId: string, assignmentId: string) {
-    await this.loadStaffAssignment(userId, assignmentId);
-    return this.prisma.assignment.update({
+    const assignment = await this.loadStaffAssignment(userId, assignmentId);
+    const updated = await this.prisma.assignment.update({
       where: { id: assignmentId },
       data: { status: 'PUBLISHED' },
     });
+    const studentIds = await this.batchStudentIds(assignment.batchId);
+    await this.notifications.notifyMany(studentIds, {
+      type: 'ASSIGNMENT_PUBLISHED',
+      title: 'New assignment',
+      body: `"${assignment.title}" has been assigned to your batch.`,
+      deepLink: `/assignments/${assignmentId}`,
+    });
+    return updated;
   }
 
   async listForBatch(userId: string, batchId: string) {
@@ -271,6 +289,14 @@ export class AssignmentsService {
       targetId: submissionId,
       metadata: { trainerScore, released: dto.release },
     });
+    if (dto.release) {
+      await this.notifications.notify(submission.studentId, {
+        type: 'ASSIGNMENT_EVALUATED',
+        title: 'Assignment evaluated',
+        body: `Your submission for "${submission.assignment.title}" was graded: ${trainerScore}/${maxScore}.`,
+        deepLink: `/assignments/${submission.assignmentId}`,
+      });
+    }
     return evaluation;
   }
 }

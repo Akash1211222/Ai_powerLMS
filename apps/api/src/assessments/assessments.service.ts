@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
+import { NotificationService } from '../notifications/notification.service';
 import { assertOrgAccess } from '../common/tenant';
 import { gradeAttempt, type GradableQuestion } from './grading';
 import type { CreateAssessmentDto, SubmitAttemptDto } from './dto/assessment.schemas';
@@ -19,6 +20,7 @@ export class AssessmentsService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
+    private readonly notifications: NotificationService,
   ) {}
 
   private async loadOwnedBatch(userId: string, batchId: string) {
@@ -106,8 +108,22 @@ export class AssessmentsService {
   }
 
   async publish(userId: string, id: string) {
-    await this.loadOwnedAssessment(userId, id);
-    return this.prisma.assessment.update({ where: { id }, data: { status: 'PUBLISHED' } });
+    const assessment = await this.loadOwnedAssessment(userId, id);
+    const updated = await this.prisma.assessment.update({ where: { id }, data: { status: 'PUBLISHED' } });
+    const students = await this.prisma.batchStudent.findMany({
+      where: { batchId: assessment.batchId, status: 'ACTIVE' },
+      select: { userId: true },
+    });
+    await this.notifications.notifyMany(
+      students.map((s) => s.userId),
+      {
+        type: 'ASSESSMENT_PUBLISHED',
+        title: 'New test available',
+        body: `"${assessment.title}" is now open in your batch.`,
+        deepLink: '/dashboard',
+      },
+    );
+    return updated;
   }
 
   async listForBatch(userId: string, batchId: string) {

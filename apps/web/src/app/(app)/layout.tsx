@@ -5,6 +5,7 @@ import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { Logo, Spinner, cn } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
+import { NotificationBell } from '@/components/notification-bell';
 
 /**
  * Client-side guard + shell for authenticated pages. NOTE: this is UX only —
@@ -34,6 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/dashboard', label: 'Dashboard', show: true },
     { href: '/courses', label: 'Courses', show: can('course:view') },
     { href: '/batches', label: 'Batches', show: can('batch:view') },
+    { href: '/calendar', label: 'Calendar', show: true },
   ].filter((n) => n.show);
 
   return (
@@ -67,9 +69,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </button>
         </div>
       </aside>
-      <main className="flex-1 px-8 py-8">
-        <div className="mx-auto max-w-5xl">{children}</div>
-      </main>
+      <div className="flex flex-1 flex-col">
+        <header className="flex items-center justify-end gap-3 border-b border-hair bg-panel/70 px-8 py-3 backdrop-blur">
+          <NotificationBell />
+        </header>
+        <main className="flex-1 px-8 py-8">
+          <div className="mx-auto max-w-5xl">{children}</div>
+        </main>
+      </div>
     </div>
   );
 }

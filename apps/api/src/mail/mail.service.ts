@@ -52,6 +52,16 @@ export class MailService {
     );
   }
 
+  async sendNotification(to: string, title: string, body: string, deepLink?: string): Promise<void> {
+    const link = deepLink ? `${this.webBaseUrl}${deepLink}` : this.webBaseUrl;
+    await this.send(
+      to,
+      title,
+      `<p>${escapeHtml(body)}</p><p><a href="${link}">Open FutureCorp Academy</a></p>`,
+      link,
+    );
+  }
+
   async sendPasswordReset(to: string, token: string): Promise<void> {
     const link = `${this.webBaseUrl}/reset-password?token=${token}`;
     await this.send(
@@ -61,4 +71,12 @@ export class MailService {
       link,
     );
   }
+}
+
+function escapeHtml(s: string): string {
+  return s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
 }
