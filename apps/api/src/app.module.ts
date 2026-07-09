@@ -13,6 +13,7 @@ import { CoursesModule } from './courses/courses.module';
 import { BatchesModule } from './batches/batches.module';
 import { MeModule } from './me/me.module';
 import { DashboardModule } from './dashboard/dashboard.module';
+import { AttendanceModule } from './attendance/attendance.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -33,6 +34,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     BatchesModule,
     MeModule,
     DashboardModule,
+    AttendanceModule,
   ],
 })
 export class AppModule implements NestModule {

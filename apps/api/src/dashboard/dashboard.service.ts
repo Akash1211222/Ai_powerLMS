@@ -1,5 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { computeAttendanceRate } from '../attendance/attendance.calc';
 
 function dayBounds(now = new Date()) {
   const start = new Date(now);
@@ -28,7 +29,7 @@ export class DashboardService {
     });
     const batchIds = batchLinks.map((b) => b.batchId);
 
-    const [enrollments, upcomingSessions, todaySessions] = await Promise.all([
+    const [enrollments, upcomingSessions, todaySessions, attendanceRecords] = await Promise.all([
       this.prisma.enrollment.findMany({
         where: { userId, status: 'ACTIVE' },
         include: {
@@ -53,8 +54,13 @@ export class DashboardService {
             include: { batch: { select: { name: true } } },
           })
         : Promise.resolve([]),
+      this.prisma.attendanceRecord.findMany({
+        where: { studentId: userId },
+        select: { status: true },
+      }),
     ]);
 
+    const attendance = computeAttendanceRate(attendanceRecords);
     const percents = enrollments.map((e) => e.progress?.percent ?? 0);
     const avgProgress = percents.length
       ? Math.round(percents.reduce((a, b) => a + b, 0) / percents.length)
@@ -70,6 +76,7 @@ export class DashboardService {
         avgProgress,
         completedLessons,
         upcomingSessions: upcomingSessions.length,
+        attendanceRate: attendance.rate,
       },
       enrollments,
       todaySessions,

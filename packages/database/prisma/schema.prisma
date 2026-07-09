@@ -52,6 +52,13 @@ model User {
   batchTrainerships  BatchTrainer[]
   batchAnnouncements BatchAnnouncement[] @relation("AnnouncementAuthor")
 
+  // Attendance (Phase 1)
+  attendanceRecords         AttendanceRecord[]            @relation("AttendanceStudent")
+  attendanceMarked          AttendanceRecord[]            @relation("AttendanceMarker")
+  attendanceSessionsCreated AttendanceSession[]           @relation("AttendanceSessionCreator")
+  correctionRequests        AttendanceCorrectionRequest[] @relation("CorrectionRequester")
+  correctionReviews         AttendanceCorrectionRequest[] @relation("CorrectionReviewer")
+
   @@index([status])
   @@index([deletedAt])
   @@map("users")
@@ -508,6 +515,7 @@ model Batch {
   schedules     BatchSchedule[]
   announcements BatchAnnouncement[]
   enrollments   Enrollment[]
+  attendanceSessions AttendanceSession[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -584,4 +592,95 @@ model BatchAnnouncement {
 
   @@index([batchId, createdAt])
   @@map("batch_announcements")
+}
+
+// ===========================================================================
+// ATTENDANCE (Phase 1) — sessions, records, correction requests (§14)
+// ===========================================================================
+
+enum AttendanceSessionStatus {
+  OPEN
+  CLOSED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  ABSENT
+  LATE
+  EXCUSED
+}
+
+// Where a record came from — evidence for auditability (§14).
+enum AttendanceSource {
+  MANUAL
+  LIVE
+  CORRECTION
+  IMPORT
+}
+
+enum CorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+model AttendanceSession {
+  id          String                  @id @default(cuid())
+  batchId     String
+  scheduleId  String?
+  title       String
+  sessionDate DateTime
+  status      AttendanceSessionStatus @default(OPEN)
+  createdById String
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  batch     Batch              @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("AttendanceSessionCreator", fields: [createdById], references: [id])
+  records   AttendanceRecord[]
+
+  @@index([batchId, sessionDate])
+  @@map("attendance_sessions")
+}
+
+model AttendanceRecord {
+  id         String           @id @default(cuid())
+  sessionId  String
+  studentId  String
+  status     AttendanceStatus
+  source     AttendanceSource @default(MANUAL)
+  note       String?
+  markedById String?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  session     AttendanceSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  student     User                          @relation("AttendanceStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  markedBy    User?                         @relation("AttendanceMarker", fields: [markedById], references: [id], onDelete: SetNull)
+  corrections AttendanceCorrectionRequest[]
+
+  @@unique([sessionId, studentId])
+  @@index([studentId])
+  @@map("attendance_records")
+}
+
+model AttendanceCorrectionRequest {
+  id              String           @id @default(cuid())
+  recordId        String
+  requestedById   String
+  requestedStatus AttendanceStatus
+  reason          String
+  status          CorrectionStatus @default(PENDING)
+  reviewedById    String?
+  reviewNote      String?
+  reviewedAt      DateTime?
+  createdAt       DateTime         @default(now())
+
+  record      AttendanceRecord @relation(fields: [recordId], references: [id], onDelete: Cascade)
+  requestedBy User             @relation("CorrectionRequester", fields: [requestedById], references: [id], onDelete: Cascade)
+  reviewedBy  User?            @relation("CorrectionReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@index([recordId])
+  @@index([status])
+  @@map("attendance_correction_requests")
 }

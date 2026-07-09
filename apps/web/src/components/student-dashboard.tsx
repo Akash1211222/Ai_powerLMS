@@ -24,8 +24,8 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
         <StatTile label="Active courses" value={d.stats.activeCourses} />
         <StatTile label="Avg progress" value={`${d.stats.avgProgress}%`} />
+        <StatTile label="Attendance" value={`${d.stats.attendanceRate}%`} />
         <StatTile label="Lessons completed" value={d.stats.completedLessons} />
-        <StatTile label="Upcoming sessions" value={d.stats.upcomingSessions} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-3">

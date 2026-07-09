@@ -15,6 +15,7 @@ export interface StudentDashboard {
     avgProgress: number;
     completedLessons: number;
     upcomingSessions: number;
+    attendanceRate: number;
   };
   enrollments: Array<{
     id: string;
