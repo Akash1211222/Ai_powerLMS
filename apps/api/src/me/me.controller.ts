@@ -1,9 +1,10 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
+import { AssignmentsService } from '../assignments/assignments.service';
 
 /**
  * Authenticated self-service endpoints. No special permission required — a user
@@ -14,7 +15,22 @@ import { PrismaService } from '../prisma/prisma.service';
 @Controller('me')
 @UseGuards(JwtAuthGuard)
 export class MeController {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly assignments: AssignmentsService,
+  ) {}
+
+  @Get('assignments')
+  @ApiOperation({ summary: "The current student's assignments (with own latest submission)" })
+  myAssignments(@CurrentUser() user: AuthUser) {
+    return this.assignments.listMine(user.userId);
+  }
+
+  @Get('assignments/:id')
+  @ApiOperation({ summary: 'Assignment detail + own submission + released feedback' })
+  myAssignment(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.assignments.getMine(user.userId, id);
+  }
 
   @Get('organizations')
   @ApiOperation({ summary: 'Organizations the current user belongs to' })

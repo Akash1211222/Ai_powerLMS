@@ -59,6 +59,11 @@ model User {
   correctionRequests        AttendanceCorrectionRequest[] @relation("CorrectionRequester")
   correctionReviews         AttendanceCorrectionRequest[] @relation("CorrectionReviewer")
 
+  // Assignments (Phase 1)
+  assignmentsCreated  Assignment[]           @relation("AssignmentCreator")
+  submissions         AssignmentSubmission[] @relation("SubmissionStudent")
+  evaluationReviews   AssignmentEvaluation[] @relation("EvaluationReviewer")
+
   @@index([status])
   @@index([deletedAt])
   @@map("users")
@@ -516,6 +521,7 @@ model Batch {
   announcements BatchAnnouncement[]
   enrollments   Enrollment[]
   attendanceSessions AttendanceSession[]
+  assignments        Assignment[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -683,4 +689,193 @@ model AttendanceCorrectionRequest {
   @@index([recordId])
   @@index([status])
   @@map("attendance_correction_requests")
+}
+
+// ===========================================================================
+// ASSIGNMENTS (Phase 1) — authoring, submission, AI-assisted evaluation (§15)
+// ===========================================================================
+
+enum AssignmentDifficulty {
+  EASY
+  MEDIUM
+  HARD
+}
+
+enum AssignmentStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum SubmissionStatus {
+  DRAFT
+  SUBMITTED
+  EVALUATING
+  EVALUATED
+  RETURNED
+}
+
+// Lifecycle of an evaluation. AI never overwrites a trainer decision (§15):
+// once RELEASED with a trainer score, re-evaluation is skipped.
+enum EvaluationStatus {
+  PENDING
+  AI_COMPLETED
+  NEEDS_REVIEW
+  RELEASED
+}
+
+model Assignment {
+  id                  String               @id @default(cuid())
+  batchId             String
+  courseId            String?
+  moduleId            String?
+  title               String
+  description         String?
+  instructions        String?
+  difficulty          AssignmentDifficulty @default(MEDIUM)
+  maxScore            Int                  @default(100)
+  dueAt               DateTime?
+  allowLate           Boolean              @default(false)
+  maxAttempts         Int                  @default(1)
+  aiEvaluationEnabled Boolean              @default(true)
+  status              AssignmentStatus     @default(DRAFT)
+  createdById         String
+  createdAt           DateTime             @default(now())
+  updatedAt           DateTime             @updatedAt
+
+  batch       Batch                  @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdBy   User                   @relation("AssignmentCreator", fields: [createdById], references: [id])
+  criteria    RubricCriterion[]
+  submissions AssignmentSubmission[]
+
+  @@index([batchId, status])
+  @@map("assignments")
+}
+
+model RubricCriterion {
+  id           String  @id @default(cuid())
+  assignmentId String
+  title        String
+  description  String?
+  weight       Int     @default(10)
+  order        Int     @default(0)
+
+  assignment Assignment                @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  scores     EvaluationCriterionScore[]
+
+  @@index([assignmentId])
+  @@map("rubric_criteria")
+}
+
+model AssignmentSubmission {
+  id            String           @id @default(cuid())
+  assignmentId  String
+  studentId     String
+  attemptNumber Int              @default(1)
+  contentText   String?
+  repoUrl       String?
+  status        SubmissionStatus @default(DRAFT)
+  submittedAt   DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  assignment  Assignment            @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student     User                  @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  evaluation  AssignmentEvaluation?
+  attachments SubmissionAttachment[]
+
+  @@unique([assignmentId, studentId, attemptNumber])
+  @@index([studentId])
+  @@map("assignment_submissions")
+}
+
+model SubmissionAttachment {
+  id           String   @id @default(cuid())
+  submissionId String
+  fileName     String
+  url          String
+  contentType  String?
+  size         Int?
+  createdAt    DateTime @default(now())
+
+  submission AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+
+  @@index([submissionId])
+  @@map("submission_attachments")
+}
+
+model AssignmentEvaluation {
+  id           String           @id @default(cuid())
+  submissionId String           @unique
+  aiScore      Int?
+  trainerScore Int?
+  finalScore   Int?
+  confidence   Float?
+  reason       String?
+  version      Int              @default(1)
+  evaluatedByAi Boolean         @default(false)
+  status       EvaluationStatus @default(PENDING)
+  reviewedById String?
+  reviewedAt   DateTime?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  submission     AssignmentSubmission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewedBy     User?                      @relation("EvaluationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  criterionScores EvaluationCriterionScore[]
+
+  @@map("assignment_evaluations")
+}
+
+model EvaluationCriterionScore {
+  id           String  @id @default(cuid())
+  evaluationId String
+  criterionId  String
+  score        Int
+  comment      String?
+
+  evaluation AssignmentEvaluation @relation(fields: [evaluationId], references: [id], onDelete: Cascade)
+  criterion  RubricCriterion      @relation(fields: [criterionId], references: [id], onDelete: Cascade)
+
+  @@unique([evaluationId, criterionId])
+  @@map("evaluation_criterion_scores")
+}
+
+// ===========================================================================
+// AI OPERATIONS (§36) — observability for every AI/heuristic job
+// ===========================================================================
+
+enum AIJobType {
+  ASSIGNMENT_EVALUATION
+  QUESTION_GENERATION
+  PROGRESS_REPORT
+  RECOVERY_PLAN
+}
+
+enum AIJobStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+model AIJob {
+  id            String      @id @default(cuid())
+  type          AIJobType
+  status        AIJobStatus @default(QUEUED)
+  provider      String?
+  model         String?
+  promptVersion String?
+  inputRef      String? // e.g. submissionId
+  output        Json?
+  error         String?
+  tokensInput   Int?
+  tokensOutput  Int?
+  latencyMs     Int?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@index([type, status])
+  @@index([inputRef])
+  @@map("ai_jobs")
 }

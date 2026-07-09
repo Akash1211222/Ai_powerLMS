@@ -15,6 +15,7 @@
     "clean": "rm -rf dist .turbo *.tsbuildinfo"
   },
   "dependencies": {
+    "@fca/ai": "workspace:*",
     "@fca/database": "workspace:*",
     "@fca/shared": "workspace:*",
     "@nestjs/common": "10.4.15",
@@ -25,6 +26,7 @@
     "@nestjs/swagger": "8.1.0",
     "@nestjs/terminus": "10.2.3",
     "argon2": "0.41.1",
+    "bullmq": "5.34.5",
     "helmet": "8.0.0",
     "ioredis": "5.4.2",
     "nodemailer": "6.9.16",

@@ -14,6 +14,8 @@ import { BatchesModule } from './batches/batches.module';
 import { MeModule } from './me/me.module';
 import { DashboardModule } from './dashboard/dashboard.module';
 import { AttendanceModule } from './attendance/attendance.module';
+import { AssignmentsModule } from './assignments/assignments.module';
+import { QueueModule } from './queue/queue.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -35,6 +37,8 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     MeModule,
     DashboardModule,
     AttendanceModule,
+    QueueModule,
+    AssignmentsModule,
   ],
 })
 export class AppModule implements NestModule {
