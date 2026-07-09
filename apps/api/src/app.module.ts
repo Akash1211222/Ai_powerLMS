@@ -12,6 +12,7 @@ import { AdminModule } from './admin/admin.module';
 import { CoursesModule } from './courses/courses.module';
 import { BatchesModule } from './batches/batches.module';
 import { MeModule } from './me/me.module';
+import { DashboardModule } from './dashboard/dashboard.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -31,6 +32,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     CoursesModule,
     BatchesModule,
     MeModule,
+    DashboardModule,
   ],
 })
 export class AppModule implements NestModule {
