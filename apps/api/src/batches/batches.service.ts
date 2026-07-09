@@ -122,8 +122,11 @@ export class BatchesService {
   async addStudent(userId: string, batchId: string, dto: AddStudentDto) {
     const batch = await this.loadOwnedBatch(userId, batchId);
 
-    const student = await this.prisma.user.findUnique({ where: { id: dto.userId } });
+    const student = dto.userId
+      ? await this.prisma.user.findUnique({ where: { id: dto.userId } })
+      : await this.prisma.user.findUnique({ where: { email: dto.email! } });
     if (!student) throw new NotFoundException('Student user not found');
+    const studentId = student.id;
 
     if (batch.capacity) {
       const active = await this.prisma.batchStudent.count({
@@ -133,7 +136,7 @@ export class BatchesService {
     }
 
     const existing = await this.prisma.batchStudent.findUnique({
-      where: { batchId_userId: { batchId, userId: dto.userId } },
+      where: { batchId_userId: { batchId, userId: studentId } },
     });
     if (existing && existing.status === 'ACTIVE') {
       throw new ConflictException('Student already in this batch');
@@ -145,15 +148,15 @@ export class BatchesService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.batchStudent.upsert({
-        where: { batchId_userId: { batchId, userId: dto.userId } },
+        where: { batchId_userId: { batchId, userId: studentId } },
         update: { status: 'ACTIVE' },
-        create: { batchId, userId: dto.userId, status: 'ACTIVE' },
+        create: { batchId, userId: studentId, status: 'ACTIVE' },
       });
 
       const enrollment = await tx.enrollment.upsert({
-        where: { userId_courseId: { userId: dto.userId, courseId: batch.courseId } },
+        where: { userId_courseId: { userId: studentId, courseId: batch.courseId } },
         update: { batchId, status: 'ACTIVE' },
-        create: { userId: dto.userId, courseId: batch.courseId, batchId, status: 'ACTIVE' },
+        create: { userId: studentId, courseId: batch.courseId, batchId, status: 'ACTIVE' },
       });
 
       await tx.courseProgress.upsert({
@@ -169,7 +172,7 @@ export class BatchesService {
       organizationId: batch.organizationId,
       targetType: 'Batch',
       targetId: batchId,
-      metadata: { studentId: dto.userId },
+      metadata: { studentId },
     });
     return { success: true };
   }

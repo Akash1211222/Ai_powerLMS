@@ -33,7 +33,16 @@ export const listBatchesQuerySchema = z.object({
 });
 export type ListBatchesQuery = z.infer<typeof listBatchesQuerySchema>;
 
-export const addStudentSchema = z.object({ userId: z.string().min(1) });
+// Identify the student by id OR email (the UI typically has the email).
+export const addStudentSchema = z
+  .object({
+    userId: z.string().min(1).optional(),
+    email: z.string().email().toLowerCase().trim().optional(),
+  })
+  .refine((v) => Boolean(v.userId || v.email), {
+    message: 'Provide a userId or email',
+    path: ['email'],
+  });
 export type AddStudentDto = z.infer<typeof addStudentSchema>;
 
 export const assignTrainerSchema = z.object({

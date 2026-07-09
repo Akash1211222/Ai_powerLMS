@@ -19,7 +19,6 @@ run('Courses + Batches (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaClient;
   let orgId: string;
-  let studentId: string;
   let adminToken: string;
   let studentToken: string;
   const created: { courseIds: string[]; batchIds: string[] } = { courseIds: [], batchIds: [] };
@@ -29,10 +28,6 @@ run('Courses + Batches (e2e)', () => {
     prisma = new PrismaClient({ datasourceUrl: TEST_DB });
     const org = await prisma.organization.findUniqueOrThrow({ where: { slug: 'futurecorp-demo' } });
     orgId = org.id;
-    const student = await prisma.user.findUniqueOrThrow({
-      where: { email: 'student@futurecorpacademy.in' },
-    });
-    studentId = student.id;
 
     const { AppModule } = await import('../src/app.module');
     const { AllExceptionsFilter } = await import('../src/common/filters/all-exceptions.filter');
@@ -111,10 +106,11 @@ run('Courses + Batches (e2e)', () => {
     const batchId = batchRes.body.id as string;
     created.batchIds.push(batchId);
 
+    // Add the student by EMAIL (exercises the resolve-by-email path).
     await request(app.getHttpServer())
       .post(`/api/v1/batches/${batchId}/students`)
       .set(auth(adminToken))
-      .send({ userId: studentId })
+      .send({ email: 'student@futurecorpacademy.in' })
       .expect(201);
 
     // Student sees the enrollment
@@ -127,6 +123,14 @@ run('Courses + Batches (e2e)', () => {
     );
     expect(match).toBeTruthy();
     expect(match?.progress).toBeTruthy();
+  });
+
+  it('returns the org via /me/organizations for the admin', async () => {
+    const res = await request(app.getHttpServer())
+      .get('/api/v1/me/organizations')
+      .set(auth(adminToken))
+      .expect(200);
+    expect((res.body as Array<{ id: string }>).some((o) => o.id === orgId)).toBe(true);
   });
 
   it('forbids a student from creating a course (403)', async () => {

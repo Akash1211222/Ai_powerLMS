@@ -16,6 +16,17 @@ import { PrismaService } from '../prisma/prisma.service';
 export class MeController {
   constructor(private readonly prisma: PrismaService) {}
 
+  @Get('organizations')
+  @ApiOperation({ summary: 'Organizations the current user belongs to' })
+  async organizations(@CurrentUser() user: AuthUser) {
+    const memberships = await this.prisma.organizationMember.findMany({
+      where: { userId: user.userId },
+      include: { organization: { select: { id: true, name: true, slug: true, type: true } } },
+      orderBy: { isPrimary: 'desc' },
+    });
+    return memberships.map((m) => ({ ...m.organization, isPrimary: m.isPrimary }));
+  }
+
   @Get('enrollments')
   @ApiOperation({ summary: "The current user's course enrollments with progress" })
   enrollments(@CurrentUser() user: AuthUser) {
