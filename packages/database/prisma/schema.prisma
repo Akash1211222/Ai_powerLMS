@@ -64,6 +64,10 @@ model User {
   submissions         AssignmentSubmission[] @relation("SubmissionStudent")
   evaluationReviews   AssignmentEvaluation[] @relation("EvaluationReviewer")
 
+  // Assessments (Phase 1)
+  assessmentsCreated Assessment[]        @relation("AssessmentCreator")
+  assessmentAttempts AssessmentAttempt[] @relation("AttemptStudent")
+
   @@index([status])
   @@index([deletedAt])
   @@map("users")
@@ -522,6 +526,7 @@ model Batch {
   enrollments   Enrollment[]
   attendanceSessions AttendanceSession[]
   assignments        Assignment[]
+  assessments        Assessment[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -878,4 +883,148 @@ model AIJob {
   @@index([type, status])
   @@index([inputRef])
   @@map("ai_jobs")
+}
+
+// ===========================================================================
+// ASSESSMENTS (Phase 1) — tests/quizzes, auto-grading, topic performance (§16)
+// ===========================================================================
+
+enum QuestionType {
+  MCQ
+  MULTI_SELECT
+  TRUE_FALSE
+  SHORT_ANSWER
+  CODING
+  SQL
+  CASE_STUDY
+  FILE_TASK
+}
+
+enum AssessmentStatus {
+  DRAFT
+  PUBLISHED
+  CLOSED
+}
+
+enum AttemptStatus {
+  IN_PROGRESS
+  SUBMITTED
+  GRADED
+}
+
+model Assessment {
+  id               String               @id @default(cuid())
+  batchId          String
+  courseId         String?
+  title            String
+  description      String?
+  timeLimitMin     Int?
+  maxAttempts      Int                  @default(1)
+  shuffleQuestions Boolean              @default(false)
+  passingScore     Int?
+  dueAt            DateTime?
+  status           AssessmentStatus     @default(DRAFT)
+  createdById      String
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  batch     Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdBy User                @relation("AssessmentCreator", fields: [createdById], references: [id])
+  questions Question[]
+  attempts  AssessmentAttempt[]
+
+  @@index([batchId, status])
+  @@map("assessments")
+}
+
+model Question {
+  id           String               @id @default(cuid())
+  assessmentId String
+  type         QuestionType
+  prompt       String
+  topic        String? // topic tag -> topic-level performance (§16)
+  skillTag     String? // links to the skill matrix (Phase 2)
+  difficulty   AssignmentDifficulty @default(MEDIUM)
+  points       Int                  @default(1)
+  order        Int                  @default(0)
+  correctText  String? // for auto-graded SHORT_ANSWER (exact/normalized match)
+  explanation  String?
+
+  assessment Assessment       @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  options    QuestionOption[]
+  answers    AttemptAnswer[]
+
+  @@index([assessmentId])
+  @@map("questions")
+}
+
+model QuestionOption {
+  id         String  @id @default(cuid())
+  questionId String
+  text       String
+  isCorrect  Boolean @default(false)
+  order      Int     @default(0)
+
+  question Question @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@index([questionId])
+  @@map("question_options")
+}
+
+model AssessmentAttempt {
+  id            String        @id @default(cuid())
+  assessmentId  String
+  studentId     String
+  attemptNumber Int           @default(1)
+  status        AttemptStatus @default(IN_PROGRESS)
+  score         Int?
+  maxScore      Int?
+  percent       Int?
+  startedAt     DateTime      @default(now())
+  submittedAt   DateTime?
+  gradedAt      DateTime?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  assessment      Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student         User              @relation("AttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  answers         AttemptAnswer[]
+  topicPerformance TopicPerformance[]
+
+  @@unique([assessmentId, studentId, attemptNumber])
+  @@index([studentId])
+  @@map("assessment_attempts")
+}
+
+model AttemptAnswer {
+  id                String   @id @default(cuid())
+  attemptId         String
+  questionId        String
+  selectedOptionIds String[] // for MCQ / MULTI_SELECT / TRUE_FALSE
+  textAnswer        String?
+  isCorrect         Boolean?
+  pointsAwarded     Int?
+  needsReview       Boolean  @default(false)
+
+  attempt  AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  question Question          @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, questionId])
+  @@map("attempt_answers")
+}
+
+// Per-attempt breakdown by topic — the topic-level evidence that drives the
+// skill matrix and intervention engine in Phase 2 (§16, §17, §20).
+model TopicPerformance {
+  id        String @id @default(cuid())
+  attemptId String
+  topic     String
+  correct   Int
+  total     Int
+  percent   Int
+
+  attempt AssessmentAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+
+  @@unique([attemptId, topic])
+  @@map("topic_performance")
 }

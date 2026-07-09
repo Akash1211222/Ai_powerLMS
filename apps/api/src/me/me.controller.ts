@@ -5,6 +5,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignmentsService } from '../assignments/assignments.service';
+import { AssessmentsService } from '../assessments/assessments.service';
 
 /**
  * Authenticated self-service endpoints. No special permission required — a user
@@ -18,7 +19,20 @@ export class MeController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly assignments: AssignmentsService,
+    private readonly assessments: AssessmentsService,
   ) {}
+
+  @Get('assessments')
+  @ApiOperation({ summary: "The current student's published assessments + latest attempt" })
+  myAssessments(@CurrentUser() user: AuthUser) {
+    return this.assessments.listMine(user.userId);
+  }
+
+  @Get('assessments/attempts/:id')
+  @ApiOperation({ summary: 'Own attempt result with topic breakdown' })
+  myAttempt(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.assessments.getMyAttempt(user.userId, id);
+  }
 
   @Get('assignments')
   @ApiOperation({ summary: "The current student's assignments (with own latest submission)" })
