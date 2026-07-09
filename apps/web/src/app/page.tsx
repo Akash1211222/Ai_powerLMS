@@ -1,3 +1,7 @@
+'use client';
+
+import Link from 'next/link';
+
 /**
  * Foundation landing page. This is intentionally NOT a mock dashboard — it is a
  * real status page for the platform foundation. Data-backed dashboards (student,
@@ -37,6 +41,20 @@ export default function HomePage() {
             </svg>
           </div>
           <span className="text-2xl font-extrabold tracking-tight">FutureCorp Academy</span>
+          <div className="ml-auto flex gap-2">
+            <Link
+              href="/login"
+              className="rounded-panel px-4 py-2 text-sm font-semibold text-ink transition hover:bg-soft"
+            >
+              Sign in
+            </Link>
+            <Link
+              href="/register"
+              className="rounded-panel bg-brand-500 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-600"
+            >
+              Get started
+            </Link>
+          </div>
         </div>
 
         <h1 className="mt-8 text-3xl font-extrabold tracking-tight">
