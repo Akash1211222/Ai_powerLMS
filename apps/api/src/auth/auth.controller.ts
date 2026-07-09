@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Get,
-  HttpCode,
-  HttpStatus,
-  Post,
-  UseGuards,
-  UsePipes,
-} from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { ReqContext } from '../common/decorators/request-context.decorator';
@@ -44,56 +35,64 @@ export class AuthController {
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new account (starts email verification)' })
-  @UsePipes(new ZodValidationPipe(registerSchema))
-  register(@Body() dto: RegisterDto, @ReqContext() ctx: RequestContext) {
+  register(
+    @Body(new ZodValidationPipe(registerSchema)) dto: RegisterDto,
+    @ReqContext() ctx: RequestContext,
+  ) {
     return this.auth.register(dto, ctx);
   }
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verify email using the emailed token' })
-  @UsePipes(new ZodValidationPipe(verifyEmailSchema))
-  verifyEmail(@Body() dto: VerifyEmailDto) {
+  verifyEmail(@Body(new ZodValidationPipe(verifyEmailSchema)) dto: VerifyEmailDto) {
     return this.auth.verifyEmail(dto.token);
   }
 
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email + password' })
-  @UsePipes(new ZodValidationPipe(loginSchema))
-  login(@Body() dto: LoginDto, @ReqContext() ctx: RequestContext) {
+  login(
+    @Body(new ZodValidationPipe(loginSchema)) dto: LoginDto,
+    @ReqContext() ctx: RequestContext,
+  ) {
     return this.auth.login(dto, ctx);
   }
 
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Exchange a refresh token for a new token pair (rotates)' })
-  @UsePipes(new ZodValidationPipe(refreshSchema))
-  refresh(@Body() dto: RefreshDto, @ReqContext() ctx: RequestContext) {
+  refresh(
+    @Body(new ZodValidationPipe(refreshSchema)) dto: RefreshDto,
+    @ReqContext() ctx: RequestContext,
+  ) {
     return this.auth.refresh(dto, ctx);
   }
 
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Revoke the current session (or all sessions)' })
-  @UsePipes(new ZodValidationPipe(logoutSchema))
-  logout(@Body() dto: LogoutDto, @ReqContext() ctx: RequestContext) {
+  logout(
+    @Body(new ZodValidationPipe(logoutSchema)) dto: LogoutDto,
+    @ReqContext() ctx: RequestContext,
+  ) {
     return this.auth.logout(dto, ctx);
   }
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request a password reset link (always succeeds)' })
-  @UsePipes(new ZodValidationPipe(forgotPasswordSchema))
-  forgotPassword(@Body() dto: ForgotPasswordDto, @ReqContext() ctx: RequestContext) {
+  forgotPassword(
+    @Body(new ZodValidationPipe(forgotPasswordSchema)) dto: ForgotPasswordDto,
+    @ReqContext() ctx: RequestContext,
+  ) {
     return this.auth.forgotPassword(dto.email, ctx);
   }
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset password using the emailed token' })
-  @UsePipes(new ZodValidationPipe(resetPasswordSchema))
-  resetPassword(@Body() dto: ResetPasswordDto) {
+  resetPassword(@Body(new ZodValidationPipe(resetPasswordSchema)) dto: ResetPasswordDto) {
     return this.auth.resetPassword(dto.token, dto.password);
   }
 
