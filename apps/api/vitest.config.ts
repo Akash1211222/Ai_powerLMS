@@ -10,6 +10,9 @@ export default defineConfig({
     // Process isolation (forks) avoids a worker-thread module-corruption bug
     // ("SemVer is not a constructor") when several files import Nest/semver.
     pool: 'forks',
+    // e2e files share one seeded database + accounts, so run files one at a
+    // time — parallel files would race on shared rows (e.g. student notifications).
+    fileParallelism: false,
     // Booting the full Nest graph (DI/e2e) needs more than the 5s default.
     testTimeout: 30000,
     hookTimeout: 30000,
