@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
 import { NotificationService } from '../notifications/notification.service';
+import { SkillsService } from '../skills/skills.service';
 import { assertOrgAccess } from '../common/tenant';
 import { gradeAttempt, type GradableQuestion } from './grading';
 import type { CreateAssessmentDto, SubmitAttemptDto } from './dto/assessment.schemas';
@@ -21,6 +22,7 @@ export class AssessmentsService {
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
     private readonly notifications: NotificationService,
+    private readonly skills: SkillsService,
   ) {}
 
   private async loadOwnedBatch(userId: string, batchId: string) {
@@ -263,6 +265,10 @@ export class AssessmentsService {
       targetId: attemptId,
       metadata: { percent: result.percent, needsReview: result.needsReview },
     });
+
+    // Topic-level performance now exists → refresh the student's skill profile
+    // (§16 → §20). Best-effort; never blocks the submission response.
+    await this.skills.recomputeSafe(userId);
 
     return {
       attemptId,

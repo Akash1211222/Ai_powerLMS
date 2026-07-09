@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@fca/ai": "workspace:*",
+    "@fca/analytics": "workspace:*",
     "@fca/database": "workspace:*",
     "@fca/shared": "workspace:*",
     "@nestjs/common": "10.4.15",

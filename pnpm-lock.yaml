@@ -23,6 +23,9 @@ importers:
       '@fca/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@fca/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
       '@fca/database':
         specifier: workspace:*
         version: link:../../packages/database
@@ -218,6 +221,31 @@ importers:
       zod:
         specifier: 3.24.1
         version: 3.24.1
+    devDependencies:
+      '@fca/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/node':
+        specifier: 22.10.2
+        version: 22.10.2
+      eslint:
+        specifier: 8.57.1
+        version: 8.57.1
+      typescript:
+        specifier: 5.6.3
+        version: 5.6.3
+      vitest:
+        specifier: 2.1.8
+        version: 2.1.8(@types/node@22.10.2)(terser@5.49.0)
+
+  packages/analytics:
+    dependencies:
+      '@fca/database':
+        specifier: workspace:*
+        version: link:../database
+      '@fca/shared':
+        specifier: workspace:*
+        version: link:../shared
     devDependencies:
       '@fca/config':
         specifier: workspace:*

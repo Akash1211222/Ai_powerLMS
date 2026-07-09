@@ -35,6 +35,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/dashboard', label: 'Dashboard', show: true },
     { href: '/courses', label: 'Courses', show: can('course:view') },
     { href: '/batches', label: 'Batches', show: can('batch:view') },
+    { href: '/skills', label: 'Skills', show: true },
     { href: '/calendar', label: 'Calendar', show: true },
   ].filter((n) => n.show);
 

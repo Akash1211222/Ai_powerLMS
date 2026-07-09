@@ -10,6 +10,7 @@
  */
 import { PrismaClient, type Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
+import { skillSlug } from '@fca/shared';
 
 const prisma = new PrismaClient();
 const PASSWORD = 'Password123!';
@@ -115,6 +116,11 @@ async function main() {
 
   const passwordHash = await argon2.hash(PASSWORD, { type: argon2.argon2id });
   const roles = new Map((await prisma.role.findMany()).map((r) => [r.name, r]));
+
+  // Skill lookup for course→skill mapping. The taxonomy itself is seeded by the
+  // API on boot (SkillsService.onModuleInit); student skill scores are computed
+  // by POST /api/v1/admin/skills/recompute-all after seeding.
+  const skillIdBySlug = new Map((await prisma.skill.findMany()).map((s) => [s.slug, s.id]));
   const roleId = (name: string) => roles.get(name)!.id;
 
   // --- Organizations ------------------------------------------------------
@@ -234,6 +240,18 @@ async function main() {
     });
     const lessonIds = course.modules.flatMap((m) => m.lessons.map((l) => l.id));
     courseBySlug.set(c.slug, { id: course.id, org: c.org, topics: c.topics, lessonIds });
+
+    // Map the course's topics onto the skill taxonomy (§20).
+    for (const topic of c.topics) {
+      const skillId = skillIdBySlug.get(skillSlug(topic));
+      if (skillId) {
+        await prisma.courseSkill.upsert({
+          where: { courseId_skillId: { courseId: course.id, skillId } },
+          update: {},
+          create: { courseId: course.id, skillId },
+        });
+      }
+    }
   }
 
   // --- Batches: one per course; assign trainer + students -----------------
@@ -344,7 +362,7 @@ async function main() {
       include: { criteria: true },
     });
     for (const s of cohort) {
-      if (Math.random() < 0.65) {
+      if (Math.random() < 0.8 || s.email === 'student@futurecorpacademy.in') {
         const submission = await prisma.assignmentSubmission.create({
           data: {
             assignmentId: assignment.id,
@@ -423,7 +441,8 @@ async function main() {
       include: { questions: true },
     });
     for (const s of cohort) {
-      if (Math.random() < 0.6) {
+      // Most students attempt; always give the reused seed account data.
+      if (Math.random() < 0.85 || s.email === 'student@futurecorpacademy.in') {
         // Simulate a graded attempt with per-topic performance.
         const perTopic = new Map<string, { correct: number; total: number }>();
         let score = 0;

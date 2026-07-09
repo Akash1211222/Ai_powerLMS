@@ -73,6 +73,9 @@ model User {
   notificationPreference NotificationPreference?
   calendarEvents         CalendarEvent[]         @relation("CalendarOwner")
 
+  // Intelligence (Phase 2)
+  studentSkills StudentSkill[]
+
   @@index([status])
   @@index([deletedAt])
   @@map("users")
@@ -365,6 +368,7 @@ model Course {
   modules      CourseModule[]
   enrollments  Enrollment[]
   batches      Batch[]
+  courseSkills CourseSkill[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -1154,4 +1158,96 @@ model CalendarEvent {
   @@index([userId, startsAt])
   @@index([batchId, startsAt])
   @@map("calendar_events")
+}
+
+// ===========================================================================
+// SKILLS (Phase 2) — hierarchical skill matrix + per-student profile (§20)
+// ===========================================================================
+
+model SkillCategory {
+  id     String @id @default(cuid())
+  name   String
+  slug   String @unique
+  order  Int    @default(0)
+
+  skills Skill[]
+
+  @@map("skill_categories")
+}
+
+model Skill {
+  id          String  @id @default(cuid())
+  categoryId  String
+  parentId    String? // optional hierarchy (e.g. Pandas -> DataFrame)
+  name        String
+  slug        String  @unique
+  description String?
+
+  category     SkillCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  parent       Skill?        @relation("SkillHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children     Skill[]       @relation("SkillHierarchy")
+  courseSkills CourseSkill[]
+  studentSkills StudentSkill[]
+
+  @@index([categoryId])
+  @@map("skills")
+}
+
+// Which skills a course teaches (§20).
+model CourseSkill {
+  courseId String
+  skillId  String
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  skill  Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, skillId])
+  @@index([skillId])
+  @@map("course_skills")
+}
+
+enum SkillTrend {
+  NEW
+  UP
+  FLAT
+  DOWN
+}
+
+// A student's mastery of one skill — computed by app logic from evidence (§17).
+model StudentSkill {
+  id             String     @id @default(cuid())
+  userId         String
+  skillId        String
+  score          Int        @default(0) // 0..100
+  confidence     Float      @default(0) // 0..1, grows with evidence
+  evidenceCount  Int        @default(0)
+  trend          SkillTrend @default(NEW)
+  calcVersion    Int        @default(1)
+  lastEvaluatedAt DateTime  @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  user     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill    Skill                  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  evidence StudentSkillEvidence[]
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@map("student_skills")
+}
+
+// The raw evidence behind a StudentSkill score — explainable (§9, §17).
+model StudentSkillEvidence {
+  id             String   @id @default(cuid())
+  studentSkillId String
+  sourceType     String   // e.g. "ASSESSMENT"
+  sourceId       String
+  topic          String?
+  correct        Int
+  total          Int
+  createdAt      DateTime @default(now())
+
+  studentSkill StudentSkill @relation(fields: [studentSkillId], references: [id], onDelete: Cascade)
+
+  @@index([studentSkillId])
+  @@map("student_skill_evidence")
 }

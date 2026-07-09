@@ -71,8 +71,8 @@ jobs:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build workspace libraries (shared + database + ai dist, prisma client)
-        run: pnpm --filter @fca/shared build && pnpm --filter @fca/database build && pnpm --filter @fca/ai build
+      - name: Build workspace libraries (shared + database + ai + analytics dist, prisma client)
+        run: pnpm --filter @fca/shared build && pnpm --filter @fca/database build && pnpm --filter @fca/ai build && pnpm --filter @fca/analytics build
       - name: Apply migrations
         run: pnpm db:migrate:deploy
       - name: Seed development data
