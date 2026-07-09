@@ -9,6 +9,9 @@ import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
 import { AuthzModule } from './authz/authz.module';
 import { AdminModule } from './admin/admin.module';
+import { CoursesModule } from './courses/courses.module';
+import { BatchesModule } from './batches/batches.module';
+import { MeModule } from './me/me.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -25,6 +28,9 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     AuthModule,
     AuthzModule,
     AdminModule,
+    CoursesModule,
+    BatchesModule,
+    MeModule,
   ],
 })
 export class AppModule implements NestModule {

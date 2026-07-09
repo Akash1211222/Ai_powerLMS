@@ -43,6 +43,15 @@ model User {
   passwordResets    PasswordResetToken[]
   auditLogs         AuditLog[]               @relation("AuditActor")
 
+  // Academics / batches (Phase 1)
+  coursesCreated     Course[]            @relation("CourseCreator")
+  enrollments        Enrollment[]
+  lessonProgress     LessonProgress[]
+  batchesCreated     Batch[]             @relation("BatchCreator")
+  batchStudentships  BatchStudent[]
+  batchTrainerships  BatchTrainer[]
+  batchAnnouncements BatchAnnouncement[] @relation("AnnouncementAuthor")
+
   @@index([status])
   @@index([deletedAt])
   @@map("users")
@@ -211,6 +220,11 @@ model Organization {
   userRoles UserRole[]
   auditLogs AuditLog[]
 
+  // Academics / batches (Phase 1)
+  programs Program[]
+  courses  Course[]
+  batches  Batch[]
+
   @@map("organizations")
 }
 
@@ -273,4 +287,301 @@ model SystemSetting {
   updatedAt DateTime @updatedAt
 
   @@map("system_settings")
+}
+
+// ===========================================================================
+// ACADEMICS (Phase 1) — programs, courses, modules, lessons, enrollment
+// ===========================================================================
+
+enum CourseLevel {
+  BEGINNER
+  INTERMEDIATE
+  ADVANCED
+}
+
+enum CourseStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Program {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  slug           String
+  description    String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  courses      Course[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@map("programs")
+}
+
+model Course {
+  id             String       @id @default(cuid())
+  organizationId String
+  programId      String?
+  title          String
+  slug           String
+  summary        String?
+  description    String?
+  thumbnailUrl   String?
+  level          CourseLevel  @default(BEGINNER)
+  status         CourseStatus @default(DRAFT)
+  createdById    String
+  publishedAt    DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  program      Program?     @relation(fields: [programId], references: [id], onDelete: SetNull)
+  createdBy    User         @relation("CourseCreator", fields: [createdById], references: [id])
+  modules      CourseModule[]
+  enrollments  Enrollment[]
+  batches      Batch[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId, status])
+  @@index([programId])
+  @@map("courses")
+}
+
+model CourseModule {
+  id        String   @id @default(cuid())
+  courseId  String
+  title     String
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  course  Course   @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  lessons Lesson[]
+
+  @@index([courseId])
+  @@map("course_modules")
+}
+
+enum LessonType {
+  VIDEO
+  READING
+  QUIZ
+  ASSIGNMENT
+}
+
+model Lesson {
+  id           String     @id @default(cuid())
+  moduleId     String
+  title        String
+  order        Int        @default(0)
+  type         LessonType @default(VIDEO)
+  contentUrl   String?
+  body         String?
+  durationSec  Int?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+
+  module    CourseModule       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+  resources LearningResource[]
+  progress  LessonProgress[]
+
+  @@index([moduleId])
+  @@map("lessons")
+}
+
+model LearningResource {
+  id        String   @id @default(cuid())
+  lessonId  String
+  title     String
+  url       String
+  kind      String   @default("file")
+  createdAt DateTime @default(now())
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+
+  @@index([lessonId])
+  @@map("learning_resources")
+}
+
+enum EnrollmentStatus {
+  ACTIVE
+  COMPLETED
+  DROPPED
+}
+
+model Enrollment {
+  id         String           @id @default(cuid())
+  userId     String
+  courseId   String
+  batchId    String?
+  status     EnrollmentStatus @default(ACTIVE)
+  enrolledAt DateTime         @default(now())
+  completedAt DateTime?
+  createdAt  DateTime         @default(now())
+  updatedAt  DateTime         @updatedAt
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch    Batch?         @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  progress CourseProgress?
+
+  @@unique([userId, courseId])
+  @@index([courseId, status])
+  @@index([batchId])
+  @@map("enrollments")
+}
+
+model CourseProgress {
+  id              String   @id @default(cuid())
+  enrollmentId    String   @unique
+  completedLessons Int     @default(0)
+  totalLessons    Int      @default(0)
+  percent         Int      @default(0)
+  lastActivityAt  DateTime?
+  updatedAt       DateTime @updatedAt
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  @@map("course_progress")
+}
+
+enum LessonProgressStatus {
+  NOT_STARTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+model LessonProgress {
+  id            String               @id @default(cuid())
+  enrollmentId  String
+  lessonId      String
+  userId        String
+  status        LessonProgressStatus @default(NOT_STARTED)
+  lastPositionSec Int                @default(0)
+  watchedSec    Int                  @default(0)
+  completedAt   DateTime?
+  updatedAt     DateTime             @updatedAt
+
+  lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([enrollmentId, lessonId])
+  @@index([userId])
+  @@index([lessonId])
+  @@map("lesson_progress")
+}
+
+// ===========================================================================
+// BATCHES (Phase 1) — cohorts, membership, schedule, announcements
+// ===========================================================================
+
+enum BatchStatus {
+  PLANNED
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+model Batch {
+  id             String      @id @default(cuid())
+  organizationId String
+  courseId       String
+  name           String
+  code           String
+  status         BatchStatus @default(PLANNED)
+  capacity       Int?
+  startDate      DateTime?
+  endDate        DateTime?
+  createdById    String
+  createdAt      DateTime    @default(now())
+  updatedAt      DateTime    @updatedAt
+
+  organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course        Course              @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  createdBy     User                @relation("BatchCreator", fields: [createdById], references: [id])
+  students      BatchStudent[]
+  trainers      BatchTrainer[]
+  schedules     BatchSchedule[]
+  announcements BatchAnnouncement[]
+  enrollments   Enrollment[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status])
+  @@index([courseId])
+  @@map("batches")
+}
+
+enum BatchStudentStatus {
+  ACTIVE
+  REMOVED
+  COMPLETED
+}
+
+model BatchStudent {
+  id        String             @id @default(cuid())
+  batchId   String
+  userId    String
+  status    BatchStudentStatus @default(ACTIVE)
+  joinedAt  DateTime           @default(now())
+
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, userId])
+  @@index([userId])
+  @@map("batch_students")
+}
+
+enum BatchTrainerRole {
+  LEAD
+  ASSISTANT
+}
+
+model BatchTrainer {
+  id        String           @id @default(cuid())
+  batchId   String
+  userId    String
+  role      BatchTrainerRole @default(LEAD)
+  createdAt DateTime         @default(now())
+
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([batchId, userId])
+  @@index([userId])
+  @@map("batch_trainers")
+}
+
+model BatchSchedule {
+  id        String   @id @default(cuid())
+  batchId   String
+  title     String
+  startsAt  DateTime
+  endsAt    DateTime
+  location  String?
+  createdAt DateTime @default(now())
+
+  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+
+  @@index([batchId, startsAt])
+  @@map("batch_schedules")
+}
+
+model BatchAnnouncement {
+  id        String   @id @default(cuid())
+  batchId   String
+  authorId  String
+  title     String
+  body      String
+  createdAt DateTime @default(now())
+
+  batch  Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  author User  @relation("AnnouncementAuthor", fields: [authorId], references: [id])
+
+  @@index([batchId, createdAt])
+  @@map("batch_announcements")
 }
