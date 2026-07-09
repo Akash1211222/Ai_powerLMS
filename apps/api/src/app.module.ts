@@ -1,9 +1,13 @@
-import { Module } from '@nestjs/common';
+import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
 import { HealthModule } from './health/health.module';
+import { AuditModule } from './audit/audit.module';
+import { MailModule } from './mail/mail.module';
+import { AuthModule } from './auth/auth.module';
+import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
   imports: [
@@ -13,8 +17,15 @@ import { HealthModule } from './health/health.module';
     }),
     PrismaModule,
     RedisModule,
+    AuditModule,
+    MailModule,
     HealthModule,
-    // Auth & RBAC modules are added in milestones M0.3 / M0.4.
+    AuthModule,
+    // Authorization (permissions) guards are added in milestone M0.4.
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer): void {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}
