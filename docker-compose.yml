@@ -1,0 +1,68 @@
+# Local development infrastructure for FutureCorp Academy.
+# App code (api/web/worker) runs on the host via `pnpm dev`; this file
+# provides the backing services only. Production uses managed equivalents.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: fca-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: fca
+      POSTGRES_PASSWORD: fca_dev_password
+      POSTGRES_DB: fca
+    ports:
+      - '5432:5432'
+    volumes:
+      - fca_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U fca -d fca']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: fca-redis
+    restart: unless-stopped
+    command: ['redis-server', '--appendonly', 'yes']
+    ports:
+      - '6379:6379'
+    volumes:
+      - fca_redisdata:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    image: minio/minio:latest
+    container_name: fca-minio
+    restart: unless-stopped
+    command: ['server', '/data', '--console-address', ':9001']
+    environment:
+      MINIO_ROOT_USER: fca_minio
+      MINIO_ROOT_PASSWORD: fca_minio_dev_password
+    ports:
+      - '9000:9000' # S3 API
+      - '9001:9001' # Web console
+    volumes:
+      - fca_miniodata:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: fca-mailhog
+    restart: unless-stopped
+    ports:
+      - '1025:1025' # SMTP
+      - '8025:8025' # Web UI
+
+volumes:
+  fca_pgdata:
+  fca_redisdata:
+  fca_miniodata:

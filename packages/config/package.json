@@ -1,0 +1,24 @@
+{
+  "name": "@fca/config",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "files": ["eslint", "tailwind", "tsconfig"],
+  "exports": {
+    "./eslint/node": "./eslint/node.cjs",
+    "./eslint/next": "./eslint/next.cjs",
+    "./tailwind/preset": "./tailwind/preset.cjs"
+  },
+  "scripts": {
+    "lint": "echo \"@fca/config: no lint\"",
+    "typecheck": "echo \"@fca/config: no typecheck\"",
+    "test": "echo \"@fca/config: no tests\" ",
+    "clean": "echo \"@fca/config: nothing to clean\""
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "8.18.1",
+    "@typescript-eslint/parser": "8.18.1",
+    "eslint": "8.57.1",
+    "eslint-config-prettier": "9.1.0"
+  }
+}

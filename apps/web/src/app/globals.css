@@ -1,0 +1,51 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Theme surface tokens — the light/dark values reverse-engineered from the
+ * approved design mockups (_design_src). The Tailwind preset maps
+ * bg/panel/card/ink/... to these variables. `.dark` on <html> flips them,
+ * preserving the mockups' theme-toggle behavior.
+ */
+:root {
+  --fca-bg: #f4f2fb;
+  --fca-panel: #ffffff;
+  --fca-card: #ffffff;
+  --fca-chip: #f3f0fd;
+  --fca-soft: #ece9f5;
+  --fca-ink: #1b1630;
+  --fca-faint: #8a83a8;
+  --fca-hair: #ece9f5;
+  --fca-track: #efecf8;
+}
+
+.dark {
+  --fca-bg: #0e0b1a;
+  --fca-panel: #1a1430;
+  --fca-card: #1b1630;
+  --fca-chip: #241b3f;
+  --fca-soft: #201a37;
+  --fca-ink: #f4f2fb;
+  --fca-faint: #9a94ac;
+  --fca-hair: #2a2247;
+  --fca-track: #241b3f;
+}
+
+html,
+body {
+  padding: 0;
+  margin: 0;
+}
+
+body {
+  background: var(--fca-bg);
+  color: var(--fca-ink);
+  transition:
+    background 0.35s,
+    color 0.35s;
+}
+
+* {
+  box-sizing: border-box;
+}

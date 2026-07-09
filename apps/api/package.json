@@ -1,0 +1,45 @@
+{
+  "name": "@fca/api",
+  "version": "0.1.0",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "build": "nest build",
+    "dev": "nest start --watch",
+    "start": "node dist/main.js",
+    "start:prod": "node dist/main.js",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "lint": "eslint \"src/**/*.ts\"",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "clean": "rm -rf dist .turbo *.tsbuildinfo"
+  },
+  "dependencies": {
+    "@fca/database": "workspace:*",
+    "@fca/shared": "workspace:*",
+    "@nestjs/common": "10.4.15",
+    "@nestjs/config": "3.3.0",
+    "@nestjs/core": "10.4.15",
+    "@nestjs/platform-express": "10.4.15",
+    "@nestjs/swagger": "8.1.0",
+    "@nestjs/terminus": "10.2.3",
+    "helmet": "8.0.0",
+    "ioredis": "5.4.2",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.1",
+    "zod": "3.24.1"
+  },
+  "devDependencies": {
+    "@fca/config": "workspace:*",
+    "@nestjs/cli": "10.4.9",
+    "@nestjs/testing": "10.4.15",
+    "@types/express": "5.0.0",
+    "@types/node": "22.10.2",
+    "@types/supertest": "6.0.2",
+    "eslint": "8.57.1",
+    "supertest": "7.0.0",
+    "typescript": "5.6.3",
+    "unplugin-swc": "1.5.1",
+    "vitest": "2.1.8"
+  }
+}
