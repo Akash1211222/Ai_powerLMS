@@ -8,6 +8,9 @@
  */
 export const SKILL_CALC_VERSION = 1;
 
+/** Version of the student performance-scoring model (§17). */
+export const SCORE_CALC_VERSION = 1;
+
 export interface SkillCategoryDef {
   name: string;
   skills: string[];

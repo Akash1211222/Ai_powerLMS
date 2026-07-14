@@ -10,6 +10,7 @@ import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
 import { QueueService } from '../queue/queue.service';
 import { NotificationService } from '../notifications/notification.service';
+import { ScoresService } from '../skills/scores.service';
 import { assertOrgAccess } from '../common/tenant';
 import type {
   CreateAssignmentDto,
@@ -25,6 +26,7 @@ export class AssignmentsService {
     private readonly userContext: UserContextService,
     private readonly queue: QueueService,
     private readonly notifications: NotificationService,
+    private readonly scores: ScoresService,
   ) {}
 
   private async batchStudentIds(batchId: string): Promise<string[]> {
@@ -296,6 +298,8 @@ export class AssignmentsService {
         body: `Your submission for "${submission.assignment.title}" was graded: ${trainerScore}/${maxScore}.`,
         deepLink: `/assignments/${submission.assignmentId}`,
       });
+      // Released grade changes performance → refresh composite scores (§17).
+      await this.scores.recomputeSafe(submission.studentId);
     }
     return evaluation;
   }

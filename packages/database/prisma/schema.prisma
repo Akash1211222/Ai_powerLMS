@@ -75,6 +75,7 @@ model User {
 
   // Intelligence (Phase 2)
   studentSkills StudentSkill[]
+  score         StudentScore?
 
   @@index([status])
   @@index([deletedAt])
@@ -1250,4 +1251,29 @@ model StudentSkillEvidence {
 
   @@index([studentSkillId])
   @@map("student_skill_evidence")
+}
+
+// ===========================================================================
+// PERFORMANCE SCORING (Phase 2) — deterministic, explainable scores (§17)
+// ===========================================================================
+
+// Current composite scores for a student. `components` stores the inputs and
+// sub-scores so every number is explainable; calcVersion tracks the model.
+model StudentScore {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  performanceScore  Int      @default(0)
+  engagementScore   Int      @default(0)
+  consistencyScore  Int      @default(0)
+  skillMasteryScore Int      @default(0)
+  overallScore      Int      @default(0)
+  components        Json?
+  calcVersion       Int      @default(1)
+  computedAt        DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([overallScore])
+  @@map("student_scores")
 }

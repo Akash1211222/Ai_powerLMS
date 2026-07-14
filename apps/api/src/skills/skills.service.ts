@@ -1,5 +1,5 @@
 import { Injectable, ForbiddenException, type OnModuleInit, Logger } from '@nestjs/common';
-import { ensureSkillTaxonomy, recomputeStudentSkills } from '@fca/analytics';
+import { ensureSkillTaxonomy, recomputeStudentSkills, computeAndStoreStudentScore } from '@fca/analytics';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../authz/user-context.service';
 import { isMemberOf } from '../authz/principal';
@@ -102,6 +102,7 @@ export class SkillsService implements OnModuleInit {
     let updated = 0;
     for (const s of students) {
       const res = await recomputeStudentSkills(this.prisma, s.studentId);
+      await computeAndStoreStudentScore(this.prisma, s.studentId);
       if (res.updated > 0) updated++;
     }
     return { students: updated };

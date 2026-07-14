@@ -7,6 +7,7 @@ import { dashboardApi } from '@/lib/dashboard-api';
 import { formatTime, formatDate } from '@/lib/format';
 import { StatTile, ProgressBar, ProgressRing } from './stat-tile';
 import { IconBook, IconCheck, IconTrophy, IconCalendar } from './icons';
+import { PerformanceCard } from './performance-card';
 
 export function StudentDashboard({ firstName }: { firstName: string }) {
   const q = useQuery({ queryKey: ['dashboard', 'student'], queryFn: dashboardApi.student });
@@ -103,6 +104,8 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
             {d.stats.upcomingSessions} upcoming session{d.stats.upcomingSessions === 1 ? '' : 's'}
           </div>
         </Card>
+
+        <PerformanceCard />
 
         <div>
           <div className="mb-3 flex items-center gap-2">

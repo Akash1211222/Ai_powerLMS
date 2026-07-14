@@ -7,13 +7,17 @@ import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import { SkillsService } from './skills.service';
+import { ScoresService } from './scores.service';
 
 @ApiTags('skills')
 @ApiBearerAuth()
 @Controller()
 @UseGuards(JwtAuthGuard, PermissionsGuard)
 export class SkillsController {
-  constructor(private readonly skills: SkillsService) {}
+  constructor(
+    private readonly skills: SkillsService,
+    private readonly scores: ScoresService,
+  ) {}
 
   @Get('skills')
   @ApiOperation({ summary: 'The skill taxonomy (categories + skills)' })
@@ -46,5 +50,27 @@ export class SkillsController {
   @ApiOperation({ summary: 'Recompute skill profiles for all students (ops)' })
   recomputeAll(@CurrentUser() user: AuthUser) {
     return this.skills.recomputeAll(user.userId);
+  }
+
+  // --- Performance scores (§17) -----------------------------------------
+
+  @Get('me/score')
+  @ApiOperation({ summary: "The current user's performance scores + components" })
+  myScore(@CurrentUser() user: AuthUser) {
+    return this.scores.getUserScore(user.userId);
+  }
+
+  @Get('students/:id/score')
+  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @ApiOperation({ summary: "A student's performance scores (staff)" })
+  studentScore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.scores.getStudentScore(user.userId, id);
+  }
+
+  @Post('students/:id/score/recompute')
+  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @ApiOperation({ summary: "Recompute a student's performance scores" })
+  recomputeScore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.scores.recompute(user.userId, id);
   }
 }
