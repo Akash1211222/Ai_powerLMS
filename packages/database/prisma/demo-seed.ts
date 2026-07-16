@@ -302,9 +302,16 @@ async function main() {
     const queue = org === 'demo' ? demoQueue : northQueue;
     const cohort = queue.splice(0, 5);
     const totalLessons = course.lessonIds.length;
+
+    // One student per batch gets a struggling profile (absent, inactive, weak
+    // scores) so the at-risk engine has something real to detect (§18).
+    const strugglingIds = new Set<string>(cohort.length ? [cohort[cohort.length - 1]!.id] : []);
+    const isStruggling = (id: string) => strugglingIds.has(id);
+
     for (const s of cohort) {
       await prisma.batchStudent.create({ data: { batchId: batch.id, userId: s.id, status: 'ACTIVE' } });
-      const completed = randInt(1, totalLessons);
+      const struggling = isStruggling(s.id);
+      const completed = struggling ? 1 : randInt(2, totalLessons);
       const percent = Math.round((completed / totalLessons) * 100);
       const enrollment = await prisma.enrollment.create({
         data: {
@@ -312,7 +319,14 @@ async function main() {
           courseId: course.id,
           batchId: batch.id,
           status: 'ACTIVE',
-          progress: { create: { completedLessons: completed, totalLessons, percent, lastActivityAt: daysFromNow(-randInt(0, 5)) } },
+          progress: {
+            create: {
+              completedLessons: completed,
+              totalLessons,
+              percent,
+              lastActivityAt: daysFromNow(struggling ? -25 : -randInt(0, 5)),
+            },
+          },
         },
       });
       // Lesson progress rows for the completed lessons.
@@ -332,7 +346,16 @@ async function main() {
       sessionsCreated++;
       for (const s of cohort) {
         const r = Math.random();
-        const status = r < 0.78 ? 'PRESENT' : r < 0.9 ? 'LATE' : r < 0.97 ? 'ABSENT' : 'EXCUSED';
+        // Struggling students miss nearly every session (drives the risk rules).
+        const status = isStruggling(s.id)
+          ? 'ABSENT'
+          : r < 0.78
+            ? 'PRESENT'
+            : r < 0.9
+              ? 'LATE'
+              : r < 0.97
+                ? 'ABSENT'
+                : 'EXCUSED';
         await prisma.attendanceRecord.create({
           data: { sessionId: session.id, studentId: s.id, status, source: 'MANUAL', markedById: bp.trainer.id },
         });
@@ -362,7 +385,8 @@ async function main() {
       include: { criteria: true },
     });
     for (const s of cohort) {
-      if (Math.random() < 0.8 || s.email === 'student@futurecorpacademy.in') {
+      // Struggling students never submit → they show up as overdue.
+      if (!isStruggling(s.id) && (Math.random() < 0.8 || s.email === 'student@futurecorpacademy.in')) {
         const submission = await prisma.assignmentSubmission.create({
           data: {
             assignmentId: assignment.id,
@@ -450,7 +474,7 @@ async function main() {
           const t = q.topic ?? 'General';
           const agg = perTopic.get(t) ?? { correct: 0, total: 0 };
           agg.total += 1;
-          const correct = Math.random() < 0.65;
+          const correct = Math.random() < (isStruggling(s.id) ? 0.25 : 0.65);
           if (correct) {
             agg.correct += 1;
             score += q.points;
