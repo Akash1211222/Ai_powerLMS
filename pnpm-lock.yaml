@@ -181,6 +181,9 @@ importers:
       '@fca/ai':
         specifier: workspace:*
         version: link:../../packages/ai
+      '@fca/analytics':
+        specifier: workspace:*
+        version: link:../../packages/analytics
       '@fca/database':
         specifier: workspace:*
         version: link:../../packages/database

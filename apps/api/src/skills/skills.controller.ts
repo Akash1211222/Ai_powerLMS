@@ -8,6 +8,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import { SkillsService } from './skills.service';
 import { ScoresService } from './scores.service';
+import { RiskService } from './risk.service';
 
 @ApiTags('skills')
 @ApiBearerAuth()
@@ -17,6 +18,7 @@ export class SkillsController {
   constructor(
     private readonly skills: SkillsService,
     private readonly scores: ScoresService,
+    private readonly risk: RiskService,
   ) {}
 
   @Get('skills')
@@ -72,5 +74,41 @@ export class SkillsController {
   @ApiOperation({ summary: "Recompute a student's performance scores" })
   recomputeScore(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.scores.recompute(user.userId, id);
+  }
+
+  // --- At-risk detection (§18) ------------------------------------------
+
+  @Get('students/:id/risk')
+  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @ApiOperation({ summary: "A student's latest risk snapshot + history (with factors)" })
+  studentRisk(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.risk.getStudentRisk(user.userId, id);
+  }
+
+  @Post('students/:id/risk/evaluate')
+  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @ApiOperation({ summary: "Evaluate a student's risk now" })
+  evaluateRisk(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.risk.evaluate(user.userId, id);
+  }
+
+  @Get('me/at-risk')
+  @ApiOperation({ summary: "At-risk students across the caller's batches (trainer queue)" })
+  myAtRisk(@CurrentUser() user: AuthUser) {
+    return this.risk.getTrainerAtRisk(user.userId);
+  }
+
+  @Get('batches/:id/at-risk')
+  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @ApiOperation({ summary: 'At-risk students in a batch, worst first (trainer queue)' })
+  batchAtRisk(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.risk.getBatchAtRisk(user.userId, id);
+  }
+
+  @Post('admin/risk/evaluate-all')
+  @RequirePermissions(PERMISSIONS.USER_MANAGE)
+  @ApiOperation({ summary: 'Sweep every active student for risk (ops)' })
+  evaluateAllRisk(@CurrentUser() user: AuthUser) {
+    return this.risk.evaluateAll(user.userId);
   }
 }

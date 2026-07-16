@@ -8,6 +8,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
 import { NotificationService } from '../notifications/notification.service';
+import { RiskService } from '../skills/risk.service';
 import { assertOrgAccess } from '../common/tenant';
 import { computeAttendanceRate } from './attendance.calc';
 import type {
@@ -25,6 +26,7 @@ export class AttendanceService {
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
     private readonly notifications: NotificationService,
+    private readonly risk: RiskService,
   ) {}
 
   private async loadOwnedBatch(userId: string, batchId: string) {
@@ -128,6 +130,12 @@ export class AttendanceService {
       targetId: sessionId,
       metadata: { count: dto.records.length },
     });
+
+    // A missed class is the canonical risk trigger (§18, §19) — re-evaluate the
+    // students who were marked absent. Others refresh on the scheduled sweep.
+    for (const r of dto.records.filter((x) => x.status === 'ABSENT')) {
+      await this.risk.evaluateSafe(r.studentId);
+    }
     return { success: true, marked: dto.records.length };
   }
 

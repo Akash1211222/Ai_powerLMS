@@ -10,6 +10,7 @@ import { UserContextService } from '../authz/user-context.service';
 import { NotificationService } from '../notifications/notification.service';
 import { SkillsService } from '../skills/skills.service';
 import { ScoresService } from '../skills/scores.service';
+import { RiskService } from '../skills/risk.service';
 import { assertOrgAccess } from '../common/tenant';
 import { gradeAttempt, type GradableQuestion } from './grading';
 import type { CreateAssessmentDto, SubmitAttemptDto } from './dto/assessment.schemas';
@@ -25,6 +26,7 @@ export class AssessmentsService {
     private readonly notifications: NotificationService,
     private readonly skills: SkillsService,
     private readonly scores: ScoresService,
+    private readonly risk: RiskService,
   ) {}
 
   private async loadOwnedBatch(userId: string, batchId: string) {
@@ -272,6 +274,7 @@ export class AssessmentsService {
     // and composite scores (§16 → §17 → §20). Best-effort; never blocks the response.
     await this.skills.recomputeSafe(userId);
     await this.scores.recomputeSafe(userId);
+    await this.risk.evaluateSafe(userId);
 
     return {
       attemptId,

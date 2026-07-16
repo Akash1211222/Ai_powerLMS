@@ -76,6 +76,7 @@ model User {
   // Intelligence (Phase 2)
   studentSkills StudentSkill[]
   score         StudentScore?
+  riskSnapshots StudentRiskSnapshot[]
 
   @@index([status])
   @@index([deletedAt])
@@ -538,6 +539,7 @@ model Batch {
   assignments        Assignment[]
   assessments        Assessment[]
   calendarEvents     CalendarEvent[]
+  riskSnapshots      StudentRiskSnapshot[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -1276,4 +1278,40 @@ model StudentScore {
 
   @@index([overallScore])
   @@map("student_scores")
+}
+
+// ===========================================================================
+// AT-RISK DETECTION (Phase 2) — explainable risk snapshots (§18)
+// ===========================================================================
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// A point-in-time risk assessment. Snapshots are only written when the picture
+// meaningfully changes (level change or a material score move), so history
+// stays signal, not noise. `factors` holds the contributing rules + evidence so
+// nothing is an unexplained label (§9, §18).
+model StudentRiskSnapshot {
+  id                 String    @id @default(cuid())
+  userId             String
+  batchId            String?
+  level              RiskLevel
+  score              Int // 0..100, higher = more at risk
+  factors            Json // [{ code, label, detail, value, severity, weight, contribution }]
+  recommendedActions String[]
+  ruleVersion        Int       @default(1)
+  detectedAt         DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch Batch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, detectedAt])
+  @@index([batchId, level])
+  @@index([level, detectedAt])
+  @@map("student_risk_snapshots")
 }

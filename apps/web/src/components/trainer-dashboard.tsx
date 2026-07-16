@@ -6,6 +6,7 @@ import { Card, Badge, statusTone, Spinner, Alert } from '@fca/ui';
 import { dashboardApi } from '@/lib/dashboard-api';
 import { formatTime, formatDate } from '@/lib/format';
 import { StatTile, ProgressBar } from './stat-tile';
+import { AtRiskCard } from './at-risk-card';
 
 export function TrainerDashboard({ firstName }: { firstName: string }) {
   const q = useQuery({ queryKey: ['dashboard', 'trainer'], queryFn: dashboardApi.trainer });
@@ -26,6 +27,8 @@ export function TrainerDashboard({ firstName }: { firstName: string }) {
         <StatTile label="Students" value={d.stats.totalStudents} />
         <StatTile label="Avg progress" value={`${d.stats.avgProgress}%`} />
       </div>
+
+      <AtRiskCard />
 
       <div className="grid gap-4 lg:grid-cols-3">
         <div className="lg:col-span-2">
