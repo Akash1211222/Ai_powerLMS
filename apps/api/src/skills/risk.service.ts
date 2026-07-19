@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../authz/user-context.service';
 import { NotificationService } from '../notifications/notification.service';
 import { AuditService } from '../audit/audit.service';
+import { InterventionsService } from '../interventions/interventions.service';
 import { isMemberOf } from '../authz/principal';
 import { assertOrgAccess } from '../common/tenant';
 
@@ -21,6 +22,7 @@ export class RiskService {
     private readonly userContext: UserContextService,
     private readonly notifications: NotificationService,
     private readonly audit: AuditService,
+    private readonly interventions: InterventionsService,
   ) {}
 
   private async assertCanViewStudent(actorId: string, studentId: string) {
@@ -81,6 +83,9 @@ export class RiskService {
       targetId: result.userId,
       metadata: { level: result.level, score: result.score, from: result.previousLevel },
     });
+
+    // §19: escalation kicks off the automated intervention + recovery plan.
+    await this.interventions.handleEscalation(result);
 
     if (!result.batchId) return;
     const [trainers, student] = await Promise.all([

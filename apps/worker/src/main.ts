@@ -1,8 +1,13 @@
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { prisma } from '@fca/database';
-import { runSubmissionEvaluation, getProvider } from '@fca/ai';
-import { evaluateStudentRisk, recomputeStudentSkills, computeAndStoreStudentScore } from '@fca/analytics';
+import { runSubmissionEvaluation, runRecoveryPlanGeneration, getProvider } from '@fca/ai';
+import {
+  evaluateStudentRisk,
+  recomputeStudentSkills,
+  computeAndStoreStudentScore,
+  ensureInterventionForRisk,
+} from '@fca/analytics';
 
 /**
  * Worker entrypoint (§13, §15, §18, §43). Consumes background jobs. Processors
@@ -15,6 +20,7 @@ const SYSTEM_QUEUE = 'system';
 const AI_EVALUATION_QUEUE = 'ai-evaluation';
 const INTELLIGENCE_QUEUE = 'intelligence';
 const RISK_SWEEP_JOB = 'risk-sweep';
+const GENERATE_RECOVERY_PLAN_JOB = 'generate-recovery-plan';
 
 export const systemQueue = new Queue(SYSTEM_QUEUE, { connection });
 export const intelligenceQueue = new Queue(INTELLIGENCE_QUEUE, { connection });
@@ -37,32 +43,75 @@ const evaluationWorker = new Worker<{ submissionId: string }>(
   { connection, concurrency: 2 },
 );
 
+/** In-app notification row (worker path — no mail service here). */
+async function notifyRow(userId: string, type: 'RECOVERY_TASK' | 'RISK_INTERVENTION', title: string, body: string) {
+  await prisma.notification
+    .create({ data: { userId, type, title, body, deepLink: '/dashboard' } })
+    .catch((e) => console.error(`[worker] notify failed: ${(e as Error).message}`));
+}
+
+/** Generates the plan for an intervention + notifies the student. Idempotent. */
+async function generatePlanFor(interventionId: string) {
+  const result = await runRecoveryPlanGeneration(prisma, interventionId, aiProvider);
+  if (!result.skipped) {
+    const intervention = await prisma.studentIntervention.findUnique({ where: { id: interventionId } });
+    if (intervention) {
+      await notifyRow(
+        intervention.userId,
+        'RECOVERY_TASK',
+        'Your recovery plan is ready',
+        'A personalized plan with concrete next steps is waiting on your dashboard.',
+      );
+    }
+  }
+  return result;
+}
+
 /**
- * Scheduled risk sweep (§18): refresh skills + scores + risk for every active
- * student. Idempotent — snapshots are only written on meaningful change.
+ * Intelligence queue (§18, §19): the nightly risk sweep (skills → scores → risk
+ * → interventions + plans) and on-demand recovery-plan generation. All
+ * idempotent — snapshots only on meaningful change, one plan per intervention.
  */
-const intelligenceWorker = new Worker(
+const intelligenceWorker = new Worker<{ interventionId?: string }>(
   INTELLIGENCE_QUEUE,
   async (job) => {
+    if (job.name === GENERATE_RECOVERY_PLAN_JOB && job.data.interventionId) {
+      return generatePlanFor(job.data.interventionId);
+    }
     if (job.name !== RISK_SWEEP_JOB) return { skipped: job.name };
+
     const students = await prisma.batchStudent.findMany({
       where: { status: 'ACTIVE' },
       select: { userId: true },
       distinct: ['userId'],
     });
     let flagged = 0;
+    let interventions = 0;
     for (const s of students) {
       try {
         await recomputeStudentSkills(prisma, s.userId);
         await computeAndStoreStudentScore(prisma, s.userId);
         const risk = await evaluateStudentRisk(prisma, s.userId);
         if (risk.level !== 'LOW') flagged++;
+        const created = await ensureInterventionForRisk(prisma, risk);
+        if (created.created && created.interventionId) {
+          interventions++;
+          await notifyRow(
+            s.userId,
+            'RISK_INTERVENTION',
+            'We’re here to help',
+            'We noticed you might be falling behind, so we prepared a personalized recovery plan.',
+          );
+          await generatePlanFor(created.interventionId);
+        }
       } catch (err) {
         console.error(`[worker] risk sweep failed for ${s.userId}: ${(err as Error).message}`);
       }
     }
-    console.log(`[worker] risk sweep: ${students.length} students, ${flagged} flagged`);
-    return { evaluated: students.length, flagged };
+    console.log(
+      `[worker] risk sweep: ${students.length} students, ${flagged} flagged, ${interventions} interventions`,
+    );
+    return { evaluated: students.length, flagged, interventions };
   },
   { connection, concurrency: 1 },
 );

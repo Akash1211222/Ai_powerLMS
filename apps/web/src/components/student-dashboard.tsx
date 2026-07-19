@@ -8,6 +8,7 @@ import { formatTime, formatDate } from '@/lib/format';
 import { StatTile, ProgressBar, ProgressRing } from './stat-tile';
 import { IconBook, IconCheck, IconTrophy, IconCalendar } from './icons';
 import { PerformanceCard } from './performance-card';
+import { RecoveryPlanCard } from './recovery-plan-card';
 
 export function StudentDashboard({ firstName }: { firstName: string }) {
   const q = useQuery({ queryKey: ['dashboard', 'student'], queryFn: dashboardApi.student });
@@ -37,6 +38,8 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
             </Link>
           </div>
         </div>
+
+        <RecoveryPlanCard />
 
         {/* Stat tiles */}
         <div className="grid gap-4 sm:grid-cols-3">

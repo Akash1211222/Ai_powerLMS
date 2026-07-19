@@ -77,6 +77,7 @@ model User {
   studentSkills StudentSkill[]
   score         StudentScore?
   riskSnapshots StudentRiskSnapshot[]
+  interventions StudentIntervention[]
 
   @@index([status])
   @@index([deletedAt])
@@ -1314,4 +1315,73 @@ model StudentRiskSnapshot {
   @@index([batchId, level])
   @@index([level, detectedAt])
   @@map("student_risk_snapshots")
+}
+
+// ===========================================================================
+// INTERVENTIONS (Phase 2) — automated support workflow + recovery plans (§19)
+// ===========================================================================
+
+enum InterventionStatus {
+  OPEN
+  PLAN_READY
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+}
+
+// Created automatically when risk meaningfully escalates to HIGH/CRITICAL.
+// Idempotent: a student has at most one active intervention at a time (§37).
+model StudentIntervention {
+  id             String             @id @default(cuid())
+  userId         String
+  batchId        String?
+  riskSnapshotId String?
+  status         InterventionStatus @default(OPEN)
+  reason         String // top contributing risk factors, human-readable
+  riskLevel      RiskLevel
+  riskScore      Int
+  followUpAt     DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan RecoveryPlan?
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@map("student_interventions")
+}
+
+// AI-generated, schema-validated recovery plan (§19, §36). The provider and
+// model are stored so every plan is traceable to how it was produced.
+model RecoveryPlan {
+  id             String   @id @default(cuid())
+  interventionId String   @unique
+  summary        String
+  weakSkills     String[]
+  mentorActions  String[]
+  trainerActions String[]
+  provider       String
+  model          String?
+  createdAt      DateTime @default(now())
+
+  intervention StudentIntervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  tasks        RecoveryPlanTask[]
+
+  @@map("recovery_plans")
+}
+
+model RecoveryPlanTask {
+  id          String    @id @default(cuid())
+  planId      String
+  title       String
+  detail      String?
+  order       Int       @default(0)
+  completedAt DateTime?
+
+  plan RecoveryPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("recovery_plan_tasks")
 }

@@ -17,3 +17,4 @@ export {
   type RiskLevelName,
 } from './risk';
 export { evaluateStudentRisk, type RiskEvaluation } from './risk-evaluate';
+export { ensureInterventionForRisk, type EnsureInterventionResult } from './intervention';
