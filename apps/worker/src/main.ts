@@ -1,7 +1,7 @@
 import { Queue, Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { prisma } from '@fca/database';
-import { runSubmissionEvaluation, runRecoveryPlanGeneration, getProvider } from '@fca/ai';
+import { runSubmissionEvaluation, runRecoveryPlanGeneration, runWeeklyReport, getProvider } from '@fca/ai';
 import {
   evaluateStudentRisk,
   recomputeStudentSkills,
@@ -21,6 +21,7 @@ const AI_EVALUATION_QUEUE = 'ai-evaluation';
 const INTELLIGENCE_QUEUE = 'intelligence';
 const RISK_SWEEP_JOB = 'risk-sweep';
 const GENERATE_RECOVERY_PLAN_JOB = 'generate-recovery-plan';
+const WEEKLY_REPORTS_JOB = 'weekly-reports';
 
 export const systemQueue = new Queue(SYSTEM_QUEUE, { connection });
 export const intelligenceQueue = new Queue(INTELLIGENCE_QUEUE, { connection });
@@ -44,9 +45,15 @@ const evaluationWorker = new Worker<{ submissionId: string }>(
 );
 
 /** In-app notification row (worker path — no mail service here). */
-async function notifyRow(userId: string, type: 'RECOVERY_TASK' | 'RISK_INTERVENTION', title: string, body: string) {
+async function notifyRow(
+  userId: string,
+  type: 'RECOVERY_TASK' | 'RISK_INTERVENTION' | 'PROGRESS_REPORT',
+  title: string,
+  body: string,
+  deepLink = '/dashboard',
+) {
   await prisma.notification
-    .create({ data: { userId, type, title, body, deepLink: '/dashboard' } })
+    .create({ data: { userId, type, title, body, deepLink } })
     .catch((e) => console.error(`[worker] notify failed: ${(e as Error).message}`));
 }
 
@@ -68,6 +75,39 @@ async function generatePlanFor(interventionId: string) {
 }
 
 /**
+ * Weekly report fan-out (§21): one progress report per active student for the
+ * past week. Idempotent per (student, week) — reruns skip already-generated
+ * reports, so a retry or a second Monday run is safe.
+ */
+async function runWeeklyReports() {
+  const students = await prisma.batchStudent.findMany({
+    where: { status: 'ACTIVE' },
+    select: { userId: true },
+    distinct: ['userId'],
+  });
+  let generated = 0;
+  for (const s of students) {
+    try {
+      const result = await runWeeklyReport(prisma, s.userId, undefined, aiProvider);
+      if (!result.skipped) {
+        generated++;
+        await notifyRow(
+          s.userId,
+          'PROGRESS_REPORT',
+          'Your weekly progress report is ready',
+          'A summary of your week, with goals for the next one, is on your dashboard.',
+          '/reports',
+        );
+      }
+    } catch (err) {
+      console.error(`[worker] weekly report failed for ${s.userId}: ${(err as Error).message}`);
+    }
+  }
+  console.log(`[worker] weekly reports: ${students.length} students, ${generated} generated`);
+  return { students: students.length, generated };
+}
+
+/**
  * Intelligence queue (§18, §19): the nightly risk sweep (skills → scores → risk
  * → interventions + plans) and on-demand recovery-plan generation. All
  * idempotent — snapshots only on meaningful change, one plan per intervention.
@@ -78,6 +118,7 @@ const intelligenceWorker = new Worker<{ interventionId?: string }>(
     if (job.name === GENERATE_RECOVERY_PLAN_JOB && job.data.interventionId) {
       return generatePlanFor(job.data.interventionId);
     }
+    if (job.name === WEEKLY_REPORTS_JOB) return runWeeklyReports();
     if (job.name !== RISK_SWEEP_JOB) return { skipped: job.name };
 
     const students = await prisma.batchStudent.findMany({
@@ -128,7 +169,17 @@ async function scheduleRecurringJobs(): Promise<void> {
       removeOnFail: 100,
     },
   );
-  console.log('[worker] scheduled nightly risk sweep (02:00)');
+  await intelligenceQueue.add(
+    WEEKLY_REPORTS_JOB,
+    {},
+    {
+      repeat: { pattern: '0 6 * * 1' }, // Mondays at 06:00
+      jobId: WEEKLY_REPORTS_JOB,
+      removeOnComplete: 20,
+      removeOnFail: 50,
+    },
+  );
+  console.log('[worker] scheduled nightly risk sweep (02:00) + weekly reports (Mon 06:00)');
 }
 
 for (const [name, w] of [

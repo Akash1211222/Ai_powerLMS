@@ -5,6 +5,11 @@ import {
   type RecoveryPlanInput,
   type RecoveryPlanOutput,
 } from './recovery-schema';
+import {
+  progressReportOutputSchema,
+  type ProgressReportInput,
+  type ProgressReportOutput,
+} from './report-schema';
 
 const PROMPT_VERSION = 'eval-v1';
 
@@ -109,6 +114,38 @@ export class AnthropicProvider implements AIProvider {
 
     const json = await this.completeJson(system, user, 1500);
     return recoveryPlanOutputSchema.parse(json);
+  }
+
+  async generateProgressReport(input: ProgressReportInput): Promise<ProgressReportOutput> {
+    const system =
+      'You write concise weekly progress reports for a training academy. The numeric metrics are computed by the ' +
+      'platform — narrate and interpret them, never invent figures. Be specific, encouraging and actionable. ' +
+      'Respond with ONLY a JSON object matching the given shape — no prose, no markdown fences.';
+
+    const shape = {
+      summary: 'string (3-5 sentences)',
+      achievements: ['string'],
+      improvements: ['string'],
+      weakAreas: ['string'],
+      nextWeekGoals: ['string'],
+      trainerNote: 'string',
+      mentorNote: 'string',
+    };
+
+    const user = [
+      `Student: ${input.studentName}`,
+      `Period: ${input.periodLabel}`,
+      `Metrics: ${JSON.stringify(input.metrics)}`,
+      `Skill trends: ${JSON.stringify(input.skillTrends)}`,
+      `Weak skills: ${JSON.stringify(input.weakSkills)}`,
+      input.riskLevel ? `Risk level: ${input.riskLevel}` : '',
+      `Return JSON of exactly this shape: ${JSON.stringify(shape)}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const json = await this.completeJson(system, user, 1500);
+    return progressReportOutputSchema.parse(json);
   }
 }
 

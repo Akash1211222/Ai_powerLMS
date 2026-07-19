@@ -78,6 +78,7 @@ model User {
   score         StudentScore?
   riskSnapshots StudentRiskSnapshot[]
   interventions StudentIntervention[]
+  weeklyReports WeeklyProgressReport[]
 
   @@index([status])
   @@index([deletedAt])
@@ -1060,6 +1061,7 @@ enum NotificationType {
   APPLICATION_UPDATE
   RISK_INTERVENTION
   RECOVERY_TASK
+  PROGRESS_REPORT
   ACHIEVEMENT
   GENERAL
 }
@@ -1384,4 +1386,32 @@ model RecoveryPlanTask {
 
   @@index([planId])
   @@map("recovery_plan_tasks")
+}
+
+// ===========================================================================
+// WEEKLY PROGRESS REPORTS (Phase 2) — deterministic metrics + AI narrative (§21)
+// ===========================================================================
+
+model WeeklyProgressReport {
+  id            String   @id @default(cuid())
+  userId        String
+  periodStart   DateTime // start of the reporting week (00:00)
+  periodEnd     DateTime
+  summary       String
+  achievements  String[]
+  improvements  String[]
+  weakAreas     String[]
+  nextWeekGoals String[]
+  trainerNote   String?
+  mentorNote    String?
+  metrics       Json // the deterministic numbers the narrative is built from
+  provider      String
+  model         String?
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodStart])
+  @@index([userId, periodStart])
+  @@map("weekly_progress_reports")
 }

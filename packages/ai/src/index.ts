@@ -14,3 +14,9 @@ export { AnthropicProvider } from './anthropic-provider';
 export { getProvider } from './factory';
 export { runSubmissionEvaluation, type EvaluationResult } from './evaluate';
 export { runRecoveryPlanGeneration, type RecoveryPlanResult } from './recovery';
+export {
+  progressReportOutputSchema,
+  type ProgressReportInput,
+  type ProgressReportOutput,
+} from './report-schema';
+export { runWeeklyReport, type WeeklyReportResult } from './report';

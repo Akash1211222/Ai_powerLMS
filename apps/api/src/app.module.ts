@@ -20,6 +20,7 @@ import { NotificationModule } from './notifications/notification.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { SkillsModule } from './skills/skills.module';
 import { InterventionsModule } from './interventions/interventions.module';
+import { ReportsModule } from './reports/reports.module';
 import { QueueModule } from './queue/queue.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
@@ -49,6 +50,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     CalendarModule,
     SkillsModule,
     InterventionsModule,
+    ReportsModule,
   ],
 })
 export class AppModule implements NestModule {

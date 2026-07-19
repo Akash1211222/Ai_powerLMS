@@ -13,6 +13,7 @@ import {
   IconUsers,
   IconSpark,
   IconCalendar,
+  IconReport,
   IconSearch,
 } from '@/components/icons';
 
@@ -48,6 +49,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/courses', label: 'Courses', icon: IconBook, show: can('course:view') },
     { href: '/batches', label: 'Batches', icon: IconUsers, show: can('batch:view') },
     { href: '/skills', label: 'Skills', icon: IconSpark, show: true },
+    { href: '/reports', label: 'Reports', icon: IconReport, show: true },
     { href: '/calendar', label: 'Calendar', icon: IconCalendar, show: true },
   ].filter((n) => n.show);
 

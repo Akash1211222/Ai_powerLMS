@@ -1,6 +1,7 @@
 import type { AIProvider } from './provider';
 import type { EvaluationInput, EvaluationOutput } from './schema';
 import type { RecoveryPlanInput, RecoveryPlanOutput } from './recovery-schema';
+import type { ProgressReportInput, ProgressReportOutput } from './report-schema';
 
 /**
  * Deterministic, rule-based evaluator. This is NOT a fake LLM — it is a real,
@@ -128,6 +129,82 @@ export class HeuristicProvider implements AIProvider {
       mentorActions: mentorActions.slice(0, 5),
       trainerActions: trainerActions.slice(0, 5),
       followUpDays,
+    };
+  }
+
+  /**
+   * Deterministic weekly report narrated from the computed metrics (§21).
+   * Encouraging but honest; stable for identical input.
+   */
+  async generateProgressReport(input: ProgressReportInput): Promise<ProgressReportOutput> {
+    const m = input.metrics;
+    const achievements: string[] = [];
+    const improvements: string[] = [];
+    const weakAreas: string[] = [];
+    const nextWeekGoals: string[] = [];
+
+    if (m.sessionsTotal > 0 && m.attendanceRate >= 80) {
+      achievements.push(`Kept attendance strong at ${m.attendanceRate}%.`);
+    }
+    if (m.lessonsCompleted > 0) achievements.push(`Completed ${m.lessonsCompleted} lesson(s).`);
+    if (m.assignmentsSubmitted > 0) achievements.push(`Submitted ${m.assignmentsSubmitted} assignment(s).`);
+    if (m.quizzesTaken > 0 && m.quizAvg !== null && m.quizAvg >= 70) {
+      achievements.push(`Averaged ${m.quizAvg}% across ${m.quizzesTaken} quiz(zes).`);
+    }
+    if (m.recoveryTasksCompleted > 0) {
+      achievements.push(`Completed ${m.recoveryTasksCompleted} recovery task(s) — great follow-through.`);
+    }
+    for (const t of input.skillTrends.filter((s) => s.trend === 'UP')) {
+      achievements.push(`${t.name} is trending up (now ${t.score}%).`);
+    }
+
+    if (m.sessionsTotal > 0 && m.attendanceRate < 75) {
+      improvements.push(`Attendance was ${m.attendanceRate}% — aim for at least 80% next week.`);
+      weakAreas.push('Attendance');
+    }
+    if (m.quizzesTaken > 0 && m.quizAvg !== null && m.quizAvg < 60) {
+      improvements.push(`Quiz average was ${m.quizAvg}% — revisit the weakest topics.`);
+    }
+    if (m.lessonsCompleted === 0 && m.assignmentsSubmitted === 0) {
+      improvements.push('No lessons or assignments completed this week — restart with one small step.');
+    }
+    for (const s of input.weakSkills.slice(0, 3)) {
+      weakAreas.push(`${s.name} (${s.score}%)`);
+      nextWeekGoals.push(`Practice ${s.name} and retake the related quiz.`);
+    }
+    for (const t of input.skillTrends.filter((s) => s.trend === 'DOWN')) {
+      weakAreas.push(`${t.name} slipped to ${t.score}%`);
+    }
+
+    if (m.attendanceRate < 80 && m.sessionsTotal > 0) nextWeekGoals.push('Attend every scheduled session.');
+    if (nextWeekGoals.length === 0) nextWeekGoals.push('Keep the momentum — complete the next module.');
+
+    const headline =
+      m.overallScore !== null
+        ? `Overall score is ${m.overallScore}/100.`
+        : 'Not enough graded work yet to compute an overall score.';
+
+    return {
+      summary:
+        `Weekly summary for ${input.studentName} (${input.periodLabel}). ${headline} ` +
+        `Attended ${m.sessionsAttended}/${m.sessionsTotal} session(s), completed ${m.lessonsCompleted} lesson(s), ` +
+        `submitted ${m.assignmentsSubmitted} assignment(s) and took ${m.quizzesTaken} quiz(zes).` +
+        (input.riskLevel && input.riskLevel !== 'LOW' ? ` Current risk level: ${input.riskLevel}.` : ''),
+      achievements: achievements.slice(0, 6),
+      improvements: improvements.slice(0, 6),
+      weakAreas: weakAreas.slice(0, 6),
+      nextWeekGoals: nextWeekGoals.slice(0, 6),
+      trainerNote:
+        input.riskLevel && input.riskLevel !== 'LOW'
+          ? `Monitor this student — risk is ${input.riskLevel}. Prioritize the weak areas above.`
+          : 'On track. Encourage continued consistency.',
+      mentorNote:
+        input.weakSkills.length > 0
+          ? `Discuss study strategies for ${input.weakSkills
+              .slice(0, 2)
+              .map((s) => s.name)
+              .join(' and ')} at the next session.`
+          : 'Check in on goals and motivation for the coming week.',
     };
   }
 }
