@@ -25,23 +25,23 @@ enum UserStatus {
 }
 
 model User {
-  id            String     @id @default(cuid())
-  email         String     @unique // stored lowercased by the app
-  passwordHash  String
-  status        UserStatus @default(PENDING)
+  id              String     @id @default(cuid())
+  email           String     @unique // stored lowercased by the app
+  passwordHash    String
+  status          UserStatus @default(PENDING)
   emailVerifiedAt DateTime?
-  lastLoginAt   DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  deletedAt     DateTime? // soft delete — users are rarely hard-deleted (audit)
+  lastLoginAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime? // soft delete — users are rarely hard-deleted (audit)
 
-  profile           Profile?
-  roles             UserRole[]
-  sessions          Session[]
-  orgMemberships    OrganizationMember[]
-  emailTokens       EmailVerificationToken[]
-  passwordResets    PasswordResetToken[]
-  auditLogs         AuditLog[]               @relation("AuditActor")
+  profile        Profile?
+  roles          UserRole[]
+  sessions       Session[]
+  orgMemberships OrganizationMember[]
+  emailTokens    EmailVerificationToken[]
+  passwordResets PasswordResetToken[]
+  auditLogs      AuditLog[]               @relation("AuditActor")
 
   // Academics / batches (Phase 1)
   coursesCreated     Course[]            @relation("CourseCreator")
@@ -60,9 +60,9 @@ model User {
   correctionReviews         AttendanceCorrectionRequest[] @relation("CorrectionReviewer")
 
   // Assignments (Phase 1)
-  assignmentsCreated  Assignment[]           @relation("AssignmentCreator")
-  submissions         AssignmentSubmission[] @relation("SubmissionStudent")
-  evaluationReviews   AssignmentEvaluation[] @relation("EvaluationReviewer")
+  assignmentsCreated Assignment[]           @relation("AssignmentCreator")
+  submissions        AssignmentSubmission[] @relation("SubmissionStudent")
+  evaluationReviews  AssignmentEvaluation[] @relation("EvaluationReviewer")
 
   // Assessments (Phase 1)
   assessmentsCreated Assessment[]        @relation("AssessmentCreator")
@@ -81,7 +81,8 @@ model User {
   weeklyReports WeeklyProgressReport[]
 
   // Career ecosystem (Phase 3)
-  careerProfile CareerProfile?
+  careerProfile       CareerProfile?
+  opportunitiesPosted Opportunity[]  @relation("OpportunityPoster")
 
   @@index([status])
   @@index([deletedAt])
@@ -256,6 +257,9 @@ model Organization {
   courses  Course[]
   batches  Batch[]
 
+  // Career ecosystem (Phase 3)
+  opportunities Opportunity[]
+
   @@map("organizations")
 }
 
@@ -369,9 +373,9 @@ model Course {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  program      Program?     @relation(fields: [programId], references: [id], onDelete: SetNull)
-  createdBy    User         @relation("CourseCreator", fields: [createdById], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  program      Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
+  createdBy    User           @relation("CourseCreator", fields: [createdById], references: [id])
   modules      CourseModule[]
   enrollments  Enrollment[]
   batches      Batch[]
@@ -406,16 +410,16 @@ enum LessonType {
 }
 
 model Lesson {
-  id           String     @id @default(cuid())
-  moduleId     String
-  title        String
-  order        Int        @default(0)
-  type         LessonType @default(VIDEO)
-  contentUrl   String?
-  body         String?
-  durationSec  Int?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id          String     @id @default(cuid())
+  moduleId    String
+  title       String
+  order       Int        @default(0)
+  type        LessonType @default(VIDEO)
+  contentUrl  String?
+  body        String?
+  durationSec Int?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   module    CourseModule       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   resources LearningResource[]
@@ -446,19 +450,19 @@ enum EnrollmentStatus {
 }
 
 model Enrollment {
-  id         String           @id @default(cuid())
-  userId     String
-  courseId   String
-  batchId    String?
-  status     EnrollmentStatus @default(ACTIVE)
-  enrolledAt DateTime         @default(now())
+  id          String           @id @default(cuid())
+  userId      String
+  courseId    String
+  batchId     String?
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now())
   completedAt DateTime?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  batch    Batch?         @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch    Batch?          @relation(fields: [batchId], references: [id], onDelete: SetNull)
   progress CourseProgress?
 
   @@unique([userId, courseId])
@@ -468,13 +472,13 @@ model Enrollment {
 }
 
 model CourseProgress {
-  id              String   @id @default(cuid())
-  enrollmentId    String   @unique
-  completedLessons Int     @default(0)
-  totalLessons    Int      @default(0)
-  percent         Int      @default(0)
-  lastActivityAt  DateTime?
-  updatedAt       DateTime @updatedAt
+  id               String    @id @default(cuid())
+  enrollmentId     String    @unique
+  completedLessons Int       @default(0)
+  totalLessons     Int       @default(0)
+  percent          Int       @default(0)
+  lastActivityAt   DateTime?
+  updatedAt        DateTime  @updatedAt
 
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
@@ -488,15 +492,15 @@ enum LessonProgressStatus {
 }
 
 model LessonProgress {
-  id            String               @id @default(cuid())
-  enrollmentId  String
-  lessonId      String
-  userId        String
-  status        LessonProgressStatus @default(NOT_STARTED)
-  lastPositionSec Int                @default(0)
-  watchedSec    Int                  @default(0)
-  completedAt   DateTime?
-  updatedAt     DateTime             @updatedAt
+  id              String               @id @default(cuid())
+  enrollmentId    String
+  lessonId        String
+  userId          String
+  status          LessonProgressStatus @default(NOT_STARTED)
+  lastPositionSec Int                  @default(0)
+  watchedSec      Int                  @default(0)
+  completedAt     DateTime?
+  updatedAt       DateTime             @updatedAt
 
   lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -532,14 +536,14 @@ model Batch {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course        Course              @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  createdBy     User                @relation("BatchCreator", fields: [createdById], references: [id])
-  students      BatchStudent[]
-  trainers      BatchTrainer[]
-  schedules     BatchSchedule[]
-  announcements BatchAnnouncement[]
-  enrollments   Enrollment[]
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course             Course                @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  createdBy          User                  @relation("BatchCreator", fields: [createdById], references: [id])
+  students           BatchStudent[]
+  trainers           BatchTrainer[]
+  schedules          BatchSchedule[]
+  announcements      BatchAnnouncement[]
+  enrollments        Enrollment[]
   attendanceSessions AttendanceSession[]
   assignments        Assignment[]
   assessments        Assessment[]
@@ -559,11 +563,11 @@ enum BatchStudentStatus {
 }
 
 model BatchStudent {
-  id        String             @id @default(cuid())
-  batchId   String
-  userId    String
-  status    BatchStudentStatus @default(ACTIVE)
-  joinedAt  DateTime           @default(now())
+  id       String             @id @default(cuid())
+  batchId  String
+  userId   String
+  status   BatchStudentStatus @default(ACTIVE)
+  joinedAt DateTime           @default(now())
 
   batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -783,7 +787,7 @@ model RubricCriterion {
   weight       Int     @default(10)
   order        Int     @default(0)
 
-  assignment Assignment                @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignment Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   scores     EvaluationCriterionScore[]
 
   @@index([assignmentId])
@@ -802,8 +806,8 @@ model AssignmentSubmission {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  assignment  Assignment            @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student     User                  @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  assignment  Assignment             @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student     User                   @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
   evaluation  AssignmentEvaluation?
   attachments SubmissionAttachment[]
 
@@ -828,23 +832,23 @@ model SubmissionAttachment {
 }
 
 model AssignmentEvaluation {
-  id           String           @id @default(cuid())
-  submissionId String           @unique
-  aiScore      Int?
-  trainerScore Int?
-  finalScore   Int?
-  confidence   Float?
-  reason       String?
-  version      Int              @default(1)
-  evaluatedByAi Boolean         @default(false)
-  status       EvaluationStatus @default(PENDING)
-  reviewedById String?
-  reviewedAt   DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  submissionId  String           @unique
+  aiScore       Int?
+  trainerScore  Int?
+  finalScore    Int?
+  confidence    Float?
+  reason        String?
+  version       Int              @default(1)
+  evaluatedByAi Boolean          @default(false)
+  status        EvaluationStatus @default(PENDING)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
-  submission     AssignmentSubmission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  reviewedBy     User?                      @relation("EvaluationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  submission      AssignmentSubmission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewedBy      User?                      @relation("EvaluationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   criterionScores EvaluationCriterionScore[]
 
   @@map("assignment_evaluations")
@@ -931,20 +935,20 @@ enum AttemptStatus {
 }
 
 model Assessment {
-  id               String               @id @default(cuid())
+  id               String           @id @default(cuid())
   batchId          String
   courseId         String?
   title            String
   description      String?
   timeLimitMin     Int?
-  maxAttempts      Int                  @default(1)
-  shuffleQuestions Boolean              @default(false)
+  maxAttempts      Int              @default(1)
+  shuffleQuestions Boolean          @default(false)
   passingScore     Int?
   dueAt            DateTime?
-  status           AssessmentStatus     @default(DRAFT)
+  status           AssessmentStatus @default(DRAFT)
   createdById      String
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   batch     Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
   createdBy User                @relation("AssessmentCreator", fields: [createdById], references: [id])
@@ -1004,9 +1008,9 @@ model AssessmentAttempt {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  assessment      Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  student         User              @relation("AttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
-  answers         AttemptAnswer[]
+  assessment       Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student          User               @relation("AttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  answers          AttemptAnswer[]
   topicPerformance TopicPerformance[]
 
   @@unique([assessmentId, studentId, attemptNumber])
@@ -1091,7 +1095,7 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
-  user       User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveries NotificationDelivery[]
 
   @@index([userId, readAt])
@@ -1100,12 +1104,12 @@ model Notification {
 }
 
 model NotificationPreference {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  inAppEnabled  Boolean  @default(true)
-  emailEnabled  Boolean  @default(true)
-  mutedTypes    String[] // NotificationType values the user has muted
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  inAppEnabled Boolean  @default(true)
+  emailEnabled Boolean  @default(true)
+  mutedTypes   String[] // NotificationType values the user has muted
+  updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1174,10 +1178,10 @@ model CalendarEvent {
 // ===========================================================================
 
 model SkillCategory {
-  id     String @id @default(cuid())
-  name   String
-  slug   String @unique
-  order  Int    @default(0)
+  id    String @id @default(cuid())
+  name  String
+  slug  String @unique
+  order Int    @default(0)
 
   skills Skill[]
 
@@ -1192,10 +1196,10 @@ model Skill {
   slug        String  @unique
   description String?
 
-  category     SkillCategory @relation(fields: [categoryId], references: [id], onDelete: Cascade)
-  parent       Skill?        @relation("SkillHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
-  children     Skill[]       @relation("SkillHierarchy")
-  courseSkills CourseSkill[]
+  category      SkillCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  parent        Skill?         @relation("SkillHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Skill[]        @relation("SkillHierarchy")
+  courseSkills  CourseSkill[]
   studentSkills StudentSkill[]
 
   @@index([categoryId])
@@ -1224,16 +1228,16 @@ enum SkillTrend {
 
 // A student's mastery of one skill — computed by app logic from evidence (§17).
 model StudentSkill {
-  id             String     @id @default(cuid())
-  userId         String
-  skillId        String
-  score          Int        @default(0) // 0..100
-  confidence     Float      @default(0) // 0..1, grows with evidence
-  evidenceCount  Int        @default(0)
-  trend          SkillTrend @default(NEW)
-  calcVersion    Int        @default(1)
-  lastEvaluatedAt DateTime  @default(now())
-  updatedAt      DateTime   @updatedAt
+  id              String     @id @default(cuid())
+  userId          String
+  skillId         String
+  score           Int        @default(0) // 0..100
+  confidence      Float      @default(0) // 0..1, grows with evidence
+  evidenceCount   Int        @default(0)
+  trend           SkillTrend @default(NEW)
+  calcVersion     Int        @default(1)
+  lastEvaluatedAt DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
 
   user     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   skill    Skill                  @relation(fields: [skillId], references: [id], onDelete: Cascade)
@@ -1248,7 +1252,7 @@ model StudentSkill {
 model StudentSkillEvidence {
   id             String   @id @default(cuid())
   studentSkillId String
-  sourceType     String   // e.g. "ASSESSMENT"
+  sourceType     String // e.g. "ASSESSMENT"
   sourceId       String
   topic          String?
   correct        Int
@@ -1500,4 +1504,61 @@ model CareerExperience {
 
   @@index([profileId])
   @@map("career_experiences")
+}
+
+// ===========================================================================
+// PLACEMENT OPPORTUNITIES (Phase 3) — job/internship postings + discovery (§26)
+// ===========================================================================
+
+enum OpportunityType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+}
+
+enum WorkMode {
+  ONSITE
+  REMOTE
+  HYBRID
+}
+
+enum OpportunityStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+// A placement opportunity posted by a placement officer/recruiter for an org.
+// Students discover OPEN opportunities scoped to their organization, with a
+// deterministic eligibility (placement readiness) + skill-match computed on read.
+model Opportunity {
+  id             String            @id @default(cuid())
+  organizationId String
+  postedById     String
+  title          String
+  companyName    String
+  location       String?
+  type           OpportunityType   @default(FULL_TIME)
+  workMode       WorkMode          @default(ONSITE)
+  description    String
+  requirements   String[] // skill tags used for the match
+  minReadiness   Int? // placement-readiness gate (0..100); null = open to all
+  openings       Int? // number of positions
+  salaryMin      Int?
+  salaryMax      Int?
+  currency       String            @default("INR")
+  applyUrl       String? // external apply link (internal applications land in M3.3)
+  deadline       DateTime?
+  status         OpportunityStatus @default(DRAFT)
+  publishedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  postedBy     User         @relation("OpportunityPoster", fields: [postedById], references: [id])
+
+  @@index([organizationId, status])
+  @@index([status, deadline])
+  @@map("opportunities")
 }

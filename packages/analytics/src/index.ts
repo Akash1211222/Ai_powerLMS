@@ -43,3 +43,8 @@ export {
   type BatchPlacement,
   type BatchPlacementRow,
 } from './placement';
+export {
+  computeOpportunityMatch,
+  type OpportunityMatchInput,
+  type OpportunityMatch,
+} from './opportunity-match';
