@@ -24,6 +24,7 @@ import { ReportsModule } from './reports/reports.module';
 import { RecommendationsModule } from './recommendations/recommendations.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { PlacementModule } from './placement/placement.module';
+import { CareerModule } from './career/career.module';
 import { QueueModule } from './queue/queue.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
@@ -57,6 +58,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     RecommendationsModule,
     AnalyticsModule,
     PlacementModule,
+    CareerModule,
   ],
 })
 export class AppModule implements NestModule {

@@ -80,6 +80,9 @@ model User {
   interventions StudentIntervention[]
   weeklyReports WeeklyProgressReport[]
 
+  // Career ecosystem (Phase 3)
+  careerProfile CareerProfile?
+
   @@index([status])
   @@index([deletedAt])
   @@map("users")
@@ -1414,4 +1417,87 @@ model WeeklyProgressReport {
   @@unique([userId, periodStart])
   @@index([userId, periodStart])
   @@map("weekly_progress_reports")
+}
+
+// ===========================================================================
+// CAREER ECOSYSTEM (Phase 3) — student career profile, portfolio, resume (§25)
+// ===========================================================================
+
+enum ProfileVisibility {
+  PRIVATE // only the student + admins
+  PLACEMENT // + placement officers/recruiters in the org (default)
+  PUBLIC // shareable link
+}
+
+// A student's career profile — the foundation applications and the placement
+// pipeline reference (§25). One per user. Aggregated with the Phase 2 skill
+// matrix + placement readiness to assemble a resume.
+model CareerProfile {
+  id          String            @id @default(cuid())
+  userId      String            @unique
+  headline    String? // e.g. "Aspiring Data Analyst"
+  summary     String? // short professional objective / bio
+  location    String?
+  phone       String?
+  websiteUrl  String?
+  linkedinUrl String?
+  githubUrl   String?
+  resumeUrl   String? // link to an uploaded resume file
+  openToWork  Boolean           @default(true)
+  visibility  ProfileVisibility @default(PLACEMENT)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects    CareerProject[]
+  experiences CareerExperience[]
+
+  @@map("career_profiles")
+}
+
+// A portfolio project shown on the profile / resume.
+model CareerProject {
+  id          String   @id @default(cuid())
+  profileId   String
+  title       String
+  description String?
+  url         String?
+  skills      String[] // free-text skill tags
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  profile CareerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("career_projects")
+}
+
+enum ExperienceKind {
+  WORK
+  EDUCATION
+  CERTIFICATION
+  VOLUNTEER
+}
+
+// A work / education / certification entry on the profile timeline.
+model CareerExperience {
+  id           String         @id @default(cuid())
+  profileId    String
+  kind         ExperienceKind @default(WORK)
+  title        String // role or qualification
+  organization String
+  location     String?
+  startDate    DateTime
+  endDate      DateTime? // null = current
+  current      Boolean        @default(false)
+  description  String?
+  order        Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  profile CareerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("career_experiences")
 }

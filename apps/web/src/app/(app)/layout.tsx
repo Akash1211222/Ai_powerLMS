@@ -14,6 +14,7 @@ import {
   IconSpark,
   IconCalendar,
   IconReport,
+  IconBriefcase,
   IconSearch,
 } from '@/components/icons';
 
@@ -50,6 +51,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/batches', label: 'Batches', icon: IconUsers, show: can('batch:view') },
     { href: '/skills', label: 'Skills', icon: IconSpark, show: true },
     { href: '/reports', label: 'Reports', icon: IconReport, show: true },
+    { href: '/career', label: 'Career', icon: IconBriefcase, show: true },
     { href: '/calendar', label: 'Calendar', icon: IconCalendar, show: true },
   ].filter((n) => n.show);
 
