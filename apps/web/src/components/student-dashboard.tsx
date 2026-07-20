@@ -9,6 +9,7 @@ import { StatTile, ProgressBar, ProgressRing } from './stat-tile';
 import { IconBook, IconCheck, IconTrophy, IconCalendar } from './icons';
 import { PerformanceCard } from './performance-card';
 import { RecoveryPlanCard } from './recovery-plan-card';
+import { RecommendationsCard } from './recommendations-card';
 
 export function StudentDashboard({ firstName }: { firstName: string }) {
   const q = useQuery({ queryKey: ['dashboard', 'student'], queryFn: dashboardApi.student });
@@ -40,6 +41,8 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
         </div>
 
         <RecoveryPlanCard />
+
+        <RecommendationsCard />
 
         {/* Stat tiles */}
         <div className="grid gap-4 sm:grid-cols-3">

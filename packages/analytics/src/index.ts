@@ -18,3 +18,9 @@ export {
 } from './risk';
 export { evaluateStudentRisk, type RiskEvaluation } from './risk-evaluate';
 export { ensureInterventionForRisk, type EnsureInterventionResult } from './intervention';
+export {
+  computeRecommendations,
+  RECOMMENDATION_VERSION,
+  type Recommendation,
+  type RecommendationType,
+} from './recommend';
