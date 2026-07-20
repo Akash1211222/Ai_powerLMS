@@ -24,3 +24,11 @@ export {
   type Recommendation,
   type RecommendationType,
 } from './recommend';
+export {
+  computeBatchHealth,
+  BATCH_HEALTH_VERSION,
+  type BatchHealth,
+  type BatchStudentRow,
+  type WeakSkillRollup,
+  type HealthBand,
+} from './batch-health';

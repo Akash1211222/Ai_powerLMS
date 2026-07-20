@@ -7,6 +7,7 @@ import { Card, Button, Input, Badge, statusTone, Spinner, Alert } from '@fca/ui'
 import { useAuth } from '@/lib/auth-context';
 import { batchesApi } from '@/lib/lms-api';
 import { ApiError } from '@/lib/api-client';
+import { BatchHealthPanel } from '@/components/batch-health-panel';
 
 interface BatchDetail {
   id: string;
@@ -31,6 +32,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [error, setError] = useState<string | null>(null);
 
   const canManage = user?.permissions.includes('batch:manage');
+  const canViewAnalytics = user?.permissions.includes('analytics:view');
 
   const batchQuery = useQuery({
     queryKey: ['batch', id],
@@ -84,6 +86,8 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           </div>
         </Card>
       </div>
+
+      {canViewAnalytics && <BatchHealthPanel batchId={id} />}
 
       <Card>
         <div className="flex items-center justify-between">
