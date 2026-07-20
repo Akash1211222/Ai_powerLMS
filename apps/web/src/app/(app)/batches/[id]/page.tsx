@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { batchesApi } from '@/lib/lms-api';
 import { ApiError } from '@/lib/api-client';
 import { BatchHealthPanel } from '@/components/batch-health-panel';
+import { BatchPlacementPanel } from '@/components/batch-placement-panel';
 
 interface BatchDetail {
   id: string;
@@ -88,6 +89,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       </div>
 
       {canViewAnalytics && <BatchHealthPanel batchId={id} />}
+      {canViewAnalytics && <BatchPlacementPanel batchId={id} />}
 
       <Card>
         <div className="flex items-center justify-between">

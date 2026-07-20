@@ -32,3 +32,14 @@ export {
   type WeakSkillRollup,
   type HealthBand,
 } from './batch-health';
+export {
+  computePlacementReadiness,
+  computeBatchPlacement,
+  PLACEMENT_READINESS_VERSION,
+  type PlacementReadiness,
+  type PlacementComponents,
+  type PlacementCriterion,
+  type PlacementTier,
+  type BatchPlacement,
+  type BatchPlacementRow,
+} from './placement';

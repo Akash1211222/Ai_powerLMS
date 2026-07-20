@@ -10,6 +10,7 @@ import { IconBook, IconCheck, IconTrophy, IconCalendar } from './icons';
 import { PerformanceCard } from './performance-card';
 import { RecoveryPlanCard } from './recovery-plan-card';
 import { RecommendationsCard } from './recommendations-card';
+import { PlacementReadinessCard } from './placement-readiness-card';
 
 export function StudentDashboard({ firstName }: { firstName: string }) {
   const q = useQuery({ queryKey: ['dashboard', 'student'], queryFn: dashboardApi.student });
@@ -112,6 +113,8 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
         </Card>
 
         <PerformanceCard />
+
+        <PlacementReadinessCard />
 
         <div>
           <div className="mb-3 flex items-center gap-2">
