@@ -81,8 +81,10 @@ model User {
   weeklyReports WeeklyProgressReport[]
 
   // Career ecosystem (Phase 3)
-  careerProfile       CareerProfile?
-  opportunitiesPosted Opportunity[]  @relation("OpportunityPoster")
+  careerProfile        CareerProfile?
+  opportunitiesPosted  Opportunity[]  @relation("OpportunityPoster")
+  applications         Application[]  @relation("Applicant")
+  applicationsReviewed Application[]  @relation("ApplicationReviewer")
 
   @@index([status])
   @@index([deletedAt])
@@ -1555,10 +1557,50 @@ model Opportunity {
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  postedBy     User         @relation("OpportunityPoster", fields: [postedById], references: [id])
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  postedBy     User          @relation("OpportunityPoster", fields: [postedById], references: [id])
+  applications Application[]
 
   @@index([organizationId, status])
   @@index([status, deadline])
   @@map("opportunities")
+}
+
+enum ApplicationStatus {
+  APPLIED
+  UNDER_REVIEW
+  SHORTLISTED
+  INTERVIEW
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+// A student's application to an opportunity (§27). One per (opportunity,
+// student). Advances through review stages; every staff decision notifies the
+// student. `readinessSnapshot` captures the placement-readiness at apply time
+// so later readiness changes don't rewrite history.
+model Application {
+  id                String            @id @default(cuid())
+  opportunityId     String
+  studentId         String
+  status            ApplicationStatus @default(APPLIED)
+  coverNote         String?
+  readinessSnapshot Int? // placement-readiness score at apply time
+  matchSnapshot     Int? // skill-match score at apply time
+  reviewedById      String?
+  reviewedAt        DateTime?
+  decisionNote      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  student     User        @relation("Applicant", fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy  User?       @relation("ApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([opportunityId, studentId])
+  @@index([studentId, status])
+  @@index([opportunityId, status])
+  @@map("applications")
 }

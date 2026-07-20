@@ -123,7 +123,7 @@ export class OpportunitiesService {
     const orgIds = await this.userOrgIds(userId);
     if (orgIds.length === 0) return [];
 
-    const [opportunities, readiness, skills] = await Promise.all([
+    const [opportunities, readiness, skills, myApplications] = await Promise.all([
       this.prisma.opportunity.findMany({
         where: { organizationId: { in: orgIds }, status: 'OPEN' },
         orderBy: [{ publishedAt: 'desc' }, { createdAt: 'desc' }],
@@ -134,11 +134,17 @@ export class OpportunitiesService {
         where: { userId, score: { gte: STRONG_SKILL_THRESHOLD } },
         select: { score: true, skill: { select: { name: true } } },
       }),
+      this.prisma.application.findMany({
+        where: { studentId: userId },
+        select: { opportunityId: true, status: true },
+      }),
     ]);
 
     const strongSkills = skills.map((s) => ({ name: s.skill.name, score: s.score }));
+    const statusByOpp = new Map(myApplications.map((a) => [a.opportunityId, a.status]));
     return opportunities.map((o) => ({
       ...o,
+      applicationStatus: statusByOpp.get(o.id) ?? null,
       match: computeOpportunityMatch({
         requirements: o.requirements,
         minReadiness: o.minReadiness,

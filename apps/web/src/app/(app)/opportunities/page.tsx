@@ -12,6 +12,7 @@ import {
   type OpportunityType,
   type WorkMode,
 } from '@/lib/opportunities-api';
+import { applicationsApi, type ApplicationStatus, type ReviewStatus } from '@/lib/applications-api';
 
 const typeLabel: Record<OpportunityType, string> = {
   FULL_TIME: 'Full-time',
@@ -20,6 +21,19 @@ const typeLabel: Record<OpportunityType, string> = {
   CONTRACT: 'Contract',
 };
 const modeLabel: Record<WorkMode, string> = { ONSITE: 'On-site', REMOTE: 'Remote', HYBRID: 'Hybrid' };
+
+const statusTone: Record<ApplicationStatus, 'neutral' | 'brand' | 'warning' | 'success' | 'danger'> = {
+  APPLIED: 'brand',
+  UNDER_REVIEW: 'brand',
+  SHORTLISTED: 'warning',
+  INTERVIEW: 'warning',
+  OFFERED: 'success',
+  HIRED: 'success',
+  REJECTED: 'danger',
+  WITHDRAWN: 'neutral',
+};
+const statusLabel = (s: string) => s.toLowerCase().replace(/_/g, ' ');
+const REVIEW_STATUSES: ReviewStatus[] = ['UNDER_REVIEW', 'SHORTLISTED', 'INTERVIEW', 'OFFERED', 'HIRED', 'REJECTED'];
 
 function matchTone(score: number): 'success' | 'warning' | 'danger' {
   if (score >= 67) return 'success';
@@ -50,29 +64,67 @@ export default function OpportunitiesPage() {
 
 function DiscoverView() {
   const q = useQuery({ queryKey: ['me', 'opportunities'], queryFn: opportunitiesApi.discover });
+  const applications = useQuery({ queryKey: ['me', 'applications'], queryFn: applicationsApi.mine });
 
   if (q.isLoading) return <Spinner />;
   if (q.error) return <Alert tone="error">Could not load opportunities.</Alert>;
   const items = q.data ?? [];
-
-  if (items.length === 0) {
-    return (
-      <Card>
-        <p className="text-sm text-faint">No open opportunities right now. Check back soon.</p>
-      </Card>
-    );
-  }
+  const myApps = (applications.data ?? []).filter((a) => a.status !== 'WITHDRAWN');
 
   return (
-    <div className="flex flex-col gap-3">
-      {items.map((o) => (
-        <DiscoverCard key={o.id} o={o} />
-      ))}
+    <div className="flex flex-col gap-6">
+      {myApps.length > 0 && (
+        <div>
+          <h2 className="mb-3 font-bold">My applications</h2>
+          <Card className="p-0">
+            <ul className="divide-y divide-hair">
+              {myApps.map((a) => (
+                <li key={a.id} className="flex items-center justify-between gap-3 px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="truncate font-semibold">{a.opportunity.title}</div>
+                    <div className="truncate text-xs text-faint">{a.opportunity.companyName}</div>
+                  </div>
+                  <Badge tone={statusTone[a.status]}>{statusLabel(a.status)}</Badge>
+                </li>
+              ))}
+            </ul>
+          </Card>
+        </div>
+      )}
+
+      <div>
+        <h2 className="mb-3 font-bold">Open roles</h2>
+        {items.length === 0 ? (
+          <Card>
+            <p className="text-sm text-faint">No open opportunities right now. Check back soon.</p>
+          </Card>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {items.map((o) => (
+              <DiscoverCard key={o.id} o={o} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 function DiscoverCard({ o }: { o: DiscoverOpportunity }) {
+  const qc = useQueryClient();
+  const [showNote, setShowNote] = useState(false);
+  const [note, setNote] = useState('');
+
+  const apply = useMutation({
+    mutationFn: () => applicationsApi.apply(o.id, note.trim() || undefined),
+    onSuccess: () => {
+      setShowNote(false);
+      setNote('');
+      qc.invalidateQueries({ queryKey: ['me', 'opportunities'] });
+      qc.invalidateQueries({ queryKey: ['me', 'applications'] });
+    },
+  });
+
   return (
     <Card className="flex flex-col gap-3">
       <div className="flex items-start justify-between gap-3">
@@ -105,10 +157,30 @@ function DiscoverCard({ o }: { o: DiscoverOpportunity }) {
         </div>
       )}
 
-      <div className="flex items-center gap-3">
-        <Badge tone={o.match.eligible ? 'success' : 'warning'}>
-          {o.match.eligible ? 'Eligible to apply' : `Needs readiness ≥ ${o.minReadiness}`}
-        </Badge>
+      {showNote && (
+        <Textarea
+          rows={2}
+          value={note}
+          onChange={(e) => setNote(e.target.value)}
+          placeholder="Add a short cover note (optional)…"
+        />
+      )}
+
+      <div className="flex flex-wrap items-center gap-3">
+        {o.applicationStatus ? (
+          <Badge tone={statusTone[o.applicationStatus as ApplicationStatus]}>
+            {statusLabel(o.applicationStatus)}
+          </Badge>
+        ) : o.match.eligible ? (
+          showNote ? (
+            <Button onClick={() => apply.mutate()} loading={apply.isPending}>Submit application</Button>
+          ) : (
+            <Button onClick={() => setShowNote(true)}>Apply</Button>
+          )
+        ) : (
+          <Badge tone="warning">Needs readiness ≥ {o.minReadiness}</Badge>
+        )}
+        {apply.isError && <span className="text-sm text-danger">Could not apply.</span>}
         {o.applyUrl && (
           <a href={o.applyUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-brand-500">
             Apply externally →
@@ -146,46 +218,99 @@ function ManageView() {
             <p className="text-sm text-faint">No opportunities yet. Post your first role →</p>
           </Card>
         ) : (
-          items.map((o) => (
-            <Card key={o.id} className="flex flex-col gap-2">
-              <div className="flex items-start justify-between gap-3">
-                <div className="min-w-0">
-                  <div className="font-bold">{o.title}</div>
-                  <div className="text-sm text-faint">
-                    {o.companyName}
-                    {o.location ? ` · ${o.location}` : ''} · {typeLabel[o.type]}
-                  </div>
-                </div>
-                <Badge tone={o.status === 'OPEN' ? 'success' : o.status === 'CLOSED' ? 'neutral' : 'warning'}>
-                  {o.status}
-                </Badge>
-              </div>
-              {o.requirements.length > 0 && (
-                <div className="flex flex-wrap gap-1.5">
-                  {o.requirements.map((r) => (
-                    <Badge key={r} tone="neutral">{r}</Badge>
-                  ))}
-                </div>
-              )}
-              <div className="flex items-center gap-2">
-                {o.status !== 'OPEN' && (
-                  <Button onClick={() => publish.mutate(o.id)} loading={publish.isPending}>
-                    Publish
-                  </Button>
-                )}
-                {o.status === 'OPEN' && (
-                  <Button variant="secondary" onClick={() => close.mutate(o.id)} loading={close.isPending}>
-                    Close
-                  </Button>
-                )}
-              </div>
-            </Card>
-          ))
+          items.map((o) => <ManageCard key={o.id} o={o} onPublish={() => publish.mutate(o.id)} onClose={() => close.mutate(o.id)} busy={publish.isPending || close.isPending} />)
         )}
       </div>
 
       <CreateForm organizationId={org.id} onCreated={invalidate} />
     </div>
+  );
+}
+
+function ManageCard({ o, onPublish, onClose, busy }: { o: Opportunity; onPublish: () => void; onClose: () => void; busy: boolean }) {
+  const [showApplicants, setShowApplicants] = useState(false);
+  return (
+    <Card className="flex flex-col gap-2">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="font-bold">{o.title}</div>
+          <div className="text-sm text-faint">
+            {o.companyName}
+            {o.location ? ` · ${o.location}` : ''} · {typeLabel[o.type]}
+          </div>
+        </div>
+        <Badge tone={o.status === 'OPEN' ? 'success' : o.status === 'CLOSED' ? 'neutral' : 'warning'}>{o.status}</Badge>
+      </div>
+      {o.requirements.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {o.requirements.map((r) => (
+            <Badge key={r} tone="neutral">{r}</Badge>
+          ))}
+        </div>
+      )}
+      <div className="flex items-center gap-2">
+        {o.status !== 'OPEN' && <Button onClick={onPublish} loading={busy}>Publish</Button>}
+        {o.status === 'OPEN' && <Button variant="secondary" onClick={onClose} loading={busy}>Close</Button>}
+        <button
+          onClick={() => setShowApplicants((s) => !s)}
+          className="text-sm font-semibold text-brand-500"
+        >
+          {showApplicants ? 'Hide applicants' : 'View applicants'}
+        </button>
+      </div>
+      {showApplicants && <Applicants opportunityId={o.id} />}
+    </Card>
+  );
+}
+
+function Applicants({ opportunityId }: { opportunityId: string }) {
+  const qc = useQueryClient();
+  const q = useQuery({
+    queryKey: ['opportunity', opportunityId, 'applications'],
+    queryFn: () => applicationsApi.forOpportunity(opportunityId),
+  });
+  const setStatus = useMutation({
+    mutationFn: ({ id, status }: { id: string; status: ReviewStatus }) => applicationsApi.setStatus(id, status),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['opportunity', opportunityId, 'applications'] }),
+  });
+
+  if (q.isLoading) return <Spinner />;
+  const rows = q.data ?? [];
+  if (rows.length === 0) return <p className="border-t border-hair pt-3 text-sm text-faint">No applicants yet.</p>;
+
+  const TERMINAL = ['HIRED', 'REJECTED', 'WITHDRAWN'];
+  return (
+    <ul className="flex flex-col gap-2 border-t border-hair pt-3">
+      {rows.map((a) => {
+        const name = a.student.profile ? `${a.student.profile.firstName} ${a.student.profile.lastName}` : a.student.email;
+        const terminal = TERMINAL.includes(a.status);
+        return (
+          <li key={a.id} className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <div className="truncate text-sm font-semibold">{name}</div>
+              <div className="text-xs text-faint">
+                Readiness {a.readinessSnapshot ?? '—'} · Match {a.matchSnapshot ?? '—'}%
+              </div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2">
+              <Badge tone={statusTone[a.status]}>{statusLabel(a.status)}</Badge>
+              {!terminal && (
+                <Select
+                  value=""
+                  onChange={(e) => e.target.value && setStatus.mutate({ id: a.id, status: e.target.value as ReviewStatus })}
+                  className="h-9 w-36"
+                >
+                  <option value="">Move to…</option>
+                  {REVIEW_STATUSES.map((s) => (
+                    <option key={s} value={s}>{statusLabel(s)}</option>
+                  ))}
+                </Select>
+              )}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

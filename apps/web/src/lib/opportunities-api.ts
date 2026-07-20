@@ -33,7 +33,10 @@ export interface OpportunityMatch {
   missingSkills: string[];
 }
 
-export type DiscoverOpportunity = Opportunity & { match: OpportunityMatch };
+export type DiscoverOpportunity = Opportunity & {
+  match: OpportunityMatch;
+  applicationStatus: string | null;
+};
 
 export interface CreateOpportunityInput {
   organizationId: string;
