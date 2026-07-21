@@ -96,6 +96,7 @@ model User {
   communityQuestions   CommunityQuestion[]   @relation("QuestionAuthor")
   communityAnswers     CommunityAnswer[]     @relation("AnswerAuthor")
   communityAnswerVotes CommunityAnswerVote[]
+  achievements         Achievement[]
 
   @@index([status])
   @@index([deletedAt])
@@ -1825,4 +1826,23 @@ model CommunityAnswerVote {
   @@id([answerId, userId])
   @@index([userId])
   @@map("community_answer_votes")
+}
+
+// ===========================================================================
+// REPUTATION (Phase 4) — earned achievements (§32)
+// ===========================================================================
+
+// A badge a member has earned. Contribution *scores* are derived live from
+// activity; achievements are persisted so each one is announced exactly once.
+model Achievement {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String // matches a BADGES code in @fca/analytics
+  awardedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code])
+  @@index([userId])
+  @@map("achievements")
 }

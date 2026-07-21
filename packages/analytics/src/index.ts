@@ -48,3 +48,14 @@ export {
   type OpportunityMatchInput,
   type OpportunityMatch,
 } from './opportunity-match';
+export {
+  computeContributionScore,
+  earnedBadges,
+  BADGES,
+  BADGE_BY_CODE,
+  CONTRIBUTION_VERSION,
+  type ContributionCounts,
+  type ContributionBreakdown,
+  type Contribution,
+  type BadgeDefinition,
+} from './contribution';

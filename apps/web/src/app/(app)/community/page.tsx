@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, Badge, Button, Input, Textarea, Spinner, Alert } from '@fca/ui';
 import { communityApi, type QuestionStatus } from '@/lib/community-api';
+import { ReputationPanel } from '@/components/reputation-panel';
 
 const statusTone: Record<QuestionStatus, 'brand' | 'success' | 'neutral'> = {
   OPEN: 'brand',
@@ -85,67 +86,73 @@ export default function CommunityPage() {
         </Card>
       )}
 
-      {(tagList.data ?? []).length > 0 && (
-        <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setTag(null)}
-            className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-              tag === null ? 'bg-brand-500 text-white' : 'bg-soft text-faint hover:text-ink'
-            }`}
-          >
-            All
-          </button>
-          {(tagList.data ?? []).map((t) => (
-            <button
-              key={t.tag}
-              onClick={() => setTag(t.tag)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
-                tag === t.tag ? 'bg-brand-500 text-white' : 'bg-soft text-faint hover:text-ink'
-              }`}
-            >
-              {t.tag} · {t.count}
-            </button>
-          ))}
-        </div>
-      )}
+      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
+        <div className="flex flex-col gap-4">
+          {(tagList.data ?? []).length > 0 && (
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                onClick={() => setTag(null)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                  tag === null ? 'bg-brand-500 text-white' : 'bg-soft text-faint hover:text-ink'
+                }`}
+              >
+                All
+              </button>
+              {(tagList.data ?? []).map((t) => (
+                <button
+                  key={t.tag}
+                  onClick={() => setTag(t.tag)}
+                  className={`rounded-full px-3 py-1 text-xs font-semibold transition ${
+                    tag === t.tag ? 'bg-brand-500 text-white' : 'bg-soft text-faint hover:text-ink'
+                  }`}
+                >
+                  {t.tag} · {t.count}
+                </button>
+              ))}
+            </div>
+          )}
 
-      {items.length === 0 ? (
-        <Card>
-          <p className="text-sm text-faint">
-            {tag ? `No questions tagged "${tag}" yet.` : 'No questions yet — ask the first one.'}
-          </p>
-        </Card>
-      ) : (
-        <div className="flex flex-col gap-3">
-          {items.map((q) => (
-            <Link key={q.id} href={`/community/${q.id}`}>
-              <Card className="transition hover:border-brand-300">
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-bold">{q.title}</div>
-                    <div className="mt-0.5 line-clamp-2 text-sm text-faint">{q.body}</div>
-                  </div>
-                  <div className="flex shrink-0 flex-col items-end gap-1.5">
-                    <Badge tone={statusTone[q.status]}>{q.status.toLowerCase()}</Badge>
-                    <span className="text-xs text-faint">
-                      {q._count.answers} answer{q._count.answers === 1 ? '' : 's'}
-                    </span>
-                  </div>
-                </div>
-                <div className="mt-3 flex flex-wrap items-center gap-2">
-                  {q.tags.map((t) => (
-                    <Badge key={t} tone="neutral">{t}</Badge>
-                  ))}
-                  <span className="text-xs text-faint">
-                    {q.author.profile ? `${q.author.profile.firstName} ${q.author.profile.lastName}` : q.author.email} ·{' '}
-                    {ago(q.createdAt)}
-                  </span>
-                </div>
-              </Card>
-            </Link>
-          ))}
+          {items.length === 0 ? (
+            <Card>
+              <p className="text-sm text-faint">
+                {tag ? `No questions tagged "${tag}" yet.` : 'No questions yet — ask the first one.'}
+              </p>
+            </Card>
+          ) : (
+            <div className="flex flex-col gap-3">
+              {items.map((q) => (
+                <Link key={q.id} href={`/community/${q.id}`}>
+                  <Card className="transition hover:border-brand-300">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="font-bold">{q.title}</div>
+                        <div className="mt-0.5 line-clamp-2 text-sm text-faint">{q.body}</div>
+                      </div>
+                      <div className="flex shrink-0 flex-col items-end gap-1.5">
+                        <Badge tone={statusTone[q.status]}>{q.status.toLowerCase()}</Badge>
+                        <span className="text-xs text-faint">
+                          {q._count.answers} answer{q._count.answers === 1 ? '' : 's'}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      {q.tags.map((t) => (
+                        <Badge key={t} tone="neutral">{t}</Badge>
+                      ))}
+                      <span className="text-xs text-faint">
+                        {q.author.profile ? `${q.author.profile.firstName} ${q.author.profile.lastName}` : q.author.email} ·{' '}
+                        {ago(q.createdAt)}
+                      </span>
+                    </div>
+                  </Card>
+                </Link>
+              ))}
+            </div>
+          )}
         </div>
-      )}
+
+        <ReputationPanel />
+      </div>
     </div>
   );
 }

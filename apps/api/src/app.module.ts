@@ -31,6 +31,7 @@ import { MentorshipModule } from './mentorship/mentorship.module';
 import { AlumniModule } from './alumni/alumni.module';
 import { ReferralsModule } from './referrals/referrals.module';
 import { CommunityModule } from './community/community.module';
+import { ReputationModule } from './reputation/reputation.module';
 import { QueueModule } from './queue/queue.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
@@ -71,6 +72,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     AlumniModule,
     ReferralsModule,
     CommunityModule,
+    ReputationModule,
   ],
 })
 export class AppModule implements NestModule {
