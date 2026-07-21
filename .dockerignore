@@ -1,0 +1,25 @@
+# Build context hygiene: keep images small and avoid baking in local state
+# or secrets. Everything the image needs is built from source inside it.
+**/node_modules
+**/dist
+**/.next
+**/.turbo
+**/coverage
+**/*.tsbuildinfo
+
+.git
+.github
+.vscode
+.claude
+
+# Local env + data — never copy secrets into an image layer
+.env
+.env.*
+!.env.example
+dump.rdb
+*.log
+
+# Docs and local-only tooling
+docs
+README.md
+docker-compose.yml
