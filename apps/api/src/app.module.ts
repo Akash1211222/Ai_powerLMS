@@ -1,5 +1,7 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -34,12 +36,41 @@ import { CommunityModule } from './community/community.module';
 import { ReputationModule } from './reputation/reputation.module';
 import { QueueModule } from './queue/queue.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
+import type { Env } from './config/env';
+import { isAuthRoute } from './common/guards/auth-route';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+    }),
+    // Per-IP HTTP rate limiting (§39); tuned via env so it can be relaxed for
+    // load tests and disabled entirely in the test suite. Every configured
+    // throttler is evaluated on every request, so the two buckets use skipIf
+    // to make exactly one apply: the tight budget on unauthenticated auth
+    // routes, the general budget everywhere else.
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => {
+        const ttl = config.get('RATE_LIMIT_TTL_SECONDS', { infer: true }) * 1000;
+        console.log('THROTTLE_CFG', JSON.stringify({ ttl, max: config.get('RATE_LIMIT_MAX', { infer: true }), authMax: config.get('AUTH_RATE_LIMIT_MAX', { infer: true }), enabled: config.get('RATE_LIMIT_ENABLED', { infer: true }) }));
+        return [
+          {
+            name: 'default',
+            ttl,
+            limit: config.get('RATE_LIMIT_MAX', { infer: true }),
+            skipIf: isAuthRoute,
+          },
+          {
+            name: 'auth',
+            ttl,
+            limit: config.get('AUTH_RATE_LIMIT_MAX', { infer: true }),
+            skipIf: (ctx) => !isAuthRoute(ctx),
+          },
+        ];
+      },
     }),
     PrismaModule,
     RedisModule,
@@ -74,6 +105,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     CommunityModule,
     ReputationModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: AppThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {
