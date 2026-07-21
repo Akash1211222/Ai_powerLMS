@@ -1,4 +1,4 @@
-import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@fca/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -20,6 +20,13 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Health of every batch the current trainer runs' })
   myBatches(@CurrentUser() user: AuthUser) {
     return this.analytics.myBatchesHealth(user.userId);
+  }
+
+  @Get('analytics/network')
+  @RequirePermissions(PERMISSIONS.ANALYTICS_VIEW)
+  @ApiOperation({ summary: 'Organization-wide learning, career and community insights' })
+  network(@CurrentUser() user: AuthUser, @Query('organizationId') organizationId: string) {
+    return this.analytics.networkInsights(user.userId, organizationId);
   }
 
   @Get('batches/:id/health')

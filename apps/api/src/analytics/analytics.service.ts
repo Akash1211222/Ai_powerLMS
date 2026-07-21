@@ -1,5 +1,10 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { computeBatchHealth, type BatchHealth } from '@fca/analytics';
+import {
+  computeBatchHealth,
+  computeNetworkInsights,
+  type BatchHealth,
+  type NetworkInsights,
+} from '@fca/analytics';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../authz/user-context.service';
 import { assertOrgAccess } from '../common/tenant';
@@ -37,5 +42,14 @@ export class AnalyticsService {
       select: { batchId: true },
     });
     return Promise.all(links.map((l) => computeBatchHealth(this.prisma, l.batchId)));
+  }
+
+  /**
+   * Organization-wide network insights (§33). Tenant-scoped: the caller must
+   * belong to the organization (or be a super admin).
+   */
+  async networkInsights(actorId: string, organizationId: string): Promise<NetworkInsights> {
+    await assertOrgAccess(this.userContext, actorId, organizationId);
+    return computeNetworkInsights(this.prisma, organizationId);
   }
 }

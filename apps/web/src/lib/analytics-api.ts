@@ -42,4 +42,37 @@ export interface BatchHealth {
 export const analyticsApi = {
   batchHealth: (batchId: string) => apiRequest<BatchHealth>(`/batches/${batchId}/health`, { auth: true }),
   myBatchesHealth: () => apiRequest<BatchHealth[]>('/me/batches/health', { auth: true }),
+  network: (organizationId: string) =>
+    apiRequest<NetworkInsights>(`/analytics/network?organizationId=${encodeURIComponent(organizationId)}`, {
+      auth: true,
+    }),
 };
+
+export interface NetworkInsights {
+  organizationId: string;
+  learning: {
+    activeStudents: number;
+    activeBatches: number;
+    avgAttendance: number;
+    avgOverallScore: number;
+    atRiskCount: number;
+  };
+  career: {
+    openOpportunities: number;
+    applications: number;
+    applicants: number;
+    hires: number;
+    placementRate: number;
+    mentoringSessions: number;
+    alumni: number;
+  };
+  community: {
+    questions: number;
+    answers: number;
+    answeredRate: number;
+    referrals: number;
+    activeContributors: number;
+  };
+  highlights: Array<{ label: string; value: string; detail: string }>;
+  version: number;
+}

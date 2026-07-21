@@ -59,3 +59,8 @@ export {
   type Contribution,
   type BadgeDefinition,
 } from './contribution';
+export {
+  computeNetworkInsights,
+  NETWORK_INSIGHTS_VERSION,
+  type NetworkInsights,
+} from './network-insights';

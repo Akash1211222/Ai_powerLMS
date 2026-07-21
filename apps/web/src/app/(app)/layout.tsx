@@ -18,6 +18,7 @@ import {
   IconMentor,
   IconAlumni,
   IconCommunity,
+  IconInsights,
   IconTarget,
   IconSearch,
 } from '@/components/icons';
@@ -61,6 +62,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/alumni', label: 'Alumni', icon: IconAlumni, show: true },
     { href: '/community', label: 'Community', icon: IconCommunity, show: true },
     { href: '/calendar', label: 'Calendar', icon: IconCalendar, show: true },
+    { href: '/insights', label: 'Insights', icon: IconInsights, show: can('analytics:view') },
   ].filter((n) => n.show);
 
   return (
