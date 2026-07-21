@@ -55,7 +55,6 @@ import { isAuthRoute } from './common/guards/auth-route';
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => {
         const ttl = config.get('RATE_LIMIT_TTL_SECONDS', { infer: true }) * 1000;
-        console.log('THROTTLE_CFG', JSON.stringify({ ttl, max: config.get('RATE_LIMIT_MAX', { infer: true }), authMax: config.get('AUTH_RATE_LIMIT_MAX', { infer: true }), enabled: config.get('RATE_LIMIT_ENABLED', { infer: true }) }));
         return [
           {
             name: 'default',

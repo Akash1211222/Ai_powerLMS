@@ -40,8 +40,6 @@ export class AppThrottlerGuard extends ThrottlerGuard {
    * Express resolves this from X-Forwarded-For behind a load balancer.
    */
   protected override async getTracker(req: Request): Promise<string> {
-    const t = req.ip ?? 'unknown';
-    console.log('TRACKER', t, req.headers['x-forwarded-for'], req.path);
-    return t;
+    return req.ip ?? 'unknown';
   }
 }
