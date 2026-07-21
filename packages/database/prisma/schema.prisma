@@ -82,9 +82,13 @@ model User {
 
   // Career ecosystem (Phase 3)
   careerProfile        CareerProfile?
-  opportunitiesPosted  Opportunity[]  @relation("OpportunityPoster")
-  applications         Application[]  @relation("Applicant")
-  applicationsReviewed Application[]  @relation("ApplicationReviewer")
+  opportunitiesPosted  Opportunity[]   @relation("OpportunityPoster")
+  applications         Application[]   @relation("Applicant")
+  applicationsReviewed Application[]   @relation("ApplicationReviewer")
+  mentorProfile        MentorProfile?
+  mentorSlots          MentorSlot[]    @relation("SlotMentor")
+  bookingsAsMentor     MentorBooking[] @relation("BookingMentor")
+  bookingsAsStudent    MentorBooking[] @relation("BookingStudent")
 
   @@index([status])
   @@index([deletedAt])
@@ -1603,4 +1607,81 @@ model Application {
   @@index([studentId, status])
   @@index([opportunityId, status])
   @@map("applications")
+}
+
+// ===========================================================================
+// MENTORSHIP (Phase 3) — mentor profiles, availability, bookings (§28)
+// ===========================================================================
+
+// A mentor's public profile — what students browse when choosing a mentor.
+model MentorProfile {
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  headline            String?
+  bio                 String?
+  expertise           String[] // free-text topic tags
+  isAcceptingBookings Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mentor_profiles")
+}
+
+enum MentorSlotStatus {
+  OPEN
+  BOOKED
+  CANCELLED
+}
+
+// A concrete window a mentor opens for 1:1s. Booking one flips it to BOOKED;
+// cancelling a booking releases it back to OPEN.
+model MentorSlot {
+  id        String           @id @default(cuid())
+  mentorId  String
+  startsAt  DateTime
+  endsAt    DateTime
+  status    MentorSlotStatus @default(OPEN)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  mentor   User            @relation("SlotMentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  bookings MentorBooking[]
+
+  @@index([mentorId, startsAt])
+  @@index([status, startsAt])
+  @@map("mentor_slots")
+}
+
+enum BookingStatus {
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// A student's booking of a mentor slot (§28). A slot holds at most one live
+// booking — enforced by the conditional OPEN→BOOKED flip — while cancelled
+// bookings are retained as history, so a freed slot can be booked again.
+model MentorBooking {
+  id          String        @id @default(cuid())
+  slotId      String
+  mentorId    String
+  studentId   String
+  topic       String
+  note        String?
+  status      BookingStatus @default(CONFIRMED)
+  mentorNotes String? // written after the session
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  slot    MentorSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  mentor  User       @relation("BookingMentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  student User       @relation("BookingStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([slotId])
+  @@index([studentId, status])
+  @@index([mentorId, status])
+  @@map("mentor_bookings")
 }
