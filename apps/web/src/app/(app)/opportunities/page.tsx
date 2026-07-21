@@ -13,6 +13,7 @@ import {
   type WorkMode,
 } from '@/lib/opportunities-api';
 import { applicationsApi, type ApplicationStatus, type ReviewStatus } from '@/lib/applications-api';
+import { referralsApi } from '@/lib/referrals-api';
 
 const typeLabel: Record<OpportunityType, string> = {
   FULL_TIME: 'Full-time',
@@ -65,11 +66,14 @@ export default function OpportunitiesPage() {
 function DiscoverView() {
   const q = useQuery({ queryKey: ['me', 'opportunities'], queryFn: opportunitiesApi.discover });
   const applications = useQuery({ queryKey: ['me', 'applications'], queryFn: applicationsApi.mine });
+  const referrals = useQuery({ queryKey: ['me', 'referrals'], queryFn: referralsApi.mine });
 
   if (q.isLoading) return <Spinner />;
   if (q.error) return <Alert tone="error">Could not load opportunities.</Alert>;
   const items = q.data ?? [];
   const myApps = (applications.data ?? []).filter((a) => a.status !== 'WITHDRAWN');
+  // Opportunities the network has vouched for me on (§30).
+  const referredOn = new Set((referrals.data?.received ?? []).map((r) => r.opportunityId));
 
   return (
     <div className="flex flex-col gap-6">
@@ -101,7 +105,7 @@ function DiscoverView() {
         ) : (
           <div className="flex flex-col gap-3">
             {items.map((o) => (
-              <DiscoverCard key={o.id} o={o} />
+              <DiscoverCard key={o.id} o={o} referred={referredOn.has(o.id)} canRefer={referrals.data?.canRefer ?? false} />
             ))}
           </div>
         )}
@@ -110,10 +114,31 @@ function DiscoverView() {
   );
 }
 
-function DiscoverCard({ o }: { o: DiscoverOpportunity }) {
+function DiscoverCard({
+  o,
+  referred,
+  canRefer,
+}: {
+  o: DiscoverOpportunity;
+  referred: boolean;
+  canRefer: boolean;
+}) {
   const qc = useQueryClient();
   const [showNote, setShowNote] = useState(false);
   const [note, setNote] = useState('');
+  const [showRefer, setShowRefer] = useState(false);
+  const [referEmail, setReferEmail] = useState('');
+  const [referNote, setReferNote] = useState('');
+
+  const refer = useMutation({
+    mutationFn: () => referralsApi.create(o.id, referEmail.trim(), referNote.trim()),
+    onSuccess: () => {
+      setShowRefer(false);
+      setReferEmail('');
+      setReferNote('');
+      qc.invalidateQueries({ queryKey: ['me', 'referrals'] });
+    },
+  });
 
   const apply = useMutation({
     mutationFn: () => applicationsApi.apply(o.id, note.trim() || undefined),
@@ -137,6 +162,7 @@ function DiscoverCard({ o }: { o: DiscoverOpportunity }) {
         </div>
         <div className="flex shrink-0 flex-col items-end gap-1.5">
           <Badge tone={matchTone(o.match.matchScore)}>{o.match.matchScore}% match</Badge>
+          {referred && <Badge tone="success">★ Referred</Badge>}
           {!o.match.eligible && <Badge tone="danger">Below readiness gate</Badge>}
         </div>
       </div>
@@ -186,7 +212,38 @@ function DiscoverCard({ o }: { o: DiscoverOpportunity }) {
             Apply externally →
           </a>
         )}
+        {canRefer && (
+          <button onClick={() => setShowRefer((s) => !s)} className="text-sm font-semibold text-brand-500">
+            {showRefer ? 'Cancel referral' : 'Refer someone →'}
+          </button>
+        )}
       </div>
+
+      {canRefer && showRefer && (
+        <div className="flex flex-col gap-2 rounded-panel bg-soft p-3">
+          <Input
+            type="email"
+            value={referEmail}
+            onChange={(e) => setReferEmail(e.target.value)}
+            placeholder="Their email address"
+          />
+          <Textarea
+            rows={2}
+            value={referNote}
+            onChange={(e) => setReferNote(e.target.value)}
+            placeholder="Why you're vouching for them (min 10 characters)…"
+          />
+          <Button
+            onClick={() => refer.mutate()}
+            loading={refer.isPending}
+            disabled={!referEmail.includes('@') || referNote.trim().length < 10}
+          >
+            Submit referral
+          </Button>
+          {refer.isSuccess && <span className="text-sm text-success">Referral sent.</span>}
+          {refer.isError && <span className="text-sm text-danger">Could not refer — check the email and try again.</span>}
+        </div>
+      )}
     </Card>
   );
 }
@@ -290,6 +347,7 @@ function Applicants({ opportunityId }: { opportunityId: string }) {
               <div className="truncate text-sm font-semibold">{name}</div>
               <div className="text-xs text-faint">
                 Readiness {a.readinessSnapshot ?? '—'} · Match {a.matchSnapshot ?? '—'}%
+                {a.referralCount > 0 && ` · ★ ${a.referralCount} referral${a.referralCount === 1 ? '' : 's'}`}
               </div>
             </div>
             <div className="flex shrink-0 items-center gap-2">

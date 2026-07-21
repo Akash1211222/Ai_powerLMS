@@ -90,6 +90,9 @@ model User {
   bookingsAsMentor     MentorBooking[] @relation("BookingMentor")
   bookingsAsStudent    MentorBooking[] @relation("BookingStudent")
   alumniProfile        AlumniProfile?
+  referralsMade        Referral[]      @relation("ReferralReferrer")
+  referralsReceived    Referral[]      @relation("ReferralStudent")
+  referralsReviewed    Referral[]      @relation("ReferralReviewer")
 
   @@index([status])
   @@index([deletedAt])
@@ -1565,6 +1568,7 @@ model Opportunity {
   organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   postedBy     User          @relation("OpportunityPoster", fields: [postedById], references: [id])
   applications Application[]
+  referrals    Referral[]
 
   @@index([organizationId, status])
   @@index([status, deadline])
@@ -1714,4 +1718,40 @@ model AlumniProfile {
   @@index([currentCompany])
   @@index([industry])
   @@map("alumni_profiles")
+}
+
+// ===========================================================================
+// NETWORK EFFECTS (Phase 4) — referrals (§30)
+// ===========================================================================
+
+enum ReferralStatus {
+  PENDING
+  ACKNOWLEDGED
+  DECLINED
+}
+
+// A member of the network (alumnus or mentor) vouching for a student on a
+// specific opportunity. Surfaces to the placement officer alongside the
+// student's application, and to the student as encouragement.
+model Referral {
+  id            String         @id @default(cuid())
+  opportunityId String
+  studentId     String
+  referrerId    String
+  note          String
+  status        ReferralStatus @default(PENDING)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  student     User        @relation("ReferralStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  referrer    User        @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  reviewedBy  User?       @relation("ReferralReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([opportunityId, studentId, referrerId])
+  @@index([studentId, status])
+  @@index([opportunityId, status])
+  @@map("referrals")
 }

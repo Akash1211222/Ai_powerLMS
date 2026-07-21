@@ -123,13 +123,23 @@ export class ApplicationsService {
     const opportunity = await this.prisma.opportunity.findUnique({ where: { id: opportunityId } });
     if (!opportunity) throw new NotFoundException('Opportunity not found');
     await assertOrgAccess(this.userContext, actorId, opportunity.organizationId);
-    return this.prisma.application.findMany({
-      where: { opportunityId },
-      orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
-      include: {
-        student: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
-      },
-    });
+    const [applications, referrals] = await Promise.all([
+      this.prisma.application.findMany({
+        where: { opportunityId },
+        orderBy: [{ status: 'asc' }, { createdAt: 'asc' }],
+        include: {
+          student: { select: { id: true, email: true, profile: { select: { firstName: true, lastName: true } } } },
+        },
+      }),
+      // Network vouches on this role, so reviewers see who was referred (§30).
+      this.prisma.referral.findMany({
+        where: { opportunityId, status: { not: 'DECLINED' } },
+        select: { studentId: true },
+      }),
+    ]);
+    const vouches = new Map<string, number>();
+    for (const r of referrals) vouches.set(r.studentId, (vouches.get(r.studentId) ?? 0) + 1);
+    return applications.map((a) => ({ ...a, referralCount: vouches.get(a.studentId) ?? 0 }));
   }
 
   async updateStatus(actorId: string, applicationId: string, dto: UpdateStatusDto) {

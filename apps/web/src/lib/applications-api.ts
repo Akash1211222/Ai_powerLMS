@@ -39,6 +39,7 @@ export interface ApplicantRow {
   coverNote: string | null;
   readinessSnapshot: number | null;
   matchSnapshot: number | null;
+  referralCount: number;
   createdAt: string;
   student: { id: string; email: string; profile: { firstName: string; lastName: string } | null };
 }
