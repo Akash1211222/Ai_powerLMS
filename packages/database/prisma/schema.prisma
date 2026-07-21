@@ -82,17 +82,20 @@ model User {
 
   // Career ecosystem (Phase 3)
   careerProfile        CareerProfile?
-  opportunitiesPosted  Opportunity[]   @relation("OpportunityPoster")
-  applications         Application[]   @relation("Applicant")
-  applicationsReviewed Application[]   @relation("ApplicationReviewer")
+  opportunitiesPosted  Opportunity[]         @relation("OpportunityPoster")
+  applications         Application[]         @relation("Applicant")
+  applicationsReviewed Application[]         @relation("ApplicationReviewer")
   mentorProfile        MentorProfile?
-  mentorSlots          MentorSlot[]    @relation("SlotMentor")
-  bookingsAsMentor     MentorBooking[] @relation("BookingMentor")
-  bookingsAsStudent    MentorBooking[] @relation("BookingStudent")
+  mentorSlots          MentorSlot[]          @relation("SlotMentor")
+  bookingsAsMentor     MentorBooking[]       @relation("BookingMentor")
+  bookingsAsStudent    MentorBooking[]       @relation("BookingStudent")
   alumniProfile        AlumniProfile?
-  referralsMade        Referral[]      @relation("ReferralReferrer")
-  referralsReceived    Referral[]      @relation("ReferralStudent")
-  referralsReviewed    Referral[]      @relation("ReferralReviewer")
+  referralsMade        Referral[]            @relation("ReferralReferrer")
+  referralsReceived    Referral[]            @relation("ReferralStudent")
+  referralsReviewed    Referral[]            @relation("ReferralReviewer")
+  communityQuestions   CommunityQuestion[]   @relation("QuestionAuthor")
+  communityAnswers     CommunityAnswer[]     @relation("AnswerAuthor")
+  communityAnswerVotes CommunityAnswerVote[]
 
   @@index([status])
   @@index([deletedAt])
@@ -269,6 +272,9 @@ model Organization {
 
   // Career ecosystem (Phase 3)
   opportunities Opportunity[]
+
+  // Network effects (Phase 4)
+  communityQuestions CommunityQuestion[]
 
   @@map("organizations")
 }
@@ -1754,4 +1760,69 @@ model Referral {
   @@index([studentId, status])
   @@index([opportunityId, status])
   @@map("referrals")
+}
+
+// ===========================================================================
+// COMMUNITY Q&A (Phase 4) — a knowledge base that compounds (§31)
+// ===========================================================================
+
+enum QuestionStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
+// A question asked inside an organization's community. Tagged by topic so the
+// archive stays searchable as it grows.
+model CommunityQuestion {
+  id             String         @id @default(cuid())
+  organizationId String
+  authorId       String
+  title          String
+  body           String
+  tags           String[]
+  status         QuestionStatus @default(OPEN)
+  viewCount      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author       User              @relation("QuestionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  answers      CommunityAnswer[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+  @@map("community_questions")
+}
+
+model CommunityAnswer {
+  id         String   @id @default(cuid())
+  questionId String
+  authorId   String
+  body       String
+  isAccepted Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  question CommunityQuestion     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  author   User                  @relation("AnswerAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  votes    CommunityAnswerVote[]
+
+  @@index([questionId])
+  @@index([authorId])
+  @@map("community_answers")
+}
+
+// Upvote-only: signal without the pile-on. One vote per member per answer.
+model CommunityAnswerVote {
+  answerId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  answer CommunityAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([answerId, userId])
+  @@index([userId])
+  @@map("community_answer_votes")
 }
