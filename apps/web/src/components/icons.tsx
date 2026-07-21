@@ -31,6 +31,9 @@ export const IconCalendar = (p: IconProps) => (
 export const IconReport = (p: IconProps) => (
   <svg {...base(p)}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9Z" /><path d="M14 3v6h6M8 13h8M8 17h5" /></svg>
 );
+export const IconAlumni = (p: IconProps) => (
+  <svg {...base(p)}><path d="M12 3 2 8l10 5 10-5-10-5Z" /><path d="M6 10.5V16c0 1.7 2.7 3 6 3s6-1.3 6-3v-5.5" /></svg>
+);
 export const IconMentor = (p: IconProps) => (
   <svg {...base(p)}><circle cx="12" cy="8" r="3.2" /><path d="M5 21v-1a5 5 0 0 1 5-5h4a5 5 0 0 1 5 5v1" /><path d="M18.5 3.5a2.5 2.5 0 0 1 0 4" /></svg>
 );

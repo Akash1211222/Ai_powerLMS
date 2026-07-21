@@ -28,6 +28,7 @@ import { CareerModule } from './career/career.module';
 import { OpportunitiesModule } from './opportunities/opportunities.module';
 import { ApplicationsModule } from './applications/applications.module';
 import { MentorshipModule } from './mentorship/mentorship.module';
+import { AlumniModule } from './alumni/alumni.module';
 import { QueueModule } from './queue/queue.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
@@ -65,6 +66,7 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     OpportunitiesModule,
     ApplicationsModule,
     MentorshipModule,
+    AlumniModule,
   ],
 })
 export class AppModule implements NestModule {

@@ -16,6 +16,7 @@ import {
   IconReport,
   IconBriefcase,
   IconMentor,
+  IconAlumni,
   IconTarget,
   IconSearch,
 } from '@/components/icons';
@@ -56,6 +57,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/career', label: 'Career', icon: IconBriefcase, show: true },
     { href: '/opportunities', label: 'Opportunities', icon: IconTarget, show: can('placement:view') },
     { href: '/mentors', label: 'Mentorship', icon: IconMentor, show: true },
+    { href: '/alumni', label: 'Alumni', icon: IconAlumni, show: true },
     { href: '/calendar', label: 'Calendar', icon: IconCalendar, show: true },
   ].filter((n) => n.show);
 

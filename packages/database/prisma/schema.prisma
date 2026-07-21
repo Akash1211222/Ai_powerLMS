@@ -89,6 +89,7 @@ model User {
   mentorSlots          MentorSlot[]    @relation("SlotMentor")
   bookingsAsMentor     MentorBooking[] @relation("BookingMentor")
   bookingsAsStudent    MentorBooking[] @relation("BookingStudent")
+  alumniProfile        AlumniProfile?
 
   @@index([status])
   @@index([deletedAt])
@@ -1684,4 +1685,33 @@ model MentorBooking {
   @@index([studentId, status])
   @@index([mentorId, status])
   @@map("mentor_bookings")
+}
+
+// ===========================================================================
+// ALUMNI NETWORK (Phase 3) — outcomes, directory, success stories (§29)
+// ===========================================================================
+
+// Where a graduate landed. Self-maintained; surfaced to current students as
+// proof-of-outcome and as a network to reach into.
+model AlumniProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  graduationYear  Int?
+  currentCompany  String?
+  currentRole     String?
+  industry        String?
+  location        String?
+  story           String? // advice / what worked, shown to current students
+  linkedinUrl     String?
+  isPublished     Boolean  @default(true) // opt out of the directory
+  openToMentoring Boolean  @default(false)
+  openToReferrals Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([currentCompany])
+  @@index([industry])
+  @@map("alumni_profiles")
 }
