@@ -17,7 +17,9 @@ import {
   recomputeStudentSkills,
   computeAndStoreStudentScore,
   evaluateStudentRisk,
+  ensureInterventionForRisk,
 } from '@fca/analytics';
+import { runRecoveryPlanGeneration, getProvider } from '@fca/ai';
 
 async function main(): Promise<void> {
   console.log('🧠 Recomputing intelligence (skills → scores → risk)...');
@@ -36,6 +38,9 @@ async function main(): Promise<void> {
   const riskTally: Record<string, number> = { LOW: 0, MEDIUM: 0, HIGH: 0, CRITICAL: 0 };
   let done = 0;
   let failed = 0;
+  let interventions = 0;
+  let plans = 0;
+  const provider = getProvider();
 
   for (const { userId } of students) {
     try {
@@ -43,6 +48,18 @@ async function main(): Promise<void> {
       await computeAndStoreStudentScore(prisma, userId);
       const risk = await evaluateStudentRisk(prisma, userId);
       riskTally[risk.level] = (riskTally[risk.level] ?? 0) + 1;
+
+      // Mirror the worker's nightly sweep: a meaningful escalation opens an
+      // intervention and generates its recovery plan. Without this the at-risk
+      // students have a risk level but no plan, and the workflow that the
+      // student actually sees never appears.
+      const opened = await ensureInterventionForRisk(prisma, risk);
+      if (opened.created && opened.interventionId) {
+        interventions++;
+        const plan = await runRecoveryPlanGeneration(prisma, opened.interventionId, provider);
+        if (!plan.skipped) plans++;
+      }
+
       done++;
       if (done % 25 === 0) console.log(`   …${done}/${students.length}`);
     } catch (err) {
@@ -56,6 +73,7 @@ async function main(): Promise<void> {
   console.log(
     `   Risk spread — LOW ${riskTally.LOW} · MEDIUM ${riskTally.MEDIUM} · HIGH ${riskTally.HIGH} · CRITICAL ${riskTally.CRITICAL}`,
   );
+  console.log(`   Interventions opened: ${interventions} · recovery plans generated: ${plans} (${provider.name})`);
 }
 
 main()
