@@ -4,12 +4,23 @@ import { useAuth } from '@/lib/auth-context';
 import { StudentDashboard } from '@/components/student-dashboard';
 import { TrainerDashboard } from '@/components/trainer-dashboard';
 
-const STAFF_ROLES = ['TRAINER', 'BATCH_MANAGER', 'COLLEGE_ADMIN', 'SUPER_ADMIN'];
+// Every non-learner role. Placement officers and mentors belong here too:
+// without them the student view renders for staff, telling a placement officer
+// they are "0% through your courses" and "not placement ready" — nonsense for
+// someone who has never been a learner.
+const STAFF_ROLES = [
+  'TRAINER',
+  'BATCH_MANAGER',
+  'COLLEGE_ADMIN',
+  'SUPER_ADMIN',
+  'PLACEMENT_OFFICER',
+  'MENTOR',
+];
 
 /**
- * Role-aware dashboard. Staff (trainers/managers/admins) see the trainer view
- * of their batches; everyone else sees the student view of their learning.
- * Both render REAL aggregated data from the API — no mock metrics.
+ * Role-aware dashboard. Staff see the staff view of their batches and at-risk
+ * students; learners see their own progress. Both render REAL aggregated data
+ * from the API — no mock metrics.
  */
 export default function DashboardPage() {
   const { user } = useAuth();

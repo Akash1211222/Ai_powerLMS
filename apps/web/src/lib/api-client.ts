@@ -50,5 +50,8 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   if (!res.ok) {
     throw new ApiError(res.status, (payload as ApiErrorBody) ?? { error: { code: 'INTERNAL', message: res.statusText } });
   }
-  return payload as T;
+  // A successful response with an empty body means "nothing here" — e.g.
+  // /me/score before any score has been computed. Return null rather than
+  // undefined: React Query treats undefined as a failed query and throws.
+  return (payload ?? null) as T;
 }
