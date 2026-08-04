@@ -378,60 +378,58 @@ list();
     });
   }
 
-  // Placement profile + open jobs
-  await prisma.placementProfile.upsert({
+  // Career profile + open opportunities
+  await prisma.careerProfile.upsert({
     where: { userId: studentId },
     update: {
-      skills: ['JavaScript', 'React', 'TypeScript', 'SQL', 'Node'],
-      preferredRoles: ['Frontend Developer', 'Full Stack Developer'],
-      preferredLocations: ['Bangalore', 'Remote'],
-      status: 'LOOKING',
       headline: 'Aspiring full-stack engineer',
+      summary: 'JavaScript, React, TypeScript, SQL, Node — open to frontend and full-stack roles.',
+      location: 'Bangalore',
+      openToWork: true,
     },
     create: {
       userId: studentId,
-      skills: ['JavaScript', 'React', 'TypeScript', 'SQL', 'Node'],
-      preferredRoles: ['Frontend Developer', 'Full Stack Developer'],
-      preferredLocations: ['Bangalore', 'Remote'],
-      status: 'LOOKING',
       headline: 'Aspiring full-stack engineer',
+      summary: 'JavaScript, React, TypeScript, SQL, Node — open to frontend and full-stack roles.',
+      location: 'Bangalore',
+      openToWork: true,
     },
   });
 
-  const existingJobs = await prisma.jobPosting.count({ where: { organizationId: org.id } });
+  const existingJobs = await prisma.opportunity.count({ where: { organizationId: org.id } });
   if (existingJobs === 0) {
-    await prisma.jobPosting.createMany({
+    await prisma.opportunity.createMany({
       data: [
         {
           organizationId: org.id,
+          postedById: placementId,
           companyName: 'NovaTech Labs',
           title: 'Frontend Developer Intern',
           description: 'Build React dashboards for internal tools.',
-          jobType: 'INTERNSHIP',
+          type: 'INTERNSHIP',
+          workMode: 'ONSITE',
           location: 'Bangalore',
-          ctcMinLpa: 4,
-          ctcMaxLpa: 6,
-          skills: ['React', 'TypeScript', 'JavaScript'],
-          eligibility: 'Any year · Full Stack Foundations cohort',
+          salaryMin: 400000,
+          salaryMax: 600000,
+          requirements: ['React', 'TypeScript', 'JavaScript'],
           status: 'OPEN',
           publishedAt: new Date(),
-          createdById: placementId,
           deadline: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
         {
           organizationId: org.id,
+          postedById: placementId,
           companyName: 'Orbit Systems',
           title: 'Full Stack Developer',
           description: 'Own features across Next.js and NestJS APIs.',
-          jobType: 'FULL_TIME',
+          type: 'FULL_TIME',
+          workMode: 'REMOTE',
           location: 'Remote',
-          ctcMinLpa: 8,
-          ctcMaxLpa: 12,
-          skills: ['React', 'Node', 'SQL', 'TypeScript'],
-          eligibility: 'Completed Full Stack Foundations',
+          salaryMin: 800000,
+          salaryMax: 1200000,
+          requirements: ['React', 'Node', 'SQL', 'TypeScript'],
           status: 'OPEN',
           publishedAt: new Date(),
-          createdById: placementId,
           deadline: new Date(Date.now() + 45 * 24 * 60 * 60 * 1000),
         },
       ],
@@ -664,7 +662,7 @@ list();
   }
 
   // ---------------------------------------------------------------------
-  // Mentorship demo data (Phase 4): mentor profile + a couple of bookings.
+  // Mentorship demo data: mentor profile, open slot, and sample bookings.
   // ---------------------------------------------------------------------
   const mentorId = usersByEmail.get('mentor@futurecorpacademy.in')!;
   await prisma.mentorProfile.upsert({
@@ -672,7 +670,6 @@ list();
     update: {
       headline: 'Engineering mentor — career paths & interview prep',
       expertise: ['Career guidance', 'Interviews', 'React', 'System design'],
-      weeklyCapacity: 6,
       isAcceptingBookings: true,
     },
     create: {
@@ -680,43 +677,71 @@ list();
       headline: 'Engineering mentor — career paths & interview prep',
       bio: 'A decade of full-stack experience; happy to help with roadmaps, projects, and interviews.',
       expertise: ['Career guidance', 'Interviews', 'React', 'System design'],
-      weeklyCapacity: 6,
       isAcceptingBookings: true,
     },
   });
 
-  const bookingCount = await prisma.mentorshipBooking.count({
+  const bookingCount = await prisma.mentorBooking.count({
     where: { mentorId, studentId },
   });
   if (bookingCount === 0) {
-    await prisma.mentorshipBooking.create({
+    const upcomingStart = new Date(Date.now() + 3 * 24 * 60 * 60 * 1000);
+    const upcomingEnd = new Date(upcomingStart.getTime() + 30 * 60 * 1000);
+    const pastStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+    const pastEnd = new Date(pastStart.getTime() + 30 * 60 * 1000);
+
+    const upcomingSlot = await prisma.mentorSlot.create({
       data: {
+        mentorId,
+        startsAt: upcomingStart,
+        endsAt: upcomingEnd,
+        status: 'BOOKED',
+      },
+    });
+    await prisma.mentorBooking.create({
+      data: {
+        slotId: upcomingSlot.id,
         mentorId,
         studentId,
         topic: 'Portfolio review before placement season',
         note: 'Would love feedback on my projects and resume direction.',
-        scheduledAt: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
-        durationMin: 30,
-        status: 'REQUESTED',
+        status: 'CONFIRMED',
       },
     });
-    await prisma.mentorshipBooking.create({
+
+    const pastSlot = await prisma.mentorSlot.create({
       data: {
+        mentorId,
+        startsAt: pastStart,
+        endsAt: pastEnd,
+        status: 'BOOKED',
+      },
+    });
+    await prisma.mentorBooking.create({
+      data: {
+        slotId: pastSlot.id,
         mentorId,
         studentId,
         topic: 'Kickoff: goals for the cohort',
-        scheduledAt: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000),
-        durationMin: 30,
         status: 'COMPLETED',
-        outcomeNote: 'Set a weekly practice plan; focus on JS fundamentals first.',
-        rating: 5,
-        respondedAt: new Date(Date.now() - 8 * 24 * 60 * 60 * 1000),
+        mentorNotes: 'Set a weekly practice plan; focus on JS fundamentals first.',
+      },
+    });
+
+    // Leave one open slot for students to book in the UI.
+    const openStart = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+    await prisma.mentorSlot.create({
+      data: {
+        mentorId,
+        startsAt: openStart,
+        endsAt: new Date(openStart.getTime() + 30 * 60 * 1000),
+        status: 'OPEN',
       },
     });
   }
 
   console.log(`✅ Seed complete. ${SEED_USERS.length} users, org "${org.slug}".`);
-  console.log(`   Course "${course.title}", batch "${batch.code}", assignment + assessment + jobs.`);
+  console.log(`   Course "${course.title}", batch "${batch.code}", assignment + assessment + opportunities.`);
   console.log(`   Dev login password for all seed users: ${DEV_PASSWORD}`);
 }
 
