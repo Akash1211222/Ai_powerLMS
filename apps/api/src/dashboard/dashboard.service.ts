@@ -116,19 +116,18 @@ export class DashboardService {
         take: 4,
         select: { percent: true, gradedAt: true, assessment: { select: { title: true } } },
       }),
-      this.prisma.mentorshipBooking.findFirst({
+      this.prisma.mentorBooking.findFirst({
         where: {
           studentId: userId,
-          status: { in: ['REQUESTED', 'CONFIRMED'] },
-          scheduledAt: { gte: now },
+          status: 'CONFIRMED',
+          slot: { startsAt: { gte: now } },
         },
-        orderBy: { scheduledAt: 'asc' },
+        orderBy: { slot: { startsAt: 'asc' } },
         select: {
           id: true,
           topic: true,
-          scheduledAt: true,
           status: true,
-          meetingUrl: true,
+          slot: { select: { startsAt: true } },
           mentor: { select: { profile: { select: { firstName: true, lastName: true } } } },
         },
       }),
@@ -136,7 +135,7 @@ export class DashboardService {
         where: { userId },
         select: { organizationId: true },
       }),
-      this.prisma.jobApplication.count({ where: { studentId: userId } }),
+      this.prisma.application.count({ where: { studentId: userId } }),
       this.prisma.attendanceRecord.findMany({
         where: { studentId: userId },
         orderBy: { session: { sessionDate: 'desc' } },
@@ -145,9 +144,11 @@ export class DashboardService {
       }),
     ]);
 
-    const orgIds = orgMemberships.map((m) => m.organizationId);
+    const orgIds = orgMemberships
+      .map((m) => m.organizationId)
+      .filter((id): id is string => Boolean(id));
     const openJobs = orgIds.length
-      ? await this.prisma.jobPosting.count({
+      ? await this.prisma.opportunity.count({
           where: { organizationId: { in: orgIds }, status: 'OPEN' },
         })
       : 0;
@@ -230,7 +231,16 @@ export class DashboardService {
       deadlines,
       recentGrades,
       attendanceTrend,
-      nextMentorSession,
+      nextMentorSession: nextMentorSession
+        ? {
+            id: nextMentorSession.id,
+            topic: nextMentorSession.topic,
+            scheduledAt: nextMentorSession.slot.startsAt,
+            status: nextMentorSession.status,
+            meetingUrl: null as string | null,
+            mentor: nextMentorSession.mentor,
+          }
+        : null,
     };
   }
 
@@ -305,34 +315,36 @@ export class DashboardService {
   async placement(userId: string, organizationId: string) {
     await assertOrgAccess(this.userContext, userId, organizationId);
 
-    const [openings, applications, placed, profilesLooking] = await Promise.all([
-      this.prisma.jobPosting.findMany({
+    const [openings, applications, placed, lookingRows] = await Promise.all([
+      this.prisma.opportunity.findMany({
         where: { organizationId },
         orderBy: { createdAt: 'desc' },
         take: 20,
         include: { _count: { select: { applications: true } } },
       }),
-      this.prisma.jobApplication.findMany({
-        where: { jobPosting: { organizationId } },
+      this.prisma.application.findMany({
+        where: { opportunity: { organizationId } },
         select: { status: true },
       }),
-      this.prisma.jobApplication.count({
-        where: { jobPosting: { organizationId }, status: 'PLACED' },
+      this.prisma.application.count({
+        where: { opportunity: { organizationId }, status: 'HIRED' },
       }),
-      this.prisma.placementProfile.count({
+      this.prisma.careerProfile.findMany({
         where: {
-          status: { in: ['LOOKING', 'INTERVIEWING'] },
+          openToWork: true,
           user: { orgMemberships: { some: { organizationId } } },
         },
+        select: { userId: true },
       }),
     ]);
 
     const funnel: Record<string, number> = {
       APPLIED: 0,
+      UNDER_REVIEW: 0,
       SHORTLISTED: 0,
       INTERVIEW: 0,
       OFFERED: 0,
-      PLACED: 0,
+      HIRED: 0,
       REJECTED: 0,
       WITHDRAWN: 0,
     };
@@ -351,10 +363,16 @@ export class DashboardService {
         totalApplications: totalApps,
         placed,
         placementRate,
-        studentsLooking: profilesLooking,
+        studentsLooking: lookingRows.length,
       },
       funnel,
-      recentJobs: openings,
+      recentJobs: openings.map((j) => ({
+        id: j.id,
+        title: j.title,
+        companyName: j.companyName,
+        status: j.status,
+        _count: j._count,
+      })),
     };
   }
 
@@ -390,9 +408,9 @@ export class DashboardService {
         where: { session: { batch: { organizationId } } },
         select: { status: true },
       }),
-      this.prisma.jobPosting.count({ where: { organizationId, status: 'OPEN' } }),
-      this.prisma.jobApplication.count({
-        where: { jobPosting: { organizationId }, status: 'PLACED' },
+      this.prisma.opportunity.count({ where: { organizationId, status: 'OPEN' } }),
+      this.prisma.application.count({
+        where: { opportunity: { organizationId }, status: 'HIRED' },
       }),
     ]);
 

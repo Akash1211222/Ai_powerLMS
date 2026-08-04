@@ -82,7 +82,7 @@ async function executeLocal(dto: RunCodeDto): Promise<RunCodeResult> {
       const source =
         dto.language === 'TYPESCRIPT'
           ? dto.source
-              .replace(/:\s*[A-Za-z_][\w.<>,\s|&\[\]]*(?=[,)=])/g, '')
+              .replace(/:\s*[A-Za-z_][\w.<>,\s|&[\]]*(?=[,)=])/g, '')
               .replace(/\bas\s+[A-Za-z_][\w.]*/g, '')
               .replace(/interface\s+\w+\s*\{[\s\S]*?\n\}/g, '')
           : dto.source;

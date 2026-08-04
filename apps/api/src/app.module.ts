@@ -35,7 +35,6 @@ import { ReferralsModule } from './referrals/referrals.module';
 import { CommunityModule } from './community/community.module';
 import { ReputationModule } from './reputation/reputation.module';
 import { QueueModule } from './queue/queue.module';
-import { PlacementsModule } from './placements/placements.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { CodeModule } from './code/code.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
@@ -93,7 +92,6 @@ import { isAuthRoute } from './common/guards/auth-route';
     RecommendationsModule,
     AnalyticsModule,
     PlacementModule,
-    PlacementsModule,
     CareerModule,
     OpportunitiesModule,
     ApplicationsModule,

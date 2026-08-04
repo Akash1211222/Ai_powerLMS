@@ -43,8 +43,8 @@ export function PlacementDashboard({ firstName }: { firstName: string }) {
         suffix="👋"
         subtitle={`${todayLabel()} · ${org.name} · ${d.stats.openJobs} open role${d.stats.openJobs === 1 ? '' : 's'} · ${d.stats.studentsLooking} students actively looking`}
         actions={[
-          { label: 'Post a job', href: '/placements', icon: PlusCircle, primary: true },
-          { label: 'Manage pipeline', href: '/placements', icon: Briefcase },
+          { label: 'Post a job', href: '/opportunities', icon: PlusCircle, primary: true },
+          { label: 'Manage pipeline', href: '/opportunities', icon: Briefcase },
         ]}
       >
         <HeroPanel title="Snapshot">
@@ -108,7 +108,7 @@ export function PlacementDashboard({ firstName }: { firstName: string }) {
       <Card>
         <div className="mb-3 flex items-center justify-between">
           <h2 className="font-display font-bold">Recent jobs</h2>
-          <Link href="/placements" className="text-xs font-bold text-brand-500 hover:underline">
+          <Link href="/opportunities" className="text-xs font-bold text-brand-500 hover:underline">
             Manage jobs
           </Link>
         </div>

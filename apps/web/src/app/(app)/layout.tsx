@@ -81,7 +81,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/skills', label: 'Skills', icon: Sparkles, show: true },
     { href: '/career', label: 'Career', icon: Briefcase, show: true },
     { href: '/opportunities', label: 'Opportunities', icon: Target, show: can('placement:view') },
-    { href: '/placements', label: 'Placements', icon: Briefcase, show: can('placement:view') },
     {
       href: '/intelligence',
       label: 'Intelligence',
@@ -89,7 +88,6 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       show: can('student:view') || can('assignment:submit'),
     },
     { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake, show: true },
-    { href: '/mentors', label: 'Mentors', icon: HeartHandshake, show: true },
     { href: '/alumni', label: 'Alumni', icon: GraduationCap, show: true },
     { href: '/community', label: 'Community', icon: MessagesSquare, show: true },
     { href: '/reports', label: 'Reports', icon: FileBarChart, show: true },

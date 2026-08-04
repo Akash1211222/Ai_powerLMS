@@ -43,6 +43,9 @@ coverage/
 tmp/
 uploads-local/
 
+# Redis local dump (never commit)
+dump.rdb
+
 # Design source (kept locally as reference, not part of the app build)
 _design_src/
 FutureCorp Academy UI Design.zip
