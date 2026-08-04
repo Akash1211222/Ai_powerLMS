@@ -1,6 +1,6 @@
 /**
  * Attendance e2e (§14). Runs live in CI. Full journey:
- *   admin: course -> lesson -> publish -> batch -> enroll student
+ *   admin: course -> lesson -> publish -> batch -> enroll isolated student
  *          -> attendance session -> mark PRESENT
  *   student: sees rate 100%, requests a correction to ABSENT
  *   admin: approves the correction -> record becomes ABSENT, rate 0%
@@ -10,10 +10,12 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { Test } from '@nestjs/testing';
 import type { INestApplication } from '@nestjs/common';
 import request from 'supertest';
+import * as argon2 from 'argon2';
 import { PrismaClient } from '@fca/database';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
 const run = TEST_DB ? describe : describe.skip;
+const PASSWORD = 'Password123!';
 
 run('Attendance (e2e)', () => {
   let app: INestApplication;
@@ -21,6 +23,8 @@ run('Attendance (e2e)', () => {
   let orgId: string;
   let adminToken: string;
   let studentToken: string;
+  let studentId = '';
+  let studentEmail = '';
   let courseId = '';
   let batchId = '';
   let recordId = '';
@@ -41,9 +45,24 @@ run('Attendance (e2e)', () => {
     await app.init();
 
     adminToken = await login('superadmin@futurecorpacademy.in');
-    studentToken = await login('student@futurecorpacademy.in');
 
-    // Set up a course + batch + enrolled student.
+    // Isolated student so seeded attendance history cannot skew rates.
+    studentEmail = `attn.e2e.${Date.now()}@futurecorpacademy.in`;
+    const role = await prisma.role.findUniqueOrThrow({ where: { name: 'STUDENT' } });
+    const user = await prisma.user.create({
+      data: {
+        email: studentEmail,
+        passwordHash: await argon2.hash(PASSWORD, { type: argon2.argon2id }),
+        status: 'ACTIVE',
+        emailVerifiedAt: new Date(0),
+        profile: { create: { firstName: 'Attn', lastName: 'E2E' } },
+        orgMemberships: { create: { organizationId: orgId, isPrimary: true } },
+        roles: { create: { roleId: role.id, organizationId: orgId } },
+      },
+    });
+    studentId = user.id;
+    studentToken = await login(studentEmail);
+
     const course = await req('post', '/api/v1/courses', adminToken, {
       organizationId: orgId,
       title: `Attn Course ${Date.now()}`,
@@ -61,13 +80,25 @@ run('Attendance (e2e)', () => {
     });
     batchId = batch.id;
     await req('post', `/api/v1/batches/${batchId}/students`, adminToken, {
-      email: 'student@futurecorpacademy.in',
+      email: studentEmail,
     });
   });
 
   afterAll(async () => {
     if (prisma) {
+      if (studentId) {
+        await prisma.attendanceRecord.deleteMany({ where: { studentId } }).catch(() => undefined);
+        await prisma.attendanceCorrectionRequest
+          .deleteMany({ where: { requestedById: studentId } })
+          .catch(() => undefined);
+        await prisma.enrollment.deleteMany({ where: { userId: studentId } }).catch(() => undefined);
+        await prisma.batchStudent.deleteMany({ where: { userId: studentId } }).catch(() => undefined);
+        await prisma.userRole.deleteMany({ where: { userId: studentId } }).catch(() => undefined);
+        await prisma.organizationMember.deleteMany({ where: { userId: studentId } }).catch(() => undefined);
+        await prisma.user.delete({ where: { id: studentId } }).catch(() => undefined);
+      }
       if (batchId) {
+        await prisma.attendanceSession.deleteMany({ where: { batchId } }).catch(() => undefined);
         await prisma.enrollment.deleteMany({ where: { batchId } }).catch(() => undefined);
         await prisma.batch.delete({ where: { id: batchId } }).catch(() => undefined);
       }
@@ -80,7 +111,7 @@ run('Attendance (e2e)', () => {
   async function login(email: string): Promise<string> {
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
-      .send({ email, password: 'Password123!' })
+      .send({ email, password: PASSWORD })
       .expect(200);
     return res.body.accessToken as string;
   }
@@ -92,15 +123,12 @@ run('Attendance (e2e)', () => {
   }
 
   it('marks a student present and reflects a 100% rate', async () => {
-    const student = await prisma.user.findUniqueOrThrow({
-      where: { email: 'student@futurecorpacademy.in' },
-    });
     const session = await req('post', '/api/v1/attendance/sessions', adminToken, {
       batchId,
       title: 'Day 1',
     });
     await req('post', `/api/v1/attendance/sessions/${session.id}/mark`, adminToken, {
-      records: [{ studentId: student.id, status: 'PRESENT' }],
+      records: [{ studentId, status: 'PRESENT' }],
     });
 
     const me = await req('get', '/api/v1/attendance/me', studentToken);
