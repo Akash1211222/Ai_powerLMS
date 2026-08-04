@@ -3,6 +3,21 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  LayoutDashboard,
+  BookOpen,
+  Users,
+  ClipboardList,
+  FileCheck2,
+  CalendarCheck,
+  Briefcase,
+  BrainCircuit,
+  HeartHandshake,
+  ShieldCheck,
+  CalendarDays,
+  LogOut,
+  type LucideIcon,
+} from 'lucide-react';
 import { Logo, Spinner, cn } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { NotificationBell } from '@/components/notification-bell';
@@ -30,51 +45,87 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   const can = (perm: string) => user.permissions.includes(perm);
   const name = user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user.email;
+  const initials = user.profile
+    ? `${user.profile.firstName[0] ?? ''}${user.profile.lastName[0] ?? ''}`
+    : user.email.slice(0, 2).toUpperCase();
 
-  const nav = [
-    { href: '/dashboard', label: 'Dashboard', show: true },
-    { href: '/courses', label: 'Courses', show: can('course:view') },
-    { href: '/batches', label: 'Batches', show: can('batch:view') },
-    { href: '/calendar', label: 'Calendar', show: true },
+  const nav: Array<{ href: string; label: string; icon: LucideIcon; show: boolean }> = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, show: true },
+    { href: '/courses', label: 'Courses', icon: BookOpen, show: can('course:view') },
+    { href: '/batches', label: 'Batches', icon: Users, show: can('batch:view') },
+    { href: '/assignments', label: 'Assignments', icon: ClipboardList, show: can('assignment:submit') || can('assignment:create') },
+    { href: '/assessments', label: 'Assessments', icon: FileCheck2, show: can('assignment:submit') || can('assessment:create') },
+    { href: '/attendance', label: 'Attendance', icon: CalendarCheck, show: can('attendance:view') || can('attendance:mark') },
+    { href: '/placements', label: 'Placements', icon: Briefcase, show: can('placement:view') },
+    { href: '/intelligence', label: 'Intelligence', icon: BrainCircuit, show: can('student:view') || can('assignment:submit') },
+    { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake, show: true },
+    { href: '/admin', label: 'Admin', icon: ShieldCheck, show: can('user:view') || can('feature-flag:manage') },
+    { href: '/calendar', label: 'Calendar', icon: CalendarDays, show: true },
   ].filter((n) => n.show);
+
+  const current = nav.find((n) => pathname === n.href || pathname.startsWith(`${n.href}/`));
 
   return (
     <div className="flex min-h-screen bg-bg">
-      <aside className="sticky top-0 flex h-screen w-60 flex-col gap-1 border-r border-hair bg-panel p-4">
-        <div className="px-2 pb-4">
+      <div className="aurora-bg" aria-hidden>
+        <div className="blob-3" />
+      </div>
+
+      <aside className="glass sticky top-0 z-20 flex h-screen w-64 flex-col gap-1 border-r p-4">
+        <div className="px-2 pb-5 pt-1">
           <Logo />
         </div>
         {nav.map((n) => {
           const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
+          const Icon = n.icon;
           return (
             <Link
               key={n.href}
               href={n.href}
               className={cn(
-                'rounded-panel px-3 py-2 text-sm font-semibold transition',
-                active ? 'bg-brand-100 text-brand-600' : 'text-faint hover:bg-soft hover:text-ink',
+                'group flex items-center gap-3 rounded-panel px-3 py-2.5 text-sm font-semibold transition-all duration-200',
+                active
+                  ? 'bg-grad-brand text-white shadow-glow'
+                  : 'text-faint hover:translate-x-0.5 hover:bg-chip hover:text-ink',
               )}
             >
+              <Icon
+                className={cn(
+                  'h-[18px] w-[18px] transition-transform duration-200',
+                  active ? 'text-white' : 'text-brand-400 group-hover:scale-110',
+                )}
+                aria-hidden
+              />
               {n.label}
             </Link>
           );
         })}
         <div className="mt-auto border-t border-hair pt-3">
-          <div className="px-2 text-sm font-semibold text-ink">{name}</div>
+          <div className="flex items-center gap-2.5 px-2">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-grad-aqua text-xs font-extrabold text-white shadow-glow-aqua">
+              {initials}
+            </span>
+            <span className="truncate text-sm font-semibold text-ink">{name}</span>
+          </div>
           <button
             onClick={() => logout()}
-            className="mt-2 w-full rounded-panel border border-hair px-3 py-1.5 text-sm font-semibold text-ink transition hover:bg-soft"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-panel border border-hair px-3 py-2 text-sm font-semibold text-ink transition hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
           >
+            <LogOut className="h-4 w-4" aria-hidden />
             Sign out
           </button>
         </div>
       </aside>
-      <div className="flex flex-1 flex-col">
-        <header className="flex items-center justify-end gap-3 border-b border-hair bg-panel/70 px-8 py-3 backdrop-blur">
+
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="glass sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-8 py-3">
+          <span className="font-display text-sm font-bold uppercase tracking-widest text-faint">
+            {current?.label ?? 'FutureCorp Academy'}
+          </span>
           <NotificationBell />
         </header>
         <main className="flex-1 px-8 py-8">
-          <div className="mx-auto max-w-5xl">{children}</div>
+          <div className="mx-auto max-w-6xl animate-fadeUp">{children}</div>
         </main>
       </div>
     </div>

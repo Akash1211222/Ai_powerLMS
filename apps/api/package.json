@@ -38,6 +38,8 @@
     "@fca/config": "workspace:*",
     "@nestjs/cli": "10.4.9",
     "@nestjs/testing": "10.4.15",
+    "@swc/cli": "0.5.2",
+    "@swc/core": "1.15.43",
     "@types/express": "5.0.0",
     "@types/node": "22.10.2",
     "@types/nodemailer": "6.4.17",

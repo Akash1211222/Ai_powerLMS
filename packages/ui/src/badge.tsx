@@ -4,11 +4,11 @@ import { cn } from './cn';
 type Tone = 'neutral' | 'brand' | 'success' | 'warning' | 'danger';
 
 const tones: Record<Tone, string> = {
-  neutral: 'bg-soft text-faint',
-  brand: 'bg-brand-100 text-brand-600',
-  success: 'bg-success/10 text-success',
-  warning: 'bg-warning/10 text-warning',
-  danger: 'bg-danger/10 text-danger',
+  neutral: 'bg-soft text-faint ring-1 ring-inset ring-hair',
+  brand: 'bg-brand-100 text-brand-600 ring-1 ring-inset ring-brand-200',
+  success: 'bg-success/15 text-success ring-1 ring-inset ring-success/25',
+  warning: 'bg-warning/15 text-amber-600 ring-1 ring-inset ring-warning/30',
+  danger: 'bg-danger/10 text-danger ring-1 ring-inset ring-danger/25',
 };
 
 export interface BadgeProps extends HTMLAttributes<HTMLSpanElement> {

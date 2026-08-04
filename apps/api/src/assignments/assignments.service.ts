@@ -4,7 +4,7 @@ import {
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { runSubmissionEvaluation, getProvider } from '@fca/ai';
+import { generateAssignment, runSubmissionEvaluation, getProvider } from '@fca/ai';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
@@ -15,6 +15,7 @@ import type {
   CreateAssignmentDto,
   SubmitDto,
   ReviewEvaluationDto,
+  AiGenerateAssignmentDto,
 } from './dto/assignment.schemas';
 
 @Injectable()
@@ -36,7 +37,10 @@ export class AssignmentsService {
   }
 
   private async loadOwnedBatch(userId: string, batchId: string) {
-    const batch = await this.prisma.batch.findUnique({ where: { id: batchId } });
+    const batch = await this.prisma.batch.findUnique({
+      where: { id: batchId },
+      include: { course: { select: { id: true, title: true, level: true } } },
+    });
     if (!batch) throw new NotFoundException('Batch not found');
     await assertOrgAccess(this.userContext, userId, batch.organizationId);
     return batch;
@@ -65,6 +69,7 @@ export class AssignmentsService {
 
   async create(userId: string, dto: CreateAssignmentDto) {
     const batch = await this.loadOwnedBatch(userId, dto.batchId);
+    const publish = dto.publish === true;
     const assignment = await this.prisma.assignment.create({
       data: {
         batchId: dto.batchId,
@@ -77,8 +82,12 @@ export class AssignmentsService {
         maxScore: dto.maxScore ?? 100,
         dueAt: dto.dueAt ?? null,
         allowLate: dto.allowLate ?? false,
-        maxAttempts: dto.maxAttempts ?? 1,
+        maxAttempts: dto.maxAttempts ?? 3,
         aiEvaluationEnabled: dto.aiEvaluationEnabled ?? true,
+        language: dto.language ?? 'NONE',
+        starterCode: dto.starterCode ?? null,
+        aiGenerated: dto.aiGenerated ?? false,
+        status: publish ? 'PUBLISHED' : 'DRAFT',
         createdById: userId,
         criteria: {
           create: dto.criteria.map((c, i) => ({
@@ -97,8 +106,62 @@ export class AssignmentsService {
       organizationId: batch.organizationId,
       targetType: 'Assignment',
       targetId: assignment.id,
+      metadata: { language: assignment.language, aiGenerated: assignment.aiGenerated },
     });
+    if (publish) {
+      const studentIds = await this.batchStudentIds(assignment.batchId);
+      await this.notifications.notifyMany(studentIds, {
+        type: 'ASSIGNMENT_PUBLISHED',
+        title: 'New assignment',
+        body: `"${assignment.title}" has been assigned to your batch.`,
+        deepLink: `/assignments/${assignment.id}`,
+      });
+    }
     return assignment;
+  }
+
+  /**
+   * AI generates a course-matched coding (or written) assignment for the whole
+   * batch — language is inferred from the course (Python → Python compiler, etc.).
+   */
+  async aiGenerate(userId: string, dto: AiGenerateAssignmentDto) {
+    const batch = await this.loadOwnedBatch(userId, dto.batchId);
+    const generated = await generateAssignment({
+      courseTitle: batch.course.title,
+      courseLevel: batch.course.level,
+      batchName: batch.name,
+      topicHint: dto.topicHint,
+      difficulty: dto.difficulty,
+    });
+    return this.create(userId, {
+      batchId: dto.batchId,
+      courseId: batch.courseId,
+      title: generated.title,
+      description: generated.description,
+      instructions: generated.instructions,
+      difficulty: generated.difficulty,
+      maxScore: generated.maxScore,
+      language: generated.language,
+      starterCode: generated.starterCode,
+      aiGenerated: true,
+      aiEvaluationEnabled: true,
+      publish: dto.publish ?? true,
+      criteria: generated.criteria,
+    });
+  }
+
+  /**
+   * Called when a student is enrolled. If the batch has no published work yet,
+   * auto-create an AI assignment matched to the course language so the student
+   * immediately gets something to do in the right compiler.
+   */
+  async ensureCourseAssignments(actorUserId: string, batchId: string) {
+    const published = await this.prisma.assignment.count({
+      where: { batchId, status: 'PUBLISHED' },
+    });
+    if (published > 0) return { created: false, reason: 'already_has_assignments' as const };
+    const created = await this.aiGenerate(actorUserId, { batchId, publish: true });
+    return { created: true, assignmentId: created.id };
   }
 
   async publish(userId: string, assignmentId: string) {
@@ -165,19 +228,35 @@ export class AssignmentsService {
         studentId: userId,
         attemptNumber: priorCount + 1,
         contentText: dto.contentText ?? null,
+        codeOutput: dto.codeOutput ?? null,
         repoUrl: dto.repoUrl ?? null,
         status: 'SUBMITTED',
         submittedAt: new Date(),
       },
     });
 
+    let evaluation = null;
     if (assignment.aiEvaluationEnabled) {
       await this.prisma.assignmentEvaluation.create({
         data: { submissionId: submission.id, status: 'PENDING' },
       });
-      await this.queue.enqueueEvaluation(submission.id); // async; worker evaluates
+      // Instant sync scoring so the student sees the grade immediately.
+      // Queue remains as a resilient fallback if sync fails.
+      try {
+        await runSubmissionEvaluation(this.prisma, submission.id, getProvider());
+      } catch {
+        await this.queue.enqueueEvaluation(submission.id);
+      }
+      evaluation = await this.prisma.assignmentEvaluation.findUnique({
+        where: { submissionId: submission.id },
+        include: { criterionScores: true },
+      });
     }
-    return submission;
+
+    const refreshed = await this.prisma.assignmentSubmission.findUnique({
+      where: { id: submission.id },
+    });
+    return { ...refreshed, evaluation };
   }
 
   async listMine(userId: string) {
@@ -195,7 +274,20 @@ export class AssignmentsService {
           where: { studentId: userId },
           orderBy: { attemptNumber: 'desc' },
           take: 1,
-          select: { id: true, status: true, attemptNumber: true, submittedAt: true },
+          select: {
+            id: true,
+            status: true,
+            attemptNumber: true,
+            submittedAt: true,
+            evaluation: {
+              select: {
+                status: true,
+                finalScore: true,
+                aiScore: true,
+                trainerScore: true,
+              },
+            },
+          },
         },
       },
     });
@@ -215,9 +307,14 @@ export class AssignmentsService {
       include: { evaluation: { include: { criterionScores: true } } },
     });
 
-    // Students only see feedback once it's RELEASED (§15).
+    // Students see feedback once RELEASED (auto-released by high-confidence AI)
+    // or AI_COMPLETED (legacy). Hide NEEDS_REVIEW / PENDING drafts.
     let evaluation = submission?.evaluation ?? null;
-    if (evaluation && evaluation.status !== 'RELEASED') {
+    if (
+      evaluation &&
+      evaluation.status !== 'RELEASED' &&
+      evaluation.status !== 'AI_COMPLETED'
+    ) {
       evaluation = null;
     }
     return { assignment, submission: submission ? { ...submission, evaluation } : null };
@@ -235,7 +332,6 @@ export class AssignmentsService {
     return submission;
   }
 
-  /** Manual/trigger evaluation. Runs the shared orchestrator (heuristic in dev). */
   async evaluate(userId: string, submissionId: string) {
     await this.loadOwnedSubmission(userId, submissionId);
     const result = await runSubmissionEvaluation(this.prisma, submissionId, getProvider());
@@ -249,7 +345,6 @@ export class AssignmentsService {
     return result;
   }
 
-  /** Trainer override — the human decision; AI will never overwrite it (§15). */
   async review(userId: string, submissionId: string, dto: ReviewEvaluationDto) {
     const submission = await this.loadOwnedSubmission(userId, submissionId);
     const maxScore = submission.assignment.maxScore;

@@ -73,6 +73,17 @@ model User {
   notificationPreference NotificationPreference?
   calendarEvents         CalendarEvent[]         @relation("CalendarOwner")
 
+  // Placement (Phase 2)
+  jobPostingsCreated JobPosting[]      @relation("JobPostingCreator")
+  jobApplications    JobApplication[]  @relation("JobApplicant")
+  applicationUpdates JobApplication[]  @relation("ApplicationUpdater")
+  placementProfile   PlacementProfile?
+
+  // Mentorship (Phase 4)
+  mentorProfile      MentorProfile?
+  mentorSessions     MentorshipBooking[] @relation("MentorshipMentor")
+  menteeSessions     MentorshipBooking[] @relation("MentorshipStudent")
+
   @@index([status])
   @@index([deletedAt])
   @@map("users")
@@ -245,6 +256,9 @@ model Organization {
   programs Program[]
   courses  Course[]
   batches  Batch[]
+
+  // Placement (Phase 2)
+  jobPostings JobPosting[]
 
   @@map("organizations")
 }
@@ -718,6 +732,18 @@ enum AssignmentStatus {
   CLOSED
 }
 
+enum CodeLanguage {
+  NONE
+  PYTHON
+  JAVASCRIPT
+  TYPESCRIPT
+  JAVA
+  C
+  CPP
+  SQL
+  WEB
+}
+
 enum SubmissionStatus {
   DRAFT
   SUBMITTED
@@ -749,6 +775,9 @@ model Assignment {
   allowLate           Boolean              @default(false)
   maxAttempts         Int                  @default(1)
   aiEvaluationEnabled Boolean              @default(true)
+  language            CodeLanguage         @default(NONE)
+  starterCode         String?
+  aiGenerated         Boolean              @default(false)
   status              AssignmentStatus     @default(DRAFT)
   createdById         String
   createdAt           DateTime             @default(now())
@@ -784,6 +813,7 @@ model AssignmentSubmission {
   studentId     String
   attemptNumber Int              @default(1)
   contentText   String?
+  codeOutput    String?
   repoUrl       String?
   status        SubmissionStatus @default(DRAFT)
   submittedAt   DateTime?
@@ -1154,4 +1184,164 @@ model CalendarEvent {
   @@index([userId, startsAt])
   @@index([batchId, startsAt])
   @@map("calendar_events")
+}
+
+// ===========================================================================
+// PLACEMENT (Phase 2) — job postings, applications, student profiles
+// ===========================================================================
+
+enum JobType {
+  FULL_TIME
+  INTERNSHIP
+  CONTRACT
+  PART_TIME
+}
+
+enum JobPostingStatus {
+  DRAFT
+  OPEN
+  CLOSED
+}
+
+enum JobApplicationStatus {
+  APPLIED
+  SHORTLISTED
+  INTERVIEW
+  OFFERED
+  PLACED
+  REJECTED
+  WITHDRAWN
+}
+
+enum StudentPlacementStatus {
+  LOOKING
+  INTERVIEWING
+  OFFERED
+  PLACED
+  NOT_LOOKING
+}
+
+model JobPosting {
+  id             String           @id @default(cuid())
+  organizationId String
+  companyName    String
+  title          String
+  description    String?
+  jobType        JobType          @default(FULL_TIME)
+  location       String?
+  ctcMinLpa      Float?
+  ctcMaxLpa      Float?
+  skills         String[] // required / preferred skill tags
+  eligibility    String? // free-text eligibility criteria
+  deadline       DateTime?
+  status         JobPostingStatus @default(DRAFT)
+  createdById    String
+  publishedAt    DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User             @relation("JobPostingCreator", fields: [createdById], references: [id])
+  applications JobApplication[]
+
+  @@index([organizationId, status])
+  @@index([deadline])
+  @@map("job_postings")
+}
+
+model JobApplication {
+  id            String            @id @default(cuid())
+  jobPostingId  String
+  studentId     String
+  status        JobApplicationStatus @default(APPLIED)
+  coverLetter   String?
+  matchScore    Int? // 0-100 AI/heuristic match score
+  matchReason   String?
+  statusNote    String?
+  statusHistory Json? // [{status, at, byUserId, note}]
+  updatedById   String?
+  appliedAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  jobPosting JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  student    User       @relation("JobApplicant", fields: [studentId], references: [id], onDelete: Cascade)
+  updatedBy  User?      @relation("ApplicationUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
+
+  @@unique([jobPostingId, studentId])
+  @@index([studentId, status])
+  @@index([jobPostingId, status])
+  @@map("job_applications")
+}
+
+model PlacementProfile {
+  id              String                 @id @default(cuid())
+  userId          String                 @unique
+  resumeUrl       String?
+  headline        String?
+  skills          String[]
+  preferredRoles  String[]
+  preferredLocations String[]
+  expectedCtcLpa  Float?
+  status          StudentPlacementStatus @default(LOOKING)
+  notes           String?
+  updatedAt       DateTime               @updatedAt
+  createdAt       DateTime               @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("placement_profiles")
+}
+
+// ===========================================================================
+// MENTORSHIP (Phase 4) — mentor directory + session bookings (§17)
+// ===========================================================================
+
+enum MentorshipBookingStatus {
+  REQUESTED
+  CONFIRMED
+  DECLINED
+  COMPLETED
+  CANCELLED
+}
+
+model MentorProfile {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  headline     String?
+  bio          String?
+  expertise    String[] // skill/topic tags shown in the directory
+  /** Max sessions a mentor accepts per week (soft limit shown in UI). */
+  weeklyCapacity Int    @default(5)
+  isAcceptingBookings Boolean @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("mentor_profiles")
+}
+
+model MentorshipBooking {
+  id          String                  @id @default(cuid())
+  mentorId    String
+  studentId   String
+  topic       String
+  note        String? // student's context for the session
+  scheduledAt DateTime
+  durationMin Int                     @default(30)
+  status      MentorshipBookingStatus @default(REQUESTED)
+  meetingUrl  String?
+  /** Mentor's outcome notes after the session (visible to the student). */
+  outcomeNote String?
+  rating      Int? // 1–5 student feedback after completion
+  respondedAt DateTime?
+  createdAt   DateTime                @default(now())
+  updatedAt   DateTime                @updatedAt
+
+  mentor  User @relation("MentorshipMentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  student User @relation("MentorshipStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([mentorId, status, scheduledAt])
+  @@index([studentId, status, scheduledAt])
+  @@map("mentorship_bookings")
 }

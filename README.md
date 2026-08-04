@@ -6,18 +6,23 @@ Community Operating System.
 A modular monolith: **Next.js** web + **NestJS** API + **BullMQ** worker, over
 **PostgreSQL** (Prisma) and **Redis**, in a **pnpm + Turborepo** monorepo.
 
-> Status: **Phase 0 — Foundation** (see `docs/architecture/overview.md`).
+> Status: **Phase 1–4 — Core LMS + Placement + Student Intelligence + Mentorship**
+> (auth, courses, batches, attendance, AI assignments, assessments, notifications,
+> calendar, placement portal, role dashboards, explainable per-student risk
+> insights, mentor directory + 1:1 session bookings). See
+> `docs/architecture/overview.md`.
 
 ## Repository layout
 
 ```
 apps/
-  api/      NestJS REST API + OpenAPI (health/readiness live now)
-  web/      Next.js App Router frontend (design system wired)
-  worker/   BullMQ background workers (skeleton)
+  api/      NestJS REST API + OpenAPI
+  web/      Next.js App Router frontend
+  worker/   BullMQ background workers (AI evaluation)
 packages/
   shared/   roles, permissions, error envelope, shared types
-  database/ Prisma schema + client + seed (identity/org/ops)
+  database/ Prisma schema + client + seed
+  ai/       AI providers + assignment eval + job match + student insights
   config/   shared ESLint, Tailwind preset (design tokens), tsconfig
 infrastructure/ (docker compose at repo root for local dev)
 docs/       architecture, decisions (ADRs)

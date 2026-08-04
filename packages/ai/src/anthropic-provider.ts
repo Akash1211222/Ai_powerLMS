@@ -20,9 +20,10 @@ export class AnthropicProvider implements AIProvider {
   ) {}
 
   async evaluateSubmission(input: EvaluationInput): Promise<EvaluationOutput> {
-    const system =
-      'You are an assignment evaluator. Score each rubric criterion from 0 to its weight based ONLY on the submission. ' +
-      'Be strict and evidence-based. Respond with ONLY a JSON object matching the given shape — no prose, no markdown fences.';
+    const isCode = Boolean(input.language && input.language !== 'NONE');
+    const system = isCode
+      ? 'You are a strict coding assignment evaluator for an AI LMS. Score each rubric criterion from 0 to its weight based on the source code and run output. Prefer evidence from compilation/runtime results. Respond with ONLY a JSON object — no prose, no markdown fences.'
+      : 'You are an assignment evaluator. Score each rubric criterion from 0 to its weight based ONLY on the submission. Be strict and evidence-based. Respond with ONLY a JSON object matching the given shape — no prose, no markdown fences.';
 
     const shape = {
       criteria: input.rubric.map((c) => ({ criterionId: c.id, score: `0..${c.weight}`, comment: 'string' })),
@@ -35,8 +36,10 @@ export class AnthropicProvider implements AIProvider {
     const user = [
       `Assignment: ${input.assignmentTitle}`,
       input.instructions ? `Instructions: ${input.instructions}` : '',
+      input.language ? `Language: ${input.language}` : '',
       `Rubric: ${JSON.stringify(input.rubric)}`,
-      `Submission text: ${input.submissionText ?? '(none)'}`,
+      `Submission ${isCode ? 'source code' : 'text'}: ${input.submissionText ?? '(none)'}`,
+      input.codeOutput ? `Program output / console:\n${input.codeOutput}` : '',
       input.repoUrl ? `Repository: ${input.repoUrl}` : '',
       `Return JSON of exactly this shape: ${JSON.stringify(shape)}`,
     ]

@@ -19,6 +19,10 @@ import { AssessmentsModule } from './assessments/assessments.module';
 import { NotificationModule } from './notifications/notification.module';
 import { CalendarModule } from './calendar/calendar.module';
 import { QueueModule } from './queue/queue.module';
+import { PlacementsModule } from './placements/placements.module';
+import { IntelligenceModule } from './intelligence/intelligence.module';
+import { CodeModule } from './code/code.module';
+import { MentorshipModule } from './mentorship/mentorship.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 
 @Module({
@@ -45,6 +49,10 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     AssignmentsModule,
     AssessmentsModule,
     CalendarModule,
+    PlacementsModule,
+    IntelligenceModule,
+    MentorshipModule,
+    CodeModule,
   ],
 })
 export class AppModule implements NestModule {

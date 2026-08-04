@@ -33,20 +33,27 @@ export async function runSubmissionEvaluation(
   if (!submission) return { skipped: true, reason: 'submission_not_found' };
 
   const existing = submission.evaluation;
-  if (existing && (existing.status === 'RELEASED' || existing.trainerScore != null)) {
+  if (existing && existing.trainerScore != null) {
     // Human decision exists — AI must never overwrite it (§15).
     return { skipped: true, reason: 'trainer_reviewed', evaluationId: existing.id };
   }
   const criteria = submission.assignment.criteria;
   if (criteria.length === 0) return { skipped: true, reason: 'no_rubric' };
 
+  const assignment = submission.assignment as typeof submission.assignment & {
+    language?: string | null;
+  };
+  const submissionRow = submission as typeof submission & { codeOutput?: string | null };
+
   const input: EvaluationInput = {
-    assignmentTitle: submission.assignment.title,
-    instructions: submission.assignment.instructions,
-    maxScore: submission.assignment.maxScore,
+    assignmentTitle: assignment.title,
+    instructions: assignment.instructions,
+    maxScore: assignment.maxScore,
     rubric: criteria.map((c) => ({ id: c.id, title: c.title, description: c.description, weight: c.weight })),
-    submissionText: submission.contentText,
-    repoUrl: submission.repoUrl,
+    submissionText: submissionRow.contentText,
+    repoUrl: submissionRow.repoUrl,
+    language: assignment.language ?? 'NONE',
+    codeOutput: submissionRow.codeOutput ?? null,
   };
 
   // Run the provider with a deterministic heuristic fallback on any failure.
@@ -75,7 +82,10 @@ export async function runSubmissionEvaluation(
     });
   const overall =
     totalWeight > 0 ? Math.round((rawSum / totalWeight) * submission.assignment.maxScore) : 0;
-  const status = output.confidence >= CONFIDENCE_REVIEW_THRESHOLD ? 'AI_COMPLETED' : 'NEEDS_REVIEW';
+  const status =
+    output.confidence >= CONFIDENCE_REVIEW_THRESHOLD ? 'RELEASED' : 'NEEDS_REVIEW';
+  // High-confidence AI scores are released immediately so students see the
+  // grade right after submit; low-confidence still waits for trainer review.
 
   const evaluation = await prisma.$transaction(async (tx) => {
     const evalRow = await tx.assignmentEvaluation.upsert({
@@ -108,7 +118,7 @@ export async function runSubmissionEvaluation(
     }
     await tx.assignmentSubmission.update({
       where: { id: submissionId },
-      data: { status: 'EVALUATED' },
+      data: { status: status === 'RELEASED' ? 'RETURNED' : 'EVALUATED' },
     });
     await tx.aIJob.create({
       data: {

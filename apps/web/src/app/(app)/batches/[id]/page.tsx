@@ -63,7 +63,7 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
       </Link>
 
       <div className="flex items-center gap-3">
-        <h1 className="text-2xl font-extrabold tracking-tight">{batch.name}</h1>
+        <h1 className="font-display text-3xl font-extrabold tracking-tight">{batch.name}</h1>
         <Badge tone={statusTone(batch.status)}>{batch.status}</Badge>
       </div>
 
@@ -83,6 +83,27 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             {batch.capacity ? ` / ${batch.capacity}` : ''}
           </div>
         </Card>
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={`/assignments?batchId=${id}`}
+          className="rounded-panel border border-hair px-3 py-1.5 text-sm font-semibold hover:bg-soft"
+        >
+          Assignments
+        </Link>
+        <Link
+          href={`/assessments?batchId=${id}`}
+          className="rounded-panel border border-hair px-3 py-1.5 text-sm font-semibold hover:bg-soft"
+        >
+          Assessments
+        </Link>
+        <Link
+          href={`/attendance?batchId=${id}`}
+          className="rounded-panel border border-hair px-3 py-1.5 text-sm font-semibold hover:bg-soft"
+        >
+          Attendance
+        </Link>
       </div>
 
       <Card>

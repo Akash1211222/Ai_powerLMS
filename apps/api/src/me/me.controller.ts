@@ -6,6 +6,7 @@ import type { AuthUser } from '../auth/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
 import { AssignmentsService } from '../assignments/assignments.service';
 import { AssessmentsService } from '../assessments/assessments.service';
+import { PlacementsService } from '../placements/placements.service';
 
 /**
  * Authenticated self-service endpoints. No special permission required — a user
@@ -20,7 +21,14 @@ export class MeController {
     private readonly prisma: PrismaService,
     private readonly assignments: AssignmentsService,
     private readonly assessments: AssessmentsService,
+    private readonly placements: PlacementsService,
   ) {}
+
+  @Get('applications')
+  @ApiOperation({ summary: "The current student's job applications" })
+  myApplications(@CurrentUser() user: AuthUser) {
+    return this.placements.listMine(user.userId);
+  }
 
   @Get('assessments')
   @ApiOperation({ summary: "The current student's published assessments + latest attempt" })

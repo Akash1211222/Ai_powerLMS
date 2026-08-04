@@ -10,10 +10,12 @@ import type { AuthUser } from '../auth/auth-user';
 import { AssignmentsService } from './assignments.service';
 import {
   createAssignmentSchema,
+  aiGenerateAssignmentSchema,
   listAssignmentsQuerySchema,
   submitSchema,
   reviewEvaluationSchema,
   type CreateAssignmentDto,
+  type AiGenerateAssignmentDto,
   type ListAssignmentsQuery,
   type SubmitDto,
   type ReviewEvaluationDto,
@@ -28,12 +30,24 @@ export class AssignmentsController {
 
   @Post()
   @RequirePermissions(PERMISSIONS.ASSIGNMENT_CREATE)
-  @ApiOperation({ summary: 'Create an assignment with a rubric (DRAFT)' })
+  @ApiOperation({ summary: 'Create an assignment with a rubric (DRAFT or published)' })
   create(
     @CurrentUser() user: AuthUser,
     @Body(new ZodValidationPipe(createAssignmentSchema)) dto: CreateAssignmentDto,
   ) {
     return this.assignments.create(user.userId, dto);
+  }
+
+  @Post('ai-generate')
+  @RequirePermissions(PERMISSIONS.ASSIGNMENT_CREATE)
+  @ApiOperation({
+    summary: 'AI-generate a course-matched coding assignment for the whole batch',
+  })
+  aiGenerate(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(aiGenerateAssignmentSchema)) dto: AiGenerateAssignmentDto,
+  ) {
+    return this.assignments.aiGenerate(user.userId, dto);
   }
 
   @Get()
@@ -62,7 +76,7 @@ export class AssignmentsController {
 
   @Post(':id/submit')
   @RequirePermissions(PERMISSIONS.ASSIGNMENT_SUBMIT)
-  @ApiOperation({ summary: 'Submit to an assignment (student)' })
+  @ApiOperation({ summary: 'Submit code/text — AI scores instantly and returns the grade' })
   submit(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
