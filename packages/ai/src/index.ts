@@ -20,3 +20,22 @@ export {
   type ProgressReportOutput,
 } from './report-schema';
 export { runWeeklyReport, type WeeklyReportResult } from './report';
+export {
+  scoreJobStudentMatch,
+  type MatchInput,
+  type MatchResult,
+} from './match';
+export {
+  computeStudentInsight,
+  type StudentSignals,
+  type StudentInsight,
+  type RiskLevel,
+} from './insights';
+export {
+  generateAssignment,
+  generateAssignmentHeuristic,
+  inferLanguageFromCourse,
+  type CodeLanguage,
+  type GenerateAssignmentInput,
+  type GeneratedAssignment,
+} from './generate-assignment';

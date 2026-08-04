@@ -9,6 +9,9 @@ import { useActiveOrg } from '@/lib/use-active-org';
 import { coursesApi } from '@/lib/lms-api';
 import { ApiError } from '@/lib/api-client';
 
+/** Cover gradients cycled across course cards. */
+const COVER_GRADIENTS = ['bg-grad-brand', 'bg-grad-aqua', 'bg-grad-sunset', 'bg-grad-mint', 'bg-grad-holo'];
+
 export default function CoursesPage() {
   const { user } = useAuth();
   const { org, isLoading: orgLoading } = useActiveOrg();
@@ -44,7 +47,9 @@ export default function CoursesPage() {
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-extrabold tracking-tight">Courses</h1>
+          <h1 className="font-display text-3xl font-extrabold tracking-tight">
+            <span className="gradient-text">Courses</span>
+          </h1>
           <p className="mt-1 text-sm text-faint">{org?.name}</p>
         </div>
         {canCreate && !creating && <Button onClick={() => setCreating(true)}>New course</Button>}
@@ -90,22 +95,42 @@ export default function CoursesPage() {
           <p className="text-sm text-faint">No courses yet. Create your first course to begin.</p>
         </Card>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {courses.map((c) => (
-            <Link key={c.id} href={`/courses/${c.id}`}>
-              <Card className="h-full transition hover:border-brand-300">
-                <div className="flex items-start justify-between gap-3">
-                  <h2 className="font-bold">{c.title}</h2>
-                  <Badge tone={statusTone(c.status)}>{c.status}</Badge>
-                </div>
-                {c.summary && <p className="mt-2 text-sm text-faint">{c.summary}</p>}
-                <div className="mt-3 flex gap-3 text-xs text-faint">
-                  <span>{c._count?.modules ?? 0} modules</span>
-                  <span>{c._count?.enrollments ?? 0} enrolled</span>
-                </div>
-              </Card>
-            </Link>
-          ))}
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {courses.map((c, i) => {
+            const cover = COVER_GRADIENTS[i % COVER_GRADIENTS.length]!;
+            return (
+              <Link key={c.id} href={`/courses/${c.id}`} className="group">
+                <Card className="h-full overflow-hidden p-0 transition-transform duration-300 group-hover:-translate-y-1">
+                  <div
+                    className={`relative flex h-28 items-end justify-between p-4 ${cover} bg-[length:150%_150%] bg-left transition-all duration-500 group-hover:bg-right`}
+                  >
+                    <span className="font-display text-4xl font-extrabold text-white/30">
+                      {c.title
+                        .split(' ')
+                        .slice(0, 2)
+                        .map((w) => w[0])
+                        .join('')}
+                    </span>
+                    <Badge tone={statusTone(c.status)} className="bg-white/90 backdrop-blur">
+                      {c.status}
+                    </Badge>
+                  </div>
+                  <div className="p-4">
+                    <h2 className="font-display font-bold leading-snug">{c.title}</h2>
+                    {c.summary && <p className="mt-1.5 line-clamp-2 text-sm text-faint">{c.summary}</p>}
+                    <div className="mt-3 flex gap-2 text-xs font-semibold">
+                      <span className="rounded-full bg-chip px-2.5 py-1 text-brand-600">
+                        {c._count?.modules ?? 0} modules
+                      </span>
+                      <span className="rounded-full bg-aqua-50 px-2.5 py-1 text-aqua-700">
+                        {c._count?.enrollments ?? 0} enrolled
+                      </span>
+                    </div>
+                  </div>
+                </Card>
+              </Link>
+            );
+          })}
         </div>
       )}
     </div>

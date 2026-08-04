@@ -51,7 +51,7 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
       <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-extrabold tracking-tight">{course.title}</h1>
+            <h1 className="font-display text-3xl font-extrabold tracking-tight">{course.title}</h1>
             <Badge tone={statusTone(course.status)}>{course.status}</Badge>
           </div>
           {course.summary && <p className="mt-1 text-sm text-faint">{course.summary}</p>}

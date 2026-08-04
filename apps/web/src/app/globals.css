@@ -3,33 +3,33 @@
 @tailwind utilities;
 
 /*
- * Theme surface tokens — the light/dark values reverse-engineered from the
- * approved design mockups (_design_src). The Tailwind preset maps
- * bg/panel/card/ink/... to these variables. `.dark` on <html> flips them,
- * preserving the mockups' theme-toggle behavior.
+ * Theme tokens matched to futurecorpacademy.in: white surfaces over a soft
+ * blue-tinted page, deep navy ink, #e7eefb hairlines, blue chips, orange
+ * highlights. `.dark` on <html> flips to a navy dark theme. The Tailwind
+ * preset maps bg/panel/card/ink/... to these variables.
  */
 :root {
-  --fca-bg: #f4f2fb;
-  --fca-panel: #ffffff;
-  --fca-card: #ffffff;
-  --fca-chip: #f3f0fd;
-  --fca-soft: #ece9f5;
-  --fca-ink: #1b1630;
-  --fca-faint: #8a83a8;
-  --fca-hair: #ece9f5;
-  --fca-track: #efecf8;
+  --fca-bg: #f5f8fd;
+  --fca-panel: rgba(255, 255, 255, 0.88);
+  --fca-card: rgba(255, 255, 255, 0.94);
+  --fca-chip: rgba(37, 99, 235, 0.07);
+  --fca-soft: rgba(37, 99, 235, 0.05);
+  --fca-ink: #0f1e3d;
+  --fca-faint: #5d6c8e;
+  --fca-hair: #e7eefb;
+  --fca-track: rgba(37, 99, 235, 0.1);
 }
 
 .dark {
-  --fca-bg: #0e0b1a;
-  --fca-panel: #1a1430;
-  --fca-card: #1b1630;
-  --fca-chip: #241b3f;
-  --fca-soft: #201a37;
-  --fca-ink: #f4f2fb;
-  --fca-faint: #9a94ac;
-  --fca-hair: #2a2247;
-  --fca-track: #241b3f;
+  --fca-bg: #0a1224;
+  --fca-panel: rgba(16, 28, 54, 0.85);
+  --fca-card: rgba(18, 31, 60, 0.9);
+  --fca-chip: rgba(96, 165, 250, 0.1);
+  --fca-soft: rgba(96, 165, 250, 0.07);
+  --fca-ink: #eef3fb;
+  --fca-faint: #93a3c4;
+  --fca-hair: rgba(147, 197, 253, 0.16);
+  --fca-track: rgba(96, 165, 250, 0.14);
 }
 
 html,
@@ -48,4 +48,125 @@ body {
 
 * {
   box-sizing: border-box;
+}
+
+/* ---------------------------------------------------------------------------
+ * Page backdrop — very soft blue + orange washes (subtle, the site is clean
+ * white; this just adds gentle depth behind the cards).
+ * ------------------------------------------------------------------------- */
+.aurora-bg {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+.aurora-bg::before,
+.aurora-bg::after {
+  content: '';
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(100px);
+  opacity: 0.16;
+}
+.aurora-bg::before {
+  width: 55vw;
+  height: 55vw;
+  top: -22vw;
+  left: -14vw;
+  background: linear-gradient(135deg, #2563eb 0%, #60a5fa 100%);
+  animation: aurora 22s ease-in-out infinite;
+}
+.aurora-bg::after {
+  width: 46vw;
+  height: 46vw;
+  bottom: -20vw;
+  right: -10vw;
+  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+  opacity: 0.1;
+  animation: aurora 28s ease-in-out infinite reverse;
+}
+.aurora-bg .blob-3 {
+  position: absolute;
+  width: 30vw;
+  height: 30vw;
+  top: 45%;
+  left: 45%;
+  border-radius: 9999px;
+  background: linear-gradient(135deg, #93c5fd 0%, #1552c9 100%);
+  filter: blur(110px);
+  opacity: 0.08;
+  animation: aurora 24s ease-in-out infinite;
+}
+.dark .aurora-bg::before {
+  opacity: 0.14;
+}
+.dark .aurora-bg::after {
+  opacity: 0.08;
+}
+.dark .aurora-bg .blob-3 {
+  opacity: 0.08;
+}
+@keyframes aurora {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  33% {
+    transform: translate(4%, -6%) scale(1.08);
+  }
+  66% {
+    transform: translate(-5%, 4%) scale(0.95);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .aurora-bg::before,
+  .aurora-bg::after,
+  .aurora-bg .blob-3 {
+    animation: none;
+  }
+}
+
+/* ---------------------------------------------------------------------------
+ * Reusable helpers
+ * ------------------------------------------------------------------------- */
+.glass {
+  background: var(--fca-panel);
+  backdrop-filter: blur(14px) saturate(1.2);
+  -webkit-backdrop-filter: blur(14px) saturate(1.2);
+  border: 1px solid var(--fca-hair);
+}
+
+/* Orange highlight text — mirrors the site's hero accent words. */
+.gradient-text {
+  background: linear-gradient(120deg, #fb923c 0%, #f97316 55%, #ea580c 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+/* Orange eyebrow labels used above section headings on the site. */
+.eyebrow {
+  color: #f97316;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+
+/* Slim styled scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(37, 99, 235, 0.35) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: rgba(37, 99, 235, 0.35);
+  border-radius: 8px;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
 }

@@ -35,6 +35,9 @@ import { ReferralsModule } from './referrals/referrals.module';
 import { CommunityModule } from './community/community.module';
 import { ReputationModule } from './reputation/reputation.module';
 import { QueueModule } from './queue/queue.module';
+import { PlacementsModule } from './placements/placements.module';
+import { IntelligenceModule } from './intelligence/intelligence.module';
+import { CodeModule } from './code/code.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
 import type { Env } from './config/env';
@@ -46,11 +49,6 @@ import { isAuthRoute } from './common/guards/auth-route';
       isGlobal: true,
       validate: validateEnv,
     }),
-    // Per-IP HTTP rate limiting (§39); tuned via env so it can be relaxed for
-    // load tests and disabled entirely in the test suite. Every configured
-    // throttler is evaluated on every request, so the two buckets use skipIf
-    // to make exactly one apply: the tight budget on unauthenticated auth
-    // routes, the general budget everywhere else.
     ThrottlerModule.forRootAsync({
       inject: [ConfigService],
       useFactory: (config: ConfigService<Env, true>) => {
@@ -95,6 +93,7 @@ import { isAuthRoute } from './common/guards/auth-route';
     RecommendationsModule,
     AnalyticsModule,
     PlacementModule,
+    PlacementsModule,
     CareerModule,
     OpportunitiesModule,
     ApplicationsModule,
@@ -103,6 +102,8 @@ import { isAuthRoute } from './common/guards/auth-route';
     ReferralsModule,
     CommunityModule,
     ReputationModule,
+    IntelligenceModule,
+    CodeModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AppThrottlerGuard }],
 })

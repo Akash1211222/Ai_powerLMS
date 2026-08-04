@@ -751,6 +751,18 @@ enum AssignmentStatus {
   CLOSED
 }
 
+enum CodeLanguage {
+  NONE
+  PYTHON
+  JAVASCRIPT
+  TYPESCRIPT
+  JAVA
+  C
+  CPP
+  SQL
+  WEB
+}
+
 enum SubmissionStatus {
   DRAFT
   SUBMITTED
@@ -782,6 +794,9 @@ model Assignment {
   allowLate           Boolean              @default(false)
   maxAttempts         Int                  @default(1)
   aiEvaluationEnabled Boolean              @default(true)
+  language            CodeLanguage         @default(NONE)
+  starterCode         String?
+  aiGenerated         Boolean              @default(false)
   status              AssignmentStatus     @default(DRAFT)
   createdById         String
   createdAt           DateTime             @default(now())
@@ -817,6 +832,7 @@ model AssignmentSubmission {
   studentId     String
   attemptNumber Int              @default(1)
   contentText   String?
+  codeOutput    String?
   repoUrl       String?
   status        SubmissionStatus @default(DRAFT)
   submittedAt   DateTime?

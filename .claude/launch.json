@@ -4,7 +4,7 @@
     {
       "name": "web",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["--filter", "@fca/web", "dev"],
+      "runtimeArgs": ["-C", "/Users/akashpaul/code/Ai_powerLMS/apps/web", "dev"],
       "port": 3000
     }
   ]

@@ -1,5 +1,17 @@
 import { z } from 'zod';
 
+export const codeLanguageSchema = z.enum([
+  'NONE',
+  'PYTHON',
+  'JAVASCRIPT',
+  'TYPESCRIPT',
+  'JAVA',
+  'C',
+  'CPP',
+  'SQL',
+  'WEB',
+]);
+
 export const createAssignmentSchema = z.object({
   batchId: z.string().min(1),
   courseId: z.string().min(1).optional(),
@@ -13,6 +25,10 @@ export const createAssignmentSchema = z.object({
   allowLate: z.boolean().optional(),
   maxAttempts: z.number().int().min(1).max(10).optional(),
   aiEvaluationEnabled: z.boolean().optional(),
+  language: codeLanguageSchema.optional(),
+  starterCode: z.string().max(50000).nullable().optional(),
+  aiGenerated: z.boolean().optional(),
+  publish: z.boolean().optional(),
   criteria: z
     .array(
       z.object({
@@ -26,16 +42,25 @@ export const createAssignmentSchema = z.object({
 });
 export type CreateAssignmentDto = z.infer<typeof createAssignmentSchema>;
 
+export const aiGenerateAssignmentSchema = z.object({
+  batchId: z.string().min(1),
+  topicHint: z.string().max(200).optional(),
+  difficulty: z.enum(['EASY', 'MEDIUM', 'HARD']).optional(),
+  publish: z.boolean().optional().default(true),
+});
+export type AiGenerateAssignmentDto = z.infer<typeof aiGenerateAssignmentSchema>;
+
 export const listAssignmentsQuerySchema = z.object({ batchId: z.string().min(1) });
 export type ListAssignmentsQuery = z.infer<typeof listAssignmentsQuerySchema>;
 
 export const submitSchema = z
   .object({
-    contentText: z.string().max(20000).optional(),
+    contentText: z.string().max(100000).optional(),
+    codeOutput: z.string().max(50000).optional(),
     repoUrl: z.string().url().max(500).optional(),
   })
   .refine((v) => Boolean(v.contentText?.trim() || v.repoUrl), {
-    message: 'Provide submission text or a repository URL',
+    message: 'Provide source code / submission text or a repository URL',
     path: ['contentText'],
   });
 export type SubmitDto = z.infer<typeof submitSchema>;

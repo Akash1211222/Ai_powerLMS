@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
 import { NotificationService } from '../notifications/notification.service';
+import { AssignmentsService } from '../assignments/assignments.service';
 import { assertOrgAccess } from '../common/tenant';
 import type {
   CreateBatchDto,
@@ -26,6 +27,7 @@ export class BatchesService {
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
     private readonly notifications: NotificationService,
+    private readonly assignments: AssignmentsService,
   ) {}
 
   async create(userId: string, dto: CreateBatchDto) {
@@ -182,6 +184,15 @@ export class BatchesService {
       body: `You have been added to the batch "${batch.name}".`,
       deepLink: '/dashboard',
     });
+
+    // Auto-create a course-matched AI assignment if the batch has none yet,
+    // so the newly enrolled student immediately gets work in the right compiler.
+    try {
+      await this.assignments.ensureCourseAssignments(userId, batchId);
+    } catch {
+      // Enrollment must not fail if AI generation has a hiccup.
+    }
+
     return { success: true };
   }
 

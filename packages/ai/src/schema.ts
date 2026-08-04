@@ -8,6 +8,10 @@ export interface EvaluationInput {
   rubric: Array<{ id: string; title: string; description?: string | null; weight: number }>;
   submissionText?: string | null;
   repoUrl?: string | null;
+  /** Coding language when this is a compiler assignment. */
+  language?: string | null;
+  /** Captured stdout/stderr from the last code run (optional evidence). */
+  codeOutput?: string | null;
 }
 
 /**

@@ -3,25 +3,31 @@
 import { useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
+import {
+  LayoutDashboard,
+  BookOpen,
+  Users,
+  ClipboardList,
+  FileCheck2,
+  CalendarCheck,
+  Briefcase,
+  BrainCircuit,
+  HeartHandshake,
+  ShieldCheck,
+  CalendarDays,
+  LogOut,
+  Sparkles,
+  Target,
+  GraduationCap,
+  MessagesSquare,
+  LineChart,
+  FileBarChart,
+  type LucideIcon,
+} from 'lucide-react';
 import { Logo, Spinner, cn } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { NotificationBell } from '@/components/notification-bell';
 import { ThemeToggle } from '@/components/theme-toggle';
-import {
-  IconDashboard,
-  IconBook,
-  IconUsers,
-  IconSpark,
-  IconCalendar,
-  IconReport,
-  IconBriefcase,
-  IconMentor,
-  IconAlumni,
-  IconCommunity,
-  IconInsights,
-  IconTarget,
-  IconSearch,
-} from '@/components/icons';
 
 /**
  * Client-side guard + shell for authenticated pages. NOTE: this is UX only —
@@ -48,88 +54,121 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const name = user.profile ? `${user.profile.firstName} ${user.profile.lastName}` : user.email;
   const initials = user.profile
     ? `${user.profile.firstName[0] ?? ''}${user.profile.lastName[0] ?? ''}`
-    : user.email[0]?.toUpperCase();
+    : user.email.slice(0, 2).toUpperCase();
 
-  const nav = [
-    { href: '/dashboard', label: 'Dashboard', icon: IconDashboard, show: true },
-    { href: '/courses', label: 'Courses', icon: IconBook, show: can('course:view') },
-    { href: '/batches', label: 'Batches', icon: IconUsers, show: can('batch:view') },
-    { href: '/skills', label: 'Skills', icon: IconSpark, show: true },
-    { href: '/reports', label: 'Reports', icon: IconReport, show: true },
-    { href: '/career', label: 'Career', icon: IconBriefcase, show: true },
-    { href: '/opportunities', label: 'Opportunities', icon: IconTarget, show: can('placement:view') },
-    { href: '/mentors', label: 'Mentorship', icon: IconMentor, show: true },
-    { href: '/alumni', label: 'Alumni', icon: IconAlumni, show: true },
-    { href: '/community', label: 'Community', icon: IconCommunity, show: true },
-    { href: '/calendar', label: 'Calendar', icon: IconCalendar, show: true },
-    { href: '/insights', label: 'Insights', icon: IconInsights, show: can('analytics:view') },
+  const nav: Array<{ href: string; label: string; icon: LucideIcon; show: boolean }> = [
+    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, show: true },
+    { href: '/courses', label: 'Courses', icon: BookOpen, show: can('course:view') },
+    { href: '/batches', label: 'Batches', icon: Users, show: can('batch:view') },
+    {
+      href: '/assignments',
+      label: 'Assignments',
+      icon: ClipboardList,
+      show: can('assignment:submit') || can('assignment:create'),
+    },
+    {
+      href: '/assessments',
+      label: 'Assessments',
+      icon: FileCheck2,
+      show: can('assignment:submit') || can('assessment:create'),
+    },
+    {
+      href: '/attendance',
+      label: 'Attendance',
+      icon: CalendarCheck,
+      show: can('attendance:view') || can('attendance:mark'),
+    },
+    { href: '/skills', label: 'Skills', icon: Sparkles, show: true },
+    { href: '/career', label: 'Career', icon: Briefcase, show: true },
+    { href: '/opportunities', label: 'Opportunities', icon: Target, show: can('placement:view') },
+    { href: '/placements', label: 'Placements', icon: Briefcase, show: can('placement:view') },
+    {
+      href: '/intelligence',
+      label: 'Intelligence',
+      icon: BrainCircuit,
+      show: can('student:view') || can('assignment:submit'),
+    },
+    { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake, show: true },
+    { href: '/mentors', label: 'Mentors', icon: HeartHandshake, show: true },
+    { href: '/alumni', label: 'Alumni', icon: GraduationCap, show: true },
+    { href: '/community', label: 'Community', icon: MessagesSquare, show: true },
+    { href: '/reports', label: 'Reports', icon: FileBarChart, show: true },
+    { href: '/insights', label: 'Insights', icon: LineChart, show: can('analytics:view') },
+    {
+      href: '/admin',
+      label: 'Admin',
+      icon: ShieldCheck,
+      show: can('user:view') || can('feature-flag:manage'),
+    },
+    { href: '/calendar', label: 'Calendar', icon: CalendarDays, show: true },
   ].filter((n) => n.show);
+
+  const current = nav.find((n) => pathname === n.href || pathname.startsWith(`${n.href}/`));
 
   return (
     <div className="flex min-h-screen bg-bg">
-      <aside className="sticky top-0 flex h-screen w-64 flex-col border-r border-hair bg-panel px-4 py-6">
-        <div className="px-2 pb-6">
+      <div className="aurora-bg" aria-hidden>
+        <div className="blob-3" />
+      </div>
+
+      <aside className="glass sticky top-0 z-20 flex h-screen w-64 flex-col gap-1 overflow-y-auto border-r p-4">
+        <div className="px-2 pb-5 pt-1">
           <Logo />
         </div>
-        <div className="px-3 pb-2 text-[11px] font-bold uppercase tracking-wider text-faint">
-          Overview
-        </div>
-        <nav className="flex flex-col gap-1">
-          {nav.map((n) => {
-            const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
-            const Icon = n.icon;
-            return (
-              <Link
-                key={n.href}
-                href={n.href}
+        {nav.map((n) => {
+          const active = pathname === n.href || pathname.startsWith(`${n.href}/`);
+          const Icon = n.icon;
+          return (
+            <Link
+              key={n.href}
+              href={n.href}
+              className={cn(
+                'group flex items-center gap-3 rounded-panel px-3 py-2.5 text-sm font-semibold transition-all duration-200',
+                active
+                  ? 'bg-grad-brand text-white shadow-glow'
+                  : 'text-faint hover:translate-x-0.5 hover:bg-chip hover:text-ink',
+              )}
+            >
+              <Icon
                 className={cn(
-                  'flex items-center gap-3 rounded-panel px-3 py-2.5 text-sm font-semibold transition',
-                  active
-                    ? 'bg-brand-500 text-white shadow-glow'
-                    : 'text-faint hover:bg-soft hover:text-ink',
+                  'h-[18px] w-[18px] transition-transform duration-200',
+                  active ? 'text-white' : 'text-brand-400 group-hover:scale-110',
                 )}
-              >
-                <Icon width={19} height={19} />
-                {n.label}
-              </Link>
-            );
-          })}
-        </nav>
-
-        <div className="mt-auto rounded-card bg-gradient-to-br from-brand-500 to-brand-800 p-4 text-white">
-          <div className="text-xs font-semibold opacity-85">Signed in as</div>
-          <div className="mt-0.5 truncate text-sm font-bold">{name}</div>
+                aria-hidden
+              />
+              {n.label}
+            </Link>
+          );
+        })}
+        <div className="mt-auto border-t border-hair pt-3">
+          <div className="flex items-center gap-2.5 px-2">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-grad-aqua text-xs font-extrabold text-white shadow-glow-aqua">
+              {initials}
+            </span>
+            <span className="truncate text-sm font-semibold text-ink">{name}</span>
+          </div>
           <button
             onClick={() => logout()}
-            className="mt-3 w-full rounded-panel bg-white/15 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-white/25"
+            className="mt-3 flex w-full items-center justify-center gap-2 rounded-panel border border-hair px-3 py-2 text-sm font-semibold text-ink transition hover:border-danger/40 hover:bg-danger/10 hover:text-danger"
           >
+            <LogOut className="h-4 w-4" aria-hidden />
             Sign out
           </button>
         </div>
       </aside>
 
-      <div className="flex flex-1 flex-col">
-        <header className="sticky top-0 z-10 flex items-center gap-4 border-b border-hair bg-panel/80 px-8 py-3.5 backdrop-blur">
-          <div className="relative flex-1 max-w-xl">
-            <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-faint">
-              <IconSearch width={18} height={18} />
-            </span>
-            <input
-              className="h-10 w-full rounded-full border border-hair bg-bg pl-10 pr-4 text-sm text-ink placeholder:text-faint focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-400"
-              placeholder="Search courses, batches, students…"
-              aria-label="Search"
-            />
-          </div>
+      <div className="flex min-w-0 flex-1 flex-col">
+        <header className="glass sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-8 py-3">
+          <span className="font-display text-sm font-bold uppercase tracking-widest text-faint">
+            {current?.label ?? 'FutureCorp Academy'}
+          </span>
           <div className="flex items-center gap-3">
             <ThemeToggle />
             <NotificationBell />
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-gradient-to-br from-brand-400 to-brand-700 text-sm font-bold text-white">
-              {initials}
-            </div>
           </div>
         </header>
         <main className="flex-1 px-8 py-8">
-          <div className="mx-auto max-w-6xl">{children}</div>
+          <div className="mx-auto max-w-6xl animate-fadeUp">{children}</div>
         </main>
       </div>
     </div>

@@ -1,18 +1,17 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { PERMISSIONS } from '@fca/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../authz/permissions.guard';
+import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import { DashboardService } from './dashboard.service';
 
-/**
- * Self-scoped dashboards (§8, §9). No extra permission needed — each endpoint
- * returns only the caller's own data (their enrollments / their batches).
- */
 @ApiTags('dashboard')
 @ApiBearerAuth()
 @Controller('dashboard')
-@UseGuards(JwtAuthGuard)
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class DashboardController {
   constructor(private readonly dashboard: DashboardService) {}
 
@@ -26,5 +25,19 @@ export class DashboardController {
   @ApiOperation({ summary: "Aggregated trainer dashboard for the current user's batches" })
   trainer(@CurrentUser() user: AuthUser) {
     return this.dashboard.trainer(user.userId);
+  }
+
+  @Get('placement')
+  @RequirePermissions(PERMISSIONS.PLACEMENT_VIEW)
+  @ApiOperation({ summary: 'Placement officer dashboard (pipeline + openings)' })
+  placement(@CurrentUser() user: AuthUser, @Query('organizationId') organizationId: string) {
+    return this.dashboard.placement(user.userId, organizationId);
+  }
+
+  @Get('admin')
+  @RequirePermissions(PERMISSIONS.ANALYTICS_VIEW)
+  @ApiOperation({ summary: 'College admin org-wide dashboard' })
+  admin(@CurrentUser() user: AuthUser, @Query('organizationId') organizationId: string) {
+    return this.dashboard.admin(user.userId, organizationId);
   }
 }
