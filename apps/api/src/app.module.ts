@@ -1,5 +1,7 @@
 import { Module, type MiddlewareConsumer, type NestModule } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { APP_GUARD } from '@nestjs/core';
+import { ThrottlerModule } from '@nestjs/throttler';
 import { validateEnv } from './config/env';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -18,18 +20,54 @@ import { AssignmentsModule } from './assignments/assignments.module';
 import { AssessmentsModule } from './assessments/assessments.module';
 import { NotificationModule } from './notifications/notification.module';
 import { CalendarModule } from './calendar/calendar.module';
+import { SkillsModule } from './skills/skills.module';
+import { InterventionsModule } from './interventions/interventions.module';
+import { ReportsModule } from './reports/reports.module';
+import { RecommendationsModule } from './recommendations/recommendations.module';
+import { AnalyticsModule } from './analytics/analytics.module';
+import { PlacementModule } from './placement/placement.module';
+import { CareerModule } from './career/career.module';
+import { OpportunitiesModule } from './opportunities/opportunities.module';
+import { ApplicationsModule } from './applications/applications.module';
+import { MentorshipModule } from './mentorship/mentorship.module';
+import { AlumniModule } from './alumni/alumni.module';
+import { ReferralsModule } from './referrals/referrals.module';
+import { CommunityModule } from './community/community.module';
+import { ReputationModule } from './reputation/reputation.module';
 import { QueueModule } from './queue/queue.module';
 import { PlacementsModule } from './placements/placements.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { CodeModule } from './code/code.module';
-import { MentorshipModule } from './mentorship/mentorship.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
+import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
+import type { Env } from './config/env';
+import { isAuthRoute } from './common/guards/auth-route';
 
 @Module({
   imports: [
     ConfigModule.forRoot({
       isGlobal: true,
       validate: validateEnv,
+    }),
+    ThrottlerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (config: ConfigService<Env, true>) => {
+        const ttl = config.get('RATE_LIMIT_TTL_SECONDS', { infer: true }) * 1000;
+        return [
+          {
+            name: 'default',
+            ttl,
+            limit: config.get('RATE_LIMIT_MAX', { infer: true }),
+            skipIf: isAuthRoute,
+          },
+          {
+            name: 'auth',
+            ttl,
+            limit: config.get('AUTH_RATE_LIMIT_MAX', { infer: true }),
+            skipIf: (ctx) => !isAuthRoute(ctx),
+          },
+        ];
+      },
     }),
     PrismaModule,
     RedisModule,
@@ -49,11 +87,25 @@ import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
     AssignmentsModule,
     AssessmentsModule,
     CalendarModule,
+    SkillsModule,
+    InterventionsModule,
+    ReportsModule,
+    RecommendationsModule,
+    AnalyticsModule,
+    PlacementModule,
     PlacementsModule,
-    IntelligenceModule,
+    CareerModule,
+    OpportunitiesModule,
+    ApplicationsModule,
     MentorshipModule,
+    AlumniModule,
+    ReferralsModule,
+    CommunityModule,
+    ReputationModule,
+    IntelligenceModule,
     CodeModule,
   ],
+  providers: [{ provide: APP_GUARD, useClass: AppThrottlerGuard }],
 })
 export class AppModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

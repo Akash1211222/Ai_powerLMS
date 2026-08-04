@@ -1,27 +1,36 @@
 import { z } from 'zod';
 
 export const updateMentorProfileSchema = z.object({
-  headline: z.string().max(120).optional(),
-  bio: z.string().max(2000).optional(),
-  expertise: z.array(z.string().min(1).max(40)).max(20).optional(),
-  weeklyCapacity: z.number().int().min(1).max(50).optional(),
+  headline: z.string().max(160).trim().nullable().optional(),
+  bio: z.string().max(2000).trim().nullable().optional(),
+  expertise: z.array(z.string().min(1).max(60).trim()).max(20).optional(),
   isAcceptingBookings: z.boolean().optional(),
 });
 export type UpdateMentorProfileDto = z.infer<typeof updateMentorProfileSchema>;
 
-export const createBookingSchema = z.object({
-  mentorId: z.string().min(1),
-  topic: z.string().min(3).max(200),
-  note: z.string().max(2000).optional(),
-  scheduledAt: z.coerce.date(),
-  durationMin: z.number().int().min(15).max(120).default(30),
-});
-export type CreateBookingDto = z.infer<typeof createBookingSchema>;
+export const createSlotSchema = z
+  .object({
+    startsAt: z.coerce.date(),
+    endsAt: z.coerce.date(),
+  })
+  .refine((v) => v.endsAt > v.startsAt, {
+    message: 'endsAt must be after startsAt',
+    path: ['endsAt'],
+  })
+  .refine((v) => v.startsAt.getTime() > Date.now(), {
+    message: 'Slots must start in the future',
+    path: ['startsAt'],
+  });
+export type CreateSlotDto = z.infer<typeof createSlotSchema>;
 
-export const updateBookingSchema = z.object({
-  action: z.enum(['CONFIRM', 'DECLINE', 'COMPLETE', 'CANCEL', 'RATE']),
-  meetingUrl: z.string().url().max(500).optional(),
-  outcomeNote: z.string().max(2000).optional(),
-  rating: z.number().int().min(1).max(5).optional(),
+export const bookSchema = z.object({
+  topic: z.string().min(3).max(200).trim(),
+  note: z.string().max(2000).trim().optional(),
 });
-export type UpdateBookingDto = z.infer<typeof updateBookingSchema>;
+export type BookDto = z.infer<typeof bookSchema>;
+
+export const completeSchema = z.object({
+  mentorNotes: z.string().max(2000).trim().optional(),
+  status: z.enum(['COMPLETED', 'NO_SHOW']).optional(),
+});
+export type CompleteDto = z.infer<typeof completeSchema>;

@@ -1,69 +1,118 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
-import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
+import { PERMISSIONS } from '@fca/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { PermissionsGuard } from '../authz/permissions.guard';
+import { RequirePermissions } from '../authz/require-permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
+import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { MentorshipService } from './mentorship.service';
 import {
-  createBookingSchema,
-  updateBookingSchema,
   updateMentorProfileSchema,
-  type CreateBookingDto,
-  type UpdateBookingDto,
+  createSlotSchema,
+  bookSchema,
+  completeSchema,
   type UpdateMentorProfileDto,
+  type CreateSlotDto,
+  type BookDto,
+  type CompleteDto,
 } from './dto/mentorship.schemas';
 
 @ApiTags('mentorship')
 @ApiBearerAuth()
-@Controller('mentorship')
-@UseGuards(JwtAuthGuard)
+@Controller()
+@UseGuards(JwtAuthGuard, PermissionsGuard)
 export class MentorshipController {
   constructor(private readonly mentorship: MentorshipService) {}
 
-  @Get('mentors')
-  @ApiOperation({ summary: 'Mentor directory for an organization' })
-  listMentors(@CurrentUser() user: AuthUser, @Query('organizationId') organizationId: string) {
-    return this.mentorship.listMentors(user.userId, organizationId);
+  // --- Mentor side (mentor:manage) --------------------------------------
+
+  @Get('me/mentor-profile')
+  @RequirePermissions(PERMISSIONS.MENTOR_MANAGE)
+  @ApiOperation({ summary: 'Your mentor profile (created on first access)' })
+  profile(@CurrentUser() user: AuthUser) {
+    return this.mentorship.getOrCreateProfile(user.userId);
   }
 
-  @Get('profile')
-  @ApiOperation({ summary: "Current user's mentor profile (null if not a mentor)" })
-  myProfile(@CurrentUser() user: AuthUser) {
-    return this.mentorship.getMyProfile(user.userId);
-  }
-
-  @Patch('profile')
-  @ApiOperation({ summary: 'Create/update own mentor profile' })
-  upsertProfile(
+  @Put('me/mentor-profile')
+  @RequirePermissions(PERMISSIONS.MENTOR_MANAGE)
+  @ApiOperation({ summary: 'Update your mentor profile' })
+  updateProfile(
     @CurrentUser() user: AuthUser,
     @Body(new ZodValidationPipe(updateMentorProfileSchema)) dto: UpdateMentorProfileDto,
   ) {
-    return this.mentorship.upsertProfile(user.userId, dto);
+    return this.mentorship.updateProfile(user.userId, dto);
   }
 
-  @Post('bookings')
-  @ApiOperation({ summary: 'Request a mentorship session' })
-  createBooking(
-    @CurrentUser() user: AuthUser,
-    @Body(new ZodValidationPipe(createBookingSchema)) dto: CreateBookingDto,
-  ) {
-    return this.mentorship.createBooking(user.userId, dto);
+  @Post('me/mentor-slots')
+  @RequirePermissions(PERMISSIONS.MENTOR_MANAGE)
+  @ApiOperation({ summary: 'Open an availability window' })
+  createSlot(@CurrentUser() user: AuthUser, @Body(new ZodValidationPipe(createSlotSchema)) dto: CreateSlotDto) {
+    return this.mentorship.createSlot(user.userId, dto);
   }
 
-  @Get('bookings')
-  @ApiOperation({ summary: 'My sessions (as mentor and as student)' })
-  myBookings(@CurrentUser() user: AuthUser) {
-    return this.mentorship.myBookings(user.userId);
+  @Get('me/mentor-slots')
+  @RequirePermissions(PERMISSIONS.MENTOR_MANAGE)
+  @ApiOperation({ summary: 'Your availability windows + who booked them' })
+  mySlots(@CurrentUser() user: AuthUser) {
+    return this.mentorship.listMySlots(user.userId);
   }
 
-  @Patch('bookings/:id')
-  @ApiOperation({ summary: 'Confirm/decline/complete/cancel/rate a session' })
-  updateBooking(
+  @Delete('me/mentor-slots/:id')
+  @RequirePermissions(PERMISSIONS.MENTOR_MANAGE)
+  @ApiOperation({ summary: 'Remove an unbooked availability window' })
+  cancelSlot(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.mentorship.cancelSlot(user.userId, id);
+  }
+
+  @Get('me/mentor-bookings')
+  @RequirePermissions(PERMISSIONS.MENTOR_MANAGE)
+  @ApiOperation({ summary: 'Bookings students made with you' })
+  mentorBookings(@CurrentUser() user: AuthUser) {
+    return this.mentorship.listMentorBookings(user.userId);
+  }
+
+  @Post('me/mentor-bookings/:id/complete')
+  @RequirePermissions(PERMISSIONS.MENTOR_MANAGE)
+  @ApiOperation({ summary: 'Close out a session (COMPLETED or NO_SHOW)' })
+  complete(
     @CurrentUser() user: AuthUser,
     @Param('id') id: string,
-    @Body(new ZodValidationPipe(updateBookingSchema)) dto: UpdateBookingDto,
+    @Body(new ZodValidationPipe(completeSchema)) dto: CompleteDto,
   ) {
-    return this.mentorship.updateBooking(user.userId, id, dto);
+    return this.mentorship.completeBooking(user.userId, id, dto);
+  }
+
+  // --- Student side (any authenticated member of the org) ---------------
+
+  @Get('mentors')
+  @ApiOperation({ summary: 'Mentors in your organization accepting bookings' })
+  mentors(@CurrentUser() user: AuthUser) {
+    return this.mentorship.listMentors(user.userId);
+  }
+
+  @Get('mentors/:id/slots')
+  @ApiOperation({ summary: 'A mentor’s open future slots' })
+  mentorSlots(@Param('id') id: string) {
+    return this.mentorship.listMentorSlots(id);
+  }
+
+  @Post('mentor-slots/:id/book')
+  @ApiOperation({ summary: 'Book an open slot' })
+  book(@CurrentUser() user: AuthUser, @Param('id') id: string, @Body(new ZodValidationPipe(bookSchema)) dto: BookDto) {
+    return this.mentorship.book(user.userId, id, dto);
+  }
+
+  @Get('me/bookings')
+  @ApiOperation({ summary: 'Your mentorship bookings' })
+  myBookings(@CurrentUser() user: AuthUser) {
+    return this.mentorship.listMyBookings(user.userId);
+  }
+
+  @Post('me/bookings/:id/cancel')
+  @ApiOperation({ summary: 'Cancel a booking (either side); reopens the slot' })
+  cancel(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.mentorship.cancelBooking(user.userId, id);
   }
 }

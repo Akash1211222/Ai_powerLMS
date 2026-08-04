@@ -16,11 +16,18 @@ import {
   ShieldCheck,
   CalendarDays,
   LogOut,
+  Sparkles,
+  Target,
+  GraduationCap,
+  MessagesSquare,
+  LineChart,
+  FileBarChart,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo, Spinner, cn } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { NotificationBell } from '@/components/notification-bell';
+import { ThemeToggle } from '@/components/theme-toggle';
 
 /**
  * Client-side guard + shell for authenticated pages. NOTE: this is UX only —
@@ -53,13 +60,46 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, show: true },
     { href: '/courses', label: 'Courses', icon: BookOpen, show: can('course:view') },
     { href: '/batches', label: 'Batches', icon: Users, show: can('batch:view') },
-    { href: '/assignments', label: 'Assignments', icon: ClipboardList, show: can('assignment:submit') || can('assignment:create') },
-    { href: '/assessments', label: 'Assessments', icon: FileCheck2, show: can('assignment:submit') || can('assessment:create') },
-    { href: '/attendance', label: 'Attendance', icon: CalendarCheck, show: can('attendance:view') || can('attendance:mark') },
+    {
+      href: '/assignments',
+      label: 'Assignments',
+      icon: ClipboardList,
+      show: can('assignment:submit') || can('assignment:create'),
+    },
+    {
+      href: '/assessments',
+      label: 'Assessments',
+      icon: FileCheck2,
+      show: can('assignment:submit') || can('assessment:create'),
+    },
+    {
+      href: '/attendance',
+      label: 'Attendance',
+      icon: CalendarCheck,
+      show: can('attendance:view') || can('attendance:mark'),
+    },
+    { href: '/skills', label: 'Skills', icon: Sparkles, show: true },
+    { href: '/career', label: 'Career', icon: Briefcase, show: true },
+    { href: '/opportunities', label: 'Opportunities', icon: Target, show: can('placement:view') },
     { href: '/placements', label: 'Placements', icon: Briefcase, show: can('placement:view') },
-    { href: '/intelligence', label: 'Intelligence', icon: BrainCircuit, show: can('student:view') || can('assignment:submit') },
+    {
+      href: '/intelligence',
+      label: 'Intelligence',
+      icon: BrainCircuit,
+      show: can('student:view') || can('assignment:submit'),
+    },
     { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake, show: true },
-    { href: '/admin', label: 'Admin', icon: ShieldCheck, show: can('user:view') || can('feature-flag:manage') },
+    { href: '/mentors', label: 'Mentors', icon: HeartHandshake, show: true },
+    { href: '/alumni', label: 'Alumni', icon: GraduationCap, show: true },
+    { href: '/community', label: 'Community', icon: MessagesSquare, show: true },
+    { href: '/reports', label: 'Reports', icon: FileBarChart, show: true },
+    { href: '/insights', label: 'Insights', icon: LineChart, show: can('analytics:view') },
+    {
+      href: '/admin',
+      label: 'Admin',
+      icon: ShieldCheck,
+      show: can('user:view') || can('feature-flag:manage'),
+    },
     { href: '/calendar', label: 'Calendar', icon: CalendarDays, show: true },
   ].filter((n) => n.show);
 
@@ -71,7 +111,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="blob-3" />
       </div>
 
-      <aside className="glass sticky top-0 z-20 flex h-screen w-64 flex-col gap-1 border-r p-4">
+      <aside className="glass sticky top-0 z-20 flex h-screen w-64 flex-col gap-1 overflow-y-auto border-r p-4">
         <div className="px-2 pb-5 pt-1">
           <Logo />
         </div>
@@ -122,7 +162,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           <span className="font-display text-sm font-bold uppercase tracking-widest text-faint">
             {current?.label ?? 'FutureCorp Academy'}
           </span>
-          <NotificationBell />
+          <div className="flex items-center gap-3">
+            <ThemeToggle />
+            <NotificationBell />
+          </div>
         </header>
         <main className="flex-1 px-8 py-8">
           <div className="mx-auto max-w-6xl animate-fadeUp">{children}</div>

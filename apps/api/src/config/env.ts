@@ -21,6 +21,25 @@ export const envSchema = z.object({
   LOGIN_MAX_ATTEMPTS: z.coerce.number().int().positive().default(5),
   LOGIN_LOCKOUT_MINUTES: z.coerce.number().int().positive().default(15),
 
+  // HTTP rate limiting (§39). Login lockout is per-account; this bounds
+  // per-IP abuse (email spraying, scraping, expensive analytics endpoints).
+  RATE_LIMIT_ENABLED: z
+    .enum(['true', 'false'])
+    .default('true')
+    .transform((v) => v === 'true'),
+  RATE_LIMIT_TTL_SECONDS: z.coerce.number().int().positive().default(60),
+  RATE_LIMIT_MAX: z.coerce.number().int().positive().default(300),
+  /** Tighter budget for unauthenticated auth endpoints. */
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(10),
+
+  /** Max accepted request body size (protects against payload floods). */
+  BODY_LIMIT: z.string().default('1mb'),
+  /** Serve OpenAPI docs. Defaults off in production. */
+  SWAGGER_ENABLED: z
+    .enum(['true', 'false'])
+    .optional()
+    .transform((v) => (v === undefined ? undefined : v === 'true')),
+
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 });
 

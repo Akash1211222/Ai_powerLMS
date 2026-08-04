@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  // Emit a self-contained server bundle so the runtime image only needs the
+  // traced dependencies rather than the whole workspace node_modules.
+  output: 'standalone',
   transpilePackages: ['@fca/shared', '@fca/ui'],
   eslint: {
     // Lint is run explicitly via `pnpm lint`; don't fail production builds on it.

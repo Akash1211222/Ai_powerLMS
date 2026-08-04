@@ -1,12 +1,22 @@
 import type { AIProvider } from './provider';
 import { evaluationOutputSchema, type EvaluationInput, type EvaluationOutput } from './schema';
+import {
+  recoveryPlanOutputSchema,
+  type RecoveryPlanInput,
+  type RecoveryPlanOutput,
+} from './recovery-schema';
+import {
+  progressReportOutputSchema,
+  type ProgressReportInput,
+  type ProgressReportOutput,
+} from './report-schema';
 
 const PROMPT_VERSION = 'eval-v1';
 
 /**
- * Real Anthropic-backed evaluator (§3, §36). Calls the Messages API via fetch
+ * Real Anthropic-backed provider (§3, §36). Calls the Messages API via fetch
  * (no SDK dependency). Requests strict JSON and validates it against the shared
- * schema — important AI output is never parsed with fragile string logic.
+ * schemas — important AI output is never parsed with fragile string logic.
  * Only instantiated when an API key is present; otherwise the heuristic runs.
  */
 export class AnthropicProvider implements AIProvider {
@@ -18,6 +28,35 @@ export class AnthropicProvider implements AIProvider {
     readonly model: string,
     private readonly timeoutMs = 60_000,
   ) {}
+
+  /** One strict-JSON completion against the Messages API. */
+  private async completeJson(system: string, user: string, maxTokens: number): Promise<unknown> {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    try {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-api-key': this.apiKey,
+          'anthropic-version': '2023-06-01',
+        },
+        body: JSON.stringify({
+          model: this.model,
+          max_tokens: maxTokens,
+          system,
+          messages: [{ role: 'user', content: user }],
+        }),
+        signal: controller.signal,
+      });
+      if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text()}`);
+      const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
+      const text = data.content?.find((b) => b.type === 'text')?.text ?? '';
+      return JSON.parse(extractJson(text));
+    } finally {
+      clearTimeout(timer);
+    }
+  }
 
   async evaluateSubmission(input: EvaluationInput): Promise<EvaluationOutput> {
     const isCode = Boolean(input.language && input.language !== 'NONE');
@@ -46,34 +85,70 @@ export class AnthropicProvider implements AIProvider {
       .filter(Boolean)
       .join('\n\n');
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
-    let json: unknown;
-    try {
-      const res = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-api-key': this.apiKey,
-          'anthropic-version': '2023-06-01',
-        },
-        body: JSON.stringify({
-          model: this.model,
-          max_tokens: 1500,
-          system,
-          messages: [{ role: 'user', content: user }],
-        }),
-        signal: controller.signal,
-      });
-      if (!res.ok) throw new Error(`Anthropic API error ${res.status}: ${await res.text()}`);
-      const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-      const text = data.content?.find((b) => b.type === 'text')?.text ?? '';
-      json = JSON.parse(extractJson(text));
-    } finally {
-      clearTimeout(timer);
-    }
+    const json = await this.completeJson(system, user, 1500);
     // Validation throws on mismatch — the orchestrator falls back to heuristic.
     return evaluationOutputSchema.parse(json);
+  }
+
+  async generateRecoveryPlan(input: RecoveryPlanInput): Promise<RecoveryPlanOutput> {
+    const system =
+      'You are an academic support planner for a training academy. Given deterministic risk signals and weak skills ' +
+      '(computed by the platform — do not invent numbers), produce a concrete, encouraging recovery plan the student can ' +
+      'act on. 3-6 specific tasks, each achievable within a week. Respond with ONLY a JSON object matching the given ' +
+      'shape — no prose, no markdown fences.';
+
+    const shape = {
+      summary: 'string (2-4 sentences addressed to staff + student)',
+      tasks: [{ title: 'string', detail: 'string' }],
+      mentorActions: ['string'],
+      trainerActions: ['string'],
+      followUpDays: '3..30 (integer)',
+    };
+
+    const user = [
+      `Risk level: ${input.riskLevel} (score ${input.riskScore}/100)`,
+      `Contributing factors: ${JSON.stringify(input.factors)}`,
+      `Weak skills: ${JSON.stringify(input.weakSkills)}`,
+      input.courseTitle ? `Course: ${input.courseTitle}` : '',
+      `Return JSON of exactly this shape: ${JSON.stringify(shape)}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const json = await this.completeJson(system, user, 1500);
+    return recoveryPlanOutputSchema.parse(json);
+  }
+
+  async generateProgressReport(input: ProgressReportInput): Promise<ProgressReportOutput> {
+    const system =
+      'You write concise weekly progress reports for a training academy. The numeric metrics are computed by the ' +
+      'platform — narrate and interpret them, never invent figures. Be specific, encouraging and actionable. ' +
+      'Respond with ONLY a JSON object matching the given shape — no prose, no markdown fences.';
+
+    const shape = {
+      summary: 'string (3-5 sentences)',
+      achievements: ['string'],
+      improvements: ['string'],
+      weakAreas: ['string'],
+      nextWeekGoals: ['string'],
+      trainerNote: 'string',
+      mentorNote: 'string',
+    };
+
+    const user = [
+      `Student: ${input.studentName}`,
+      `Period: ${input.periodLabel}`,
+      `Metrics: ${JSON.stringify(input.metrics)}`,
+      `Skill trends: ${JSON.stringify(input.skillTrends)}`,
+      `Weak skills: ${JSON.stringify(input.weakSkills)}`,
+      input.riskLevel ? `Risk level: ${input.riskLevel}` : '',
+      `Return JSON of exactly this shape: ${JSON.stringify(shape)}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const json = await this.completeJson(system, user, 1500);
+    return progressReportOutputSchema.parse(json);
   }
 }
 

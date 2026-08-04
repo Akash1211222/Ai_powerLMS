@@ -1,17 +1,7 @@
 import { apiRequest } from './api-client';
 
-export interface MentorCard {
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  headline: string | null;
-  bio: string | null;
-  expertise: string[];
-  weeklyCapacity: number;
-  isAcceptingBookings: boolean;
-  confirmedThisWeek: number;
-}
+export type SlotStatus = 'OPEN' | 'BOOKED' | 'CANCELLED';
+export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
 
 export interface MentorProfile {
   id: string;
@@ -19,64 +9,72 @@ export interface MentorProfile {
   headline: string | null;
   bio: string | null;
   expertise: string[];
-  weeklyCapacity: number;
   isAcceptingBookings: boolean;
 }
 
-export interface BookingParty {
+export interface MentorDirectoryEntry {
+  mentorId: string;
+  name: string;
+  avatarUrl: string | null;
+  headline: string | null;
+  bio: string | null;
+  expertise: string[];
+  openSlots: number;
+}
+
+export interface MentorSlot {
+  id: string;
+  mentorId: string;
+  startsAt: string;
+  endsAt: string;
+  status: SlotStatus;
+}
+
+interface Person {
   id: string;
   email: string;
   profile: { firstName: string; lastName: string } | null;
 }
 
+export interface MentorSlotWithBookings extends MentorSlot {
+  bookings: Array<{ id: string; topic: string; status: BookingStatus; student: Person }>;
+}
+
 export interface Booking {
   id: string;
+  slotId: string;
   mentorId: string;
   studentId: string;
   topic: string;
   note: string | null;
-  scheduledAt: string;
-  durationMin: number;
-  status: 'REQUESTED' | 'CONFIRMED' | 'DECLINED' | 'COMPLETED' | 'CANCELLED';
-  meetingUrl: string | null;
-  outcomeNote: string | null;
-  rating: number | null;
-  mentor: BookingParty;
-  student: BookingParty;
+  status: BookingStatus;
+  mentorNotes: string | null;
+  slot: MentorSlot;
+  mentor?: Person;
+  student?: Person;
 }
 
 export const mentorshipApi = {
-  mentors: (organizationId: string) =>
-    apiRequest<MentorCard[]>(
-      `/mentorship/mentors?organizationId=${encodeURIComponent(organizationId)}`,
-      { auth: true },
-    ),
-  myProfile: () => apiRequest<MentorProfile | null>('/mentorship/profile', { auth: true }),
-  updateProfile: (input: {
-    headline?: string;
-    bio?: string;
-    expertise?: string[];
-    weeklyCapacity?: number;
-    isAcceptingBookings?: boolean;
-  }) => apiRequest<MentorProfile>('/mentorship/profile', { method: 'PATCH', body: input, auth: true }),
-  book: (input: {
-    mentorId: string;
-    topic: string;
-    note?: string;
-    scheduledAt: string;
-    durationMin?: number;
-  }) => apiRequest<Booking>('/mentorship/bookings', { method: 'POST', body: input, auth: true }),
-  myBookings: () =>
-    apiRequest<{ asMentor: Booking[]; asStudent: Booking[] }>('/mentorship/bookings', {
+  // student
+  directory: () => apiRequest<MentorDirectoryEntry[]>('/mentors', { auth: true }),
+  slotsFor: (mentorId: string) => apiRequest<MentorSlot[]>(`/mentors/${mentorId}/slots`, { auth: true }),
+  book: (slotId: string, topic: string, note?: string) =>
+    apiRequest<Booking>(`/mentor-slots/${slotId}/book`, { method: 'POST', body: note ? { topic, note } : { topic }, auth: true }),
+  myBookings: () => apiRequest<Booking[]>('/me/bookings', { auth: true }),
+  cancelBooking: (id: string) => apiRequest<Booking>(`/me/bookings/${id}/cancel`, { method: 'POST', auth: true }),
+
+  // mentor
+  profile: () => apiRequest<MentorProfile>('/me/mentor-profile', { auth: true }),
+  updateProfile: (input: Partial<Pick<MentorProfile, 'headline' | 'bio' | 'expertise' | 'isAcceptingBookings'>>) =>
+    apiRequest<MentorProfile>('/me/mentor-profile', { method: 'PUT', body: input, auth: true }),
+  mySlots: () => apiRequest<MentorSlotWithBookings[]>('/me/mentor-slots', { auth: true }),
+  createSlot: (startsAt: string, endsAt: string) =>
+    apiRequest<MentorSlot>('/me/mentor-slots', { method: 'POST', body: { startsAt, endsAt }, auth: true }),
+  removeSlot: (id: string) => apiRequest<MentorSlot>(`/me/mentor-slots/${id}`, { method: 'DELETE', auth: true }),
+  complete: (id: string, mentorNotes?: string, status: 'COMPLETED' | 'NO_SHOW' = 'COMPLETED') =>
+    apiRequest<Booking>(`/me/mentor-bookings/${id}/complete`, {
+      method: 'POST',
+      body: mentorNotes ? { mentorNotes, status } : { status },
       auth: true,
     }),
-  update: (
-    id: string,
-    input: {
-      action: 'CONFIRM' | 'DECLINE' | 'COMPLETE' | 'CANCEL' | 'RATE';
-      meetingUrl?: string;
-      outcomeNote?: string;
-      rating?: number;
-    },
-  ) => apiRequest<Booking>(`/mentorship/bookings/${id}`, { method: 'PATCH', body: input, auth: true }),
 };

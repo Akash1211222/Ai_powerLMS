@@ -25,23 +25,23 @@ enum UserStatus {
 }
 
 model User {
-  id            String     @id @default(cuid())
-  email         String     @unique // stored lowercased by the app
-  passwordHash  String
-  status        UserStatus @default(PENDING)
+  id              String     @id @default(cuid())
+  email           String     @unique // stored lowercased by the app
+  passwordHash    String
+  status          UserStatus @default(PENDING)
   emailVerifiedAt DateTime?
-  lastLoginAt   DateTime?
-  createdAt     DateTime   @default(now())
-  updatedAt     DateTime   @updatedAt
-  deletedAt     DateTime? // soft delete — users are rarely hard-deleted (audit)
+  lastLoginAt     DateTime?
+  createdAt       DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+  deletedAt       DateTime? // soft delete — users are rarely hard-deleted (audit)
 
-  profile           Profile?
-  roles             UserRole[]
-  sessions          Session[]
-  orgMemberships    OrganizationMember[]
-  emailTokens       EmailVerificationToken[]
-  passwordResets    PasswordResetToken[]
-  auditLogs         AuditLog[]               @relation("AuditActor")
+  profile        Profile?
+  roles          UserRole[]
+  sessions       Session[]
+  orgMemberships OrganizationMember[]
+  emailTokens    EmailVerificationToken[]
+  passwordResets PasswordResetToken[]
+  auditLogs      AuditLog[]               @relation("AuditActor")
 
   // Academics / batches (Phase 1)
   coursesCreated     Course[]            @relation("CourseCreator")
@@ -60,9 +60,9 @@ model User {
   correctionReviews         AttendanceCorrectionRequest[] @relation("CorrectionReviewer")
 
   // Assignments (Phase 1)
-  assignmentsCreated  Assignment[]           @relation("AssignmentCreator")
-  submissions         AssignmentSubmission[] @relation("SubmissionStudent")
-  evaluationReviews   AssignmentEvaluation[] @relation("EvaluationReviewer")
+  assignmentsCreated Assignment[]           @relation("AssignmentCreator")
+  submissions        AssignmentSubmission[] @relation("SubmissionStudent")
+  evaluationReviews  AssignmentEvaluation[] @relation("EvaluationReviewer")
 
   // Assessments (Phase 1)
   assessmentsCreated Assessment[]        @relation("AssessmentCreator")
@@ -73,16 +73,30 @@ model User {
   notificationPreference NotificationPreference?
   calendarEvents         CalendarEvent[]         @relation("CalendarOwner")
 
-  // Placement (Phase 2)
-  jobPostingsCreated JobPosting[]      @relation("JobPostingCreator")
-  jobApplications    JobApplication[]  @relation("JobApplicant")
-  applicationUpdates JobApplication[]  @relation("ApplicationUpdater")
-  placementProfile   PlacementProfile?
+  // Intelligence (Phase 2)
+  studentSkills StudentSkill[]
+  score         StudentScore?
+  riskSnapshots StudentRiskSnapshot[]
+  interventions StudentIntervention[]
+  weeklyReports WeeklyProgressReport[]
 
-  // Mentorship (Phase 4)
-  mentorProfile      MentorProfile?
-  mentorSessions     MentorshipBooking[] @relation("MentorshipMentor")
-  menteeSessions     MentorshipBooking[] @relation("MentorshipStudent")
+  // Career ecosystem (Phase 3)
+  careerProfile        CareerProfile?
+  opportunitiesPosted  Opportunity[]         @relation("OpportunityPoster")
+  applications         Application[]         @relation("Applicant")
+  applicationsReviewed Application[]         @relation("ApplicationReviewer")
+  mentorProfile        MentorProfile?
+  mentorSlots          MentorSlot[]          @relation("SlotMentor")
+  bookingsAsMentor     MentorBooking[]       @relation("BookingMentor")
+  bookingsAsStudent    MentorBooking[]       @relation("BookingStudent")
+  alumniProfile        AlumniProfile?
+  referralsMade        Referral[]            @relation("ReferralReferrer")
+  referralsReceived    Referral[]            @relation("ReferralStudent")
+  referralsReviewed    Referral[]            @relation("ReferralReviewer")
+  communityQuestions   CommunityQuestion[]   @relation("QuestionAuthor")
+  communityAnswers     CommunityAnswer[]     @relation("AnswerAuthor")
+  communityAnswerVotes CommunityAnswerVote[]
+  achievements         Achievement[]
 
   @@index([status])
   @@index([deletedAt])
@@ -257,8 +271,11 @@ model Organization {
   courses  Course[]
   batches  Batch[]
 
-  // Placement (Phase 2)
-  jobPostings JobPosting[]
+  // Career ecosystem (Phase 3)
+  opportunities Opportunity[]
+
+  // Network effects (Phase 4)
+  communityQuestions CommunityQuestion[]
 
   @@map("organizations")
 }
@@ -373,12 +390,13 @@ model Course {
   createdAt      DateTime     @default(now())
   updatedAt      DateTime     @updatedAt
 
-  organization Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  program      Program?     @relation(fields: [programId], references: [id], onDelete: SetNull)
-  createdBy    User         @relation("CourseCreator", fields: [createdById], references: [id])
+  organization Organization   @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  program      Program?       @relation(fields: [programId], references: [id], onDelete: SetNull)
+  createdBy    User           @relation("CourseCreator", fields: [createdById], references: [id])
   modules      CourseModule[]
   enrollments  Enrollment[]
   batches      Batch[]
+  courseSkills CourseSkill[]
 
   @@unique([organizationId, slug])
   @@index([organizationId, status])
@@ -409,16 +427,16 @@ enum LessonType {
 }
 
 model Lesson {
-  id           String     @id @default(cuid())
-  moduleId     String
-  title        String
-  order        Int        @default(0)
-  type         LessonType @default(VIDEO)
-  contentUrl   String?
-  body         String?
-  durationSec  Int?
-  createdAt    DateTime   @default(now())
-  updatedAt    DateTime   @updatedAt
+  id          String     @id @default(cuid())
+  moduleId    String
+  title       String
+  order       Int        @default(0)
+  type        LessonType @default(VIDEO)
+  contentUrl  String?
+  body        String?
+  durationSec Int?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
 
   module    CourseModule       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   resources LearningResource[]
@@ -449,19 +467,19 @@ enum EnrollmentStatus {
 }
 
 model Enrollment {
-  id         String           @id @default(cuid())
-  userId     String
-  courseId   String
-  batchId    String?
-  status     EnrollmentStatus @default(ACTIVE)
-  enrolledAt DateTime         @default(now())
+  id          String           @id @default(cuid())
+  userId      String
+  courseId    String
+  batchId     String?
+  status      EnrollmentStatus @default(ACTIVE)
+  enrolledAt  DateTime         @default(now())
   completedAt DateTime?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
 
-  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
-  course   Course         @relation(fields: [courseId], references: [id], onDelete: Cascade)
-  batch    Batch?         @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  user     User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  batch    Batch?          @relation(fields: [batchId], references: [id], onDelete: SetNull)
   progress CourseProgress?
 
   @@unique([userId, courseId])
@@ -471,13 +489,13 @@ model Enrollment {
 }
 
 model CourseProgress {
-  id              String   @id @default(cuid())
-  enrollmentId    String   @unique
-  completedLessons Int     @default(0)
-  totalLessons    Int      @default(0)
-  percent         Int      @default(0)
-  lastActivityAt  DateTime?
-  updatedAt       DateTime @updatedAt
+  id               String    @id @default(cuid())
+  enrollmentId     String    @unique
+  completedLessons Int       @default(0)
+  totalLessons     Int       @default(0)
+  percent          Int       @default(0)
+  lastActivityAt   DateTime?
+  updatedAt        DateTime  @updatedAt
 
   enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
 
@@ -491,15 +509,15 @@ enum LessonProgressStatus {
 }
 
 model LessonProgress {
-  id            String               @id @default(cuid())
-  enrollmentId  String
-  lessonId      String
-  userId        String
-  status        LessonProgressStatus @default(NOT_STARTED)
-  lastPositionSec Int                @default(0)
-  watchedSec    Int                  @default(0)
-  completedAt   DateTime?
-  updatedAt     DateTime             @updatedAt
+  id              String               @id @default(cuid())
+  enrollmentId    String
+  lessonId        String
+  userId          String
+  status          LessonProgressStatus @default(NOT_STARTED)
+  lastPositionSec Int                  @default(0)
+  watchedSec      Int                  @default(0)
+  completedAt     DateTime?
+  updatedAt       DateTime             @updatedAt
 
   lesson Lesson @relation(fields: [lessonId], references: [id], onDelete: Cascade)
   user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -535,18 +553,19 @@ model Batch {
   createdAt      DateTime    @default(now())
   updatedAt      DateTime    @updatedAt
 
-  organization  Organization        @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  course        Course              @relation(fields: [courseId], references: [id], onDelete: Restrict)
-  createdBy     User                @relation("BatchCreator", fields: [createdById], references: [id])
-  students      BatchStudent[]
-  trainers      BatchTrainer[]
-  schedules     BatchSchedule[]
-  announcements BatchAnnouncement[]
-  enrollments   Enrollment[]
+  organization       Organization          @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  course             Course                @relation(fields: [courseId], references: [id], onDelete: Restrict)
+  createdBy          User                  @relation("BatchCreator", fields: [createdById], references: [id])
+  students           BatchStudent[]
+  trainers           BatchTrainer[]
+  schedules          BatchSchedule[]
+  announcements      BatchAnnouncement[]
+  enrollments        Enrollment[]
   attendanceSessions AttendanceSession[]
   assignments        Assignment[]
   assessments        Assessment[]
   calendarEvents     CalendarEvent[]
+  riskSnapshots      StudentRiskSnapshot[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -561,11 +580,11 @@ enum BatchStudentStatus {
 }
 
 model BatchStudent {
-  id        String             @id @default(cuid())
-  batchId   String
-  userId    String
-  status    BatchStudentStatus @default(ACTIVE)
-  joinedAt  DateTime           @default(now())
+  id       String             @id @default(cuid())
+  batchId  String
+  userId   String
+  status   BatchStudentStatus @default(ACTIVE)
+  joinedAt DateTime           @default(now())
 
   batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
   user  User  @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -800,7 +819,7 @@ model RubricCriterion {
   weight       Int     @default(10)
   order        Int     @default(0)
 
-  assignment Assignment                @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  assignment Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   scores     EvaluationCriterionScore[]
 
   @@index([assignmentId])
@@ -820,8 +839,8 @@ model AssignmentSubmission {
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
-  assignment  Assignment            @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
-  student     User                  @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  assignment  Assignment             @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student     User                   @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
   evaluation  AssignmentEvaluation?
   attachments SubmissionAttachment[]
 
@@ -846,23 +865,23 @@ model SubmissionAttachment {
 }
 
 model AssignmentEvaluation {
-  id           String           @id @default(cuid())
-  submissionId String           @unique
-  aiScore      Int?
-  trainerScore Int?
-  finalScore   Int?
-  confidence   Float?
-  reason       String?
-  version      Int              @default(1)
-  evaluatedByAi Boolean         @default(false)
-  status       EvaluationStatus @default(PENDING)
-  reviewedById String?
-  reviewedAt   DateTime?
-  createdAt    DateTime         @default(now())
-  updatedAt    DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  submissionId  String           @unique
+  aiScore       Int?
+  trainerScore  Int?
+  finalScore    Int?
+  confidence    Float?
+  reason        String?
+  version       Int              @default(1)
+  evaluatedByAi Boolean          @default(false)
+  status        EvaluationStatus @default(PENDING)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
-  submission     AssignmentSubmission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
-  reviewedBy     User?                      @relation("EvaluationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+  submission      AssignmentSubmission       @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  reviewedBy      User?                      @relation("EvaluationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
   criterionScores EvaluationCriterionScore[]
 
   @@map("assignment_evaluations")
@@ -949,20 +968,20 @@ enum AttemptStatus {
 }
 
 model Assessment {
-  id               String               @id @default(cuid())
+  id               String           @id @default(cuid())
   batchId          String
   courseId         String?
   title            String
   description      String?
   timeLimitMin     Int?
-  maxAttempts      Int                  @default(1)
-  shuffleQuestions Boolean              @default(false)
+  maxAttempts      Int              @default(1)
+  shuffleQuestions Boolean          @default(false)
   passingScore     Int?
   dueAt            DateTime?
-  status           AssessmentStatus     @default(DRAFT)
+  status           AssessmentStatus @default(DRAFT)
   createdById      String
-  createdAt        DateTime             @default(now())
-  updatedAt        DateTime             @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   batch     Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
   createdBy User                @relation("AssessmentCreator", fields: [createdById], references: [id])
@@ -1022,9 +1041,9 @@ model AssessmentAttempt {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
-  assessment      Assessment        @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
-  student         User              @relation("AttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
-  answers         AttemptAnswer[]
+  assessment       Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
+  student          User               @relation("AttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  answers          AttemptAnswer[]
   topicPerformance TopicPerformance[]
 
   @@unique([assessmentId, studentId, attemptNumber])
@@ -1082,6 +1101,7 @@ enum NotificationType {
   APPLICATION_UPDATE
   RISK_INTERVENTION
   RECOVERY_TASK
+  PROGRESS_REPORT
   ACHIEVEMENT
   GENERAL
 }
@@ -1108,7 +1128,7 @@ model Notification {
   readAt    DateTime?
   createdAt DateTime         @default(now())
 
-  user       User                     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
   deliveries NotificationDelivery[]
 
   @@index([userId, readAt])
@@ -1117,12 +1137,12 @@ model Notification {
 }
 
 model NotificationPreference {
-  id            String   @id @default(cuid())
-  userId        String   @unique
-  inAppEnabled  Boolean  @default(true)
-  emailEnabled  Boolean  @default(true)
-  mutedTypes    String[] // NotificationType values the user has muted
-  updatedAt     DateTime @updatedAt
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  inAppEnabled Boolean  @default(true)
+  emailEnabled Boolean  @default(true)
+  mutedTypes   String[] // NotificationType values the user has muted
+  updatedAt    DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
@@ -1187,161 +1207,658 @@ model CalendarEvent {
 }
 
 // ===========================================================================
-// PLACEMENT (Phase 2) — job postings, applications, student profiles
+// SKILLS (Phase 2) — hierarchical skill matrix + per-student profile (§20)
 // ===========================================================================
 
-enum JobType {
-  FULL_TIME
-  INTERNSHIP
-  CONTRACT
-  PART_TIME
+model SkillCategory {
+  id    String @id @default(cuid())
+  name  String
+  slug  String @unique
+  order Int    @default(0)
+
+  skills Skill[]
+
+  @@map("skill_categories")
 }
 
-enum JobPostingStatus {
+model Skill {
+  id          String  @id @default(cuid())
+  categoryId  String
+  parentId    String? // optional hierarchy (e.g. Pandas -> DataFrame)
+  name        String
+  slug        String  @unique
+  description String?
+
+  category      SkillCategory  @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+  parent        Skill?         @relation("SkillHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children      Skill[]        @relation("SkillHierarchy")
+  courseSkills  CourseSkill[]
+  studentSkills StudentSkill[]
+
+  @@index([categoryId])
+  @@map("skills")
+}
+
+// Which skills a course teaches (§20).
+model CourseSkill {
+  courseId String
+  skillId  String
+
+  course Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  skill  Skill  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+
+  @@id([courseId, skillId])
+  @@index([skillId])
+  @@map("course_skills")
+}
+
+enum SkillTrend {
+  NEW
+  UP
+  FLAT
+  DOWN
+}
+
+// A student's mastery of one skill — computed by app logic from evidence (§17).
+model StudentSkill {
+  id              String     @id @default(cuid())
+  userId          String
+  skillId         String
+  score           Int        @default(0) // 0..100
+  confidence      Float      @default(0) // 0..1, grows with evidence
+  evidenceCount   Int        @default(0)
+  trend           SkillTrend @default(NEW)
+  calcVersion     Int        @default(1)
+  lastEvaluatedAt DateTime   @default(now())
+  updatedAt       DateTime   @updatedAt
+
+  user     User                   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  skill    Skill                  @relation(fields: [skillId], references: [id], onDelete: Cascade)
+  evidence StudentSkillEvidence[]
+
+  @@unique([userId, skillId])
+  @@index([userId])
+  @@map("student_skills")
+}
+
+// The raw evidence behind a StudentSkill score — explainable (§9, §17).
+model StudentSkillEvidence {
+  id             String   @id @default(cuid())
+  studentSkillId String
+  sourceType     String // e.g. "ASSESSMENT"
+  sourceId       String
+  topic          String?
+  correct        Int
+  total          Int
+  createdAt      DateTime @default(now())
+
+  studentSkill StudentSkill @relation(fields: [studentSkillId], references: [id], onDelete: Cascade)
+
+  @@index([studentSkillId])
+  @@map("student_skill_evidence")
+}
+
+// ===========================================================================
+// PERFORMANCE SCORING (Phase 2) — deterministic, explainable scores (§17)
+// ===========================================================================
+
+// Current composite scores for a student. `components` stores the inputs and
+// sub-scores so every number is explainable; calcVersion tracks the model.
+model StudentScore {
+  id                String   @id @default(cuid())
+  userId            String   @unique
+  performanceScore  Int      @default(0)
+  engagementScore   Int      @default(0)
+  consistencyScore  Int      @default(0)
+  skillMasteryScore Int      @default(0)
+  overallScore      Int      @default(0)
+  components        Json?
+  calcVersion       Int      @default(1)
+  computedAt        DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([overallScore])
+  @@map("student_scores")
+}
+
+// ===========================================================================
+// AT-RISK DETECTION (Phase 2) — explainable risk snapshots (§18)
+// ===========================================================================
+
+enum RiskLevel {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+// A point-in-time risk assessment. Snapshots are only written when the picture
+// meaningfully changes (level change or a material score move), so history
+// stays signal, not noise. `factors` holds the contributing rules + evidence so
+// nothing is an unexplained label (§9, §18).
+model StudentRiskSnapshot {
+  id                 String    @id @default(cuid())
+  userId             String
+  batchId            String?
+  level              RiskLevel
+  score              Int // 0..100, higher = more at risk
+  factors            Json // [{ code, label, detail, value, severity, weight, contribution }]
+  recommendedActions String[]
+  ruleVersion        Int       @default(1)
+  detectedAt         DateTime  @default(now())
+  createdAt          DateTime  @default(now())
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  batch Batch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([userId, detectedAt])
+  @@index([batchId, level])
+  @@index([level, detectedAt])
+  @@map("student_risk_snapshots")
+}
+
+// ===========================================================================
+// INTERVENTIONS (Phase 2) — automated support workflow + recovery plans (§19)
+// ===========================================================================
+
+enum InterventionStatus {
+  OPEN
+  PLAN_READY
+  IN_PROGRESS
+  RESOLVED
+  CANCELLED
+}
+
+// Created automatically when risk meaningfully escalates to HIGH/CRITICAL.
+// Idempotent: a student has at most one active intervention at a time (§37).
+model StudentIntervention {
+  id             String             @id @default(cuid())
+  userId         String
+  batchId        String?
+  riskSnapshotId String?
+  status         InterventionStatus @default(OPEN)
+  reason         String // top contributing risk factors, human-readable
+  riskLevel      RiskLevel
+  riskScore      Int
+  followUpAt     DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plan RecoveryPlan?
+
+  @@index([userId, status])
+  @@index([status, createdAt])
+  @@map("student_interventions")
+}
+
+// AI-generated, schema-validated recovery plan (§19, §36). The provider and
+// model are stored so every plan is traceable to how it was produced.
+model RecoveryPlan {
+  id             String   @id @default(cuid())
+  interventionId String   @unique
+  summary        String
+  weakSkills     String[]
+  mentorActions  String[]
+  trainerActions String[]
+  provider       String
+  model          String?
+  createdAt      DateTime @default(now())
+
+  intervention StudentIntervention @relation(fields: [interventionId], references: [id], onDelete: Cascade)
+  tasks        RecoveryPlanTask[]
+
+  @@map("recovery_plans")
+}
+
+model RecoveryPlanTask {
+  id          String    @id @default(cuid())
+  planId      String
+  title       String
+  detail      String?
+  order       Int       @default(0)
+  completedAt DateTime?
+
+  plan RecoveryPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+
+  @@index([planId])
+  @@map("recovery_plan_tasks")
+}
+
+// ===========================================================================
+// WEEKLY PROGRESS REPORTS (Phase 2) — deterministic metrics + AI narrative (§21)
+// ===========================================================================
+
+model WeeklyProgressReport {
+  id            String   @id @default(cuid())
+  userId        String
+  periodStart   DateTime // start of the reporting week (00:00)
+  periodEnd     DateTime
+  summary       String
+  achievements  String[]
+  improvements  String[]
+  weakAreas     String[]
+  nextWeekGoals String[]
+  trainerNote   String?
+  mentorNote    String?
+  metrics       Json // the deterministic numbers the narrative is built from
+  provider      String
+  model         String?
+  createdAt     DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, periodStart])
+  @@index([userId, periodStart])
+  @@map("weekly_progress_reports")
+}
+
+// ===========================================================================
+// CAREER ECOSYSTEM (Phase 3) — student career profile, portfolio, resume (§25)
+// ===========================================================================
+
+enum ProfileVisibility {
+  PRIVATE // only the student + admins
+  PLACEMENT // + placement officers/recruiters in the org (default)
+  PUBLIC // shareable link
+}
+
+// A student's career profile — the foundation applications and the placement
+// pipeline reference (§25). One per user. Aggregated with the Phase 2 skill
+// matrix + placement readiness to assemble a resume.
+model CareerProfile {
+  id          String            @id @default(cuid())
+  userId      String            @unique
+  headline    String? // e.g. "Aspiring Data Analyst"
+  summary     String? // short professional objective / bio
+  location    String?
+  phone       String?
+  websiteUrl  String?
+  linkedinUrl String?
+  githubUrl   String?
+  resumeUrl   String? // link to an uploaded resume file
+  openToWork  Boolean           @default(true)
+  visibility  ProfileVisibility @default(PLACEMENT)
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  user        User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  projects    CareerProject[]
+  experiences CareerExperience[]
+
+  @@map("career_profiles")
+}
+
+// A portfolio project shown on the profile / resume.
+model CareerProject {
+  id          String   @id @default(cuid())
+  profileId   String
+  title       String
+  description String?
+  url         String?
+  skills      String[] // free-text skill tags
+  order       Int      @default(0)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  profile CareerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("career_projects")
+}
+
+enum ExperienceKind {
+  WORK
+  EDUCATION
+  CERTIFICATION
+  VOLUNTEER
+}
+
+// A work / education / certification entry on the profile timeline.
+model CareerExperience {
+  id           String         @id @default(cuid())
+  profileId    String
+  kind         ExperienceKind @default(WORK)
+  title        String // role or qualification
+  organization String
+  location     String?
+  startDate    DateTime
+  endDate      DateTime? // null = current
+  current      Boolean        @default(false)
+  description  String?
+  order        Int            @default(0)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  profile CareerProfile @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@map("career_experiences")
+}
+
+// ===========================================================================
+// PLACEMENT OPPORTUNITIES (Phase 3) — job/internship postings + discovery (§26)
+// ===========================================================================
+
+enum OpportunityType {
+  FULL_TIME
+  PART_TIME
+  INTERNSHIP
+  CONTRACT
+}
+
+enum WorkMode {
+  ONSITE
+  REMOTE
+  HYBRID
+}
+
+enum OpportunityStatus {
   DRAFT
   OPEN
   CLOSED
 }
 
-enum JobApplicationStatus {
+// A placement opportunity posted by a placement officer/recruiter for an org.
+// Students discover OPEN opportunities scoped to their organization, with a
+// deterministic eligibility (placement readiness) + skill-match computed on read.
+model Opportunity {
+  id             String            @id @default(cuid())
+  organizationId String
+  postedById     String
+  title          String
+  companyName    String
+  location       String?
+  type           OpportunityType   @default(FULL_TIME)
+  workMode       WorkMode          @default(ONSITE)
+  description    String
+  requirements   String[] // skill tags used for the match
+  minReadiness   Int? // placement-readiness gate (0..100); null = open to all
+  openings       Int? // number of positions
+  salaryMin      Int?
+  salaryMax      Int?
+  currency       String            @default("INR")
+  applyUrl       String? // external apply link (internal applications land in M3.3)
+  deadline       DateTime?
+  status         OpportunityStatus @default(DRAFT)
+  publishedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization  @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  postedBy     User          @relation("OpportunityPoster", fields: [postedById], references: [id])
+  applications Application[]
+  referrals    Referral[]
+
+  @@index([organizationId, status])
+  @@index([status, deadline])
+  @@map("opportunities")
+}
+
+enum ApplicationStatus {
   APPLIED
+  UNDER_REVIEW
   SHORTLISTED
   INTERVIEW
   OFFERED
-  PLACED
+  HIRED
   REJECTED
   WITHDRAWN
 }
 
-enum StudentPlacementStatus {
-  LOOKING
-  INTERVIEWING
-  OFFERED
-  PLACED
-  NOT_LOOKING
-}
+// A student's application to an opportunity (§27). One per (opportunity,
+// student). Advances through review stages; every staff decision notifies the
+// student. `readinessSnapshot` captures the placement-readiness at apply time
+// so later readiness changes don't rewrite history.
+model Application {
+  id                String            @id @default(cuid())
+  opportunityId     String
+  studentId         String
+  status            ApplicationStatus @default(APPLIED)
+  coverNote         String?
+  readinessSnapshot Int? // placement-readiness score at apply time
+  matchSnapshot     Int? // skill-match score at apply time
+  reviewedById      String?
+  reviewedAt        DateTime?
+  decisionNote      String?
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @updatedAt
 
-model JobPosting {
-  id             String           @id @default(cuid())
-  organizationId String
-  companyName    String
-  title          String
-  description    String?
-  jobType        JobType          @default(FULL_TIME)
-  location       String?
-  ctcMinLpa      Float?
-  ctcMaxLpa      Float?
-  skills         String[] // required / preferred skill tags
-  eligibility    String? // free-text eligibility criteria
-  deadline       DateTime?
-  status         JobPostingStatus @default(DRAFT)
-  createdById    String
-  publishedAt    DateTime?
-  createdAt      DateTime         @default(now())
-  updatedAt      DateTime         @updatedAt
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  student     User        @relation("Applicant", fields: [studentId], references: [id], onDelete: Cascade)
+  reviewedBy  User?       @relation("ApplicationReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
 
-  organization Organization     @relation(fields: [organizationId], references: [id], onDelete: Cascade)
-  createdBy    User             @relation("JobPostingCreator", fields: [createdById], references: [id])
-  applications JobApplication[]
-
-  @@index([organizationId, status])
-  @@index([deadline])
-  @@map("job_postings")
-}
-
-model JobApplication {
-  id            String            @id @default(cuid())
-  jobPostingId  String
-  studentId     String
-  status        JobApplicationStatus @default(APPLIED)
-  coverLetter   String?
-  matchScore    Int? // 0-100 AI/heuristic match score
-  matchReason   String?
-  statusNote    String?
-  statusHistory Json? // [{status, at, byUserId, note}]
-  updatedById   String?
-  appliedAt     DateTime          @default(now())
-  updatedAt     DateTime          @updatedAt
-
-  jobPosting JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
-  student    User       @relation("JobApplicant", fields: [studentId], references: [id], onDelete: Cascade)
-  updatedBy  User?      @relation("ApplicationUpdater", fields: [updatedById], references: [id], onDelete: SetNull)
-
-  @@unique([jobPostingId, studentId])
+  @@unique([opportunityId, studentId])
   @@index([studentId, status])
-  @@index([jobPostingId, status])
-  @@map("job_applications")
-}
-
-model PlacementProfile {
-  id              String                 @id @default(cuid())
-  userId          String                 @unique
-  resumeUrl       String?
-  headline        String?
-  skills          String[]
-  preferredRoles  String[]
-  preferredLocations String[]
-  expectedCtcLpa  Float?
-  status          StudentPlacementStatus @default(LOOKING)
-  notes           String?
-  updatedAt       DateTime               @updatedAt
-  createdAt       DateTime               @default(now())
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("placement_profiles")
+  @@index([opportunityId, status])
+  @@map("applications")
 }
 
 // ===========================================================================
-// MENTORSHIP (Phase 4) — mentor directory + session bookings (§17)
+// MENTORSHIP (Phase 3) — mentor profiles, availability, bookings (§28)
 // ===========================================================================
 
-enum MentorshipBookingStatus {
-  REQUESTED
-  CONFIRMED
-  DECLINED
-  COMPLETED
-  CANCELLED
-}
-
+// A mentor's public profile — what students browse when choosing a mentor.
 model MentorProfile {
-  id           String   @id @default(cuid())
-  userId       String   @unique
-  headline     String?
-  bio          String?
-  expertise    String[] // skill/topic tags shown in the directory
-  /** Max sessions a mentor accepts per week (soft limit shown in UI). */
-  weeklyCapacity Int    @default(5)
-  isAcceptingBookings Boolean @default(true)
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  userId              String   @unique
+  headline            String?
+  bio                 String?
+  expertise           String[] // free-text topic tags
+  isAcceptingBookings Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("mentor_profiles")
 }
 
-model MentorshipBooking {
-  id          String                  @id @default(cuid())
+enum MentorSlotStatus {
+  OPEN
+  BOOKED
+  CANCELLED
+}
+
+// A concrete window a mentor opens for 1:1s. Booking one flips it to BOOKED;
+// cancelling a booking releases it back to OPEN.
+model MentorSlot {
+  id        String           @id @default(cuid())
+  mentorId  String
+  startsAt  DateTime
+  endsAt    DateTime
+  status    MentorSlotStatus @default(OPEN)
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
+
+  mentor   User            @relation("SlotMentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  bookings MentorBooking[]
+
+  @@index([mentorId, startsAt])
+  @@index([status, startsAt])
+  @@map("mentor_slots")
+}
+
+enum BookingStatus {
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+// A student's booking of a mentor slot (§28). A slot holds at most one live
+// booking — enforced by the conditional OPEN→BOOKED flip — while cancelled
+// bookings are retained as history, so a freed slot can be booked again.
+model MentorBooking {
+  id          String        @id @default(cuid())
+  slotId      String
   mentorId    String
   studentId   String
   topic       String
-  note        String? // student's context for the session
-  scheduledAt DateTime
-  durationMin Int                     @default(30)
-  status      MentorshipBookingStatus @default(REQUESTED)
-  meetingUrl  String?
-  /** Mentor's outcome notes after the session (visible to the student). */
-  outcomeNote String?
-  rating      Int? // 1–5 student feedback after completion
-  respondedAt DateTime?
-  createdAt   DateTime                @default(now())
-  updatedAt   DateTime                @updatedAt
+  note        String?
+  status      BookingStatus @default(CONFIRMED)
+  mentorNotes String? // written after the session
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
 
-  mentor  User @relation("MentorshipMentor", fields: [mentorId], references: [id], onDelete: Cascade)
-  student User @relation("MentorshipStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  slot    MentorSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  mentor  User       @relation("BookingMentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  student User       @relation("BookingStudent", fields: [studentId], references: [id], onDelete: Cascade)
 
-  @@index([mentorId, status, scheduledAt])
-  @@index([studentId, status, scheduledAt])
-  @@map("mentorship_bookings")
+  @@index([slotId])
+  @@index([studentId, status])
+  @@index([mentorId, status])
+  @@map("mentor_bookings")
+}
+
+// ===========================================================================
+// ALUMNI NETWORK (Phase 3) — outcomes, directory, success stories (§29)
+// ===========================================================================
+
+// Where a graduate landed. Self-maintained; surfaced to current students as
+// proof-of-outcome and as a network to reach into.
+model AlumniProfile {
+  id              String   @id @default(cuid())
+  userId          String   @unique
+  graduationYear  Int?
+  currentCompany  String?
+  currentRole     String?
+  industry        String?
+  location        String?
+  story           String? // advice / what worked, shown to current students
+  linkedinUrl     String?
+  isPublished     Boolean  @default(true) // opt out of the directory
+  openToMentoring Boolean  @default(false)
+  openToReferrals Boolean  @default(false)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([currentCompany])
+  @@index([industry])
+  @@map("alumni_profiles")
+}
+
+// ===========================================================================
+// NETWORK EFFECTS (Phase 4) — referrals (§30)
+// ===========================================================================
+
+enum ReferralStatus {
+  PENDING
+  ACKNOWLEDGED
+  DECLINED
+}
+
+// A member of the network (alumnus or mentor) vouching for a student on a
+// specific opportunity. Surfaces to the placement officer alongside the
+// student's application, and to the student as encouragement.
+model Referral {
+  id            String         @id @default(cuid())
+  opportunityId String
+  studentId     String
+  referrerId    String
+  note          String
+  status        ReferralStatus @default(PENDING)
+  reviewedById  String?
+  reviewedAt    DateTime?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  opportunity Opportunity @relation(fields: [opportunityId], references: [id], onDelete: Cascade)
+  student     User        @relation("ReferralStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  referrer    User        @relation("ReferralReferrer", fields: [referrerId], references: [id], onDelete: Cascade)
+  reviewedBy  User?       @relation("ReferralReviewer", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  @@unique([opportunityId, studentId, referrerId])
+  @@index([studentId, status])
+  @@index([opportunityId, status])
+  @@map("referrals")
+}
+
+// ===========================================================================
+// COMMUNITY Q&A (Phase 4) — a knowledge base that compounds (§31)
+// ===========================================================================
+
+enum QuestionStatus {
+  OPEN
+  ANSWERED
+  CLOSED
+}
+
+// A question asked inside an organization's community. Tagged by topic so the
+// archive stays searchable as it grows.
+model CommunityQuestion {
+  id             String         @id @default(cuid())
+  organizationId String
+  authorId       String
+  title          String
+  body           String
+  tags           String[]
+  status         QuestionStatus @default(OPEN)
+  viewCount      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  author       User              @relation("QuestionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  answers      CommunityAnswer[]
+
+  @@index([organizationId, status])
+  @@index([organizationId, createdAt])
+  @@map("community_questions")
+}
+
+model CommunityAnswer {
+  id         String   @id @default(cuid())
+  questionId String
+  authorId   String
+  body       String
+  isAccepted Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  question CommunityQuestion     @relation(fields: [questionId], references: [id], onDelete: Cascade)
+  author   User                  @relation("AnswerAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  votes    CommunityAnswerVote[]
+
+  @@index([questionId])
+  @@index([authorId])
+  @@map("community_answers")
+}
+
+// Upvote-only: signal without the pile-on. One vote per member per answer.
+model CommunityAnswerVote {
+  answerId  String
+  userId    String
+  createdAt DateTime @default(now())
+
+  answer CommunityAnswer @relation(fields: [answerId], references: [id], onDelete: Cascade)
+  user   User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([answerId, userId])
+  @@index([userId])
+  @@map("community_answer_votes")
+}
+
+// ===========================================================================
+// REPUTATION (Phase 4) — earned achievements (§32)
+// ===========================================================================
+
+// A badge a member has earned. Contribution *scores* are derived live from
+// activity; achievements are persisted so each one is announced exactly once.
+model Achievement {
+  id        String   @id @default(cuid())
+  userId    String
+  code      String // matches a BADGES code in @fca/analytics
+  awardedAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, code])
+  @@index([userId])
+  @@map("achievements")
 }
