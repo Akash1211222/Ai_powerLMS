@@ -122,7 +122,7 @@ async function main() {
     { key: 'module.placement', enabled: true },
     { key: 'module.intelligence', enabled: true },
     { key: 'module.mentorship', enabled: true },
-    { key: 'module.community', enabled: false },
+    { key: 'module.community', enabled: true },
     { key: 'module.mock_interview', enabled: false },
   ];
   for (const f of flags) {
@@ -761,14 +761,14 @@ list();
     });
   }
 
-  // Live class for the demo batch (Google Meet–style link + streak)
+  // Live class for the demo batch (Google Meet link + session notes + streak)
   const liveTitle = 'Live: JS deep-dive & Q&A';
   let liveClass = await prisma.batchSchedule.findFirst({
     where: { batchId: batch.id, title: liveTitle },
   });
   if (!liveClass) {
     const startsAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
-    const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+    const endsAt = new Date(startsAt.getTime() + 2 * 60 * 60 * 1000);
     liveClass = await prisma.batchSchedule.create({
       data: {
         batchId: batch.id,
@@ -781,16 +781,52 @@ list();
         status: 'SCHEDULED',
         createdById: trainerId,
         location: 'Google Meet',
+        summary:
+          'Covered promises vs async/await, error handling with try/catch, and when to use Promise.all vs Promise.allSettled. Live debugging of a race condition in the demo app.',
+        keyPoints: [
+          'async/await is syntactic sugar over promises',
+          'Always handle rejection paths',
+          'Promise.all fails fast; allSettled waits for every task',
+          'Use AbortController for cancellable fetches',
+        ],
+        homework: 'Refactor one callback-style helper in your lab repo to async/await and open a PR.',
+        qaItems: [
+          {
+            question: 'Does await block the event loop?',
+            answer: 'No — it only pauses the async function; the event loop keeps running.',
+          },
+          {
+            question: 'When should I use allSettled?',
+            answer: 'When you need results from every promise even if some reject.',
+          },
+        ],
+        summaryUpdatedAt: new Date(),
+        summaryUpdatedById: trainerId,
       },
     });
-  } else if (!liveClass.meetingUrl) {
+  } else {
     liveClass = await prisma.batchSchedule.update({
       where: { id: liveClass.id },
       data: {
-        meetingUrl: 'https://meet.google.com/fca-demo-live',
+        meetingUrl: liveClass.meetingUrl ?? 'https://meet.google.com/fca-demo-live',
         meetingProvider: 'GOOGLE_MEET',
-        status: 'SCHEDULED',
-        createdById: trainerId,
+        summary:
+          liveClass.summary ??
+          'Covered promises vs async/await, error handling, and Promise.all vs allSettled.',
+        keyPoints: liveClass.keyPoints ?? [
+          'async/await is syntactic sugar over promises',
+          'Always handle rejection paths',
+          'Promise.all fails fast; allSettled waits for every task',
+        ],
+        homework: liveClass.homework ?? 'Refactor one callback helper to async/await.',
+        qaItems: liveClass.qaItems ?? [
+          {
+            question: 'Does await block the event loop?',
+            answer: 'No — it only pauses the async function.',
+          },
+        ],
+        summaryUpdatedAt: new Date(),
+        summaryUpdatedById: trainerId,
       },
     });
   }

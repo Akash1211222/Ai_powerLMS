@@ -27,6 +27,26 @@ export interface Lesson {
   durationSec: number | null;
   contentUrl?: string | null;
   thumbnailUrl?: string | null;
+  body?: string | null;
+}
+
+export interface LessonProgressRow {
+  lessonId: string;
+  status: 'NOT_STARTED' | 'IN_PROGRESS' | 'COMPLETED';
+  lastPositionSec: number;
+  watchedSec: number;
+  completedAt: string | null;
+}
+
+export interface CourseMyProgress {
+  enrolled: boolean;
+  course: {
+    completedLessons: number;
+    totalLessons: number;
+    percent: number;
+    lastActivityAt: string | null;
+  } | null;
+  lessons: LessonProgressRow[];
 }
 export interface CourseModule {
   id: string;
@@ -67,12 +87,33 @@ export const coursesApi = {
       body: { title },
       auth: true,
     }),
-  addLesson: (moduleId: string, input: { title: string; type: string; contentUrl?: string }) =>
+  addLesson: (
+    moduleId: string,
+    input: { title: string; type: string; contentUrl?: string; body?: string; durationSec?: number },
+  ) =>
     apiRequest<Lesson>(`/courses/modules/${moduleId}/lessons`, {
       method: 'POST',
       body: input,
       auth: true,
     }),
+  updateLesson: (
+    lessonId: string,
+    input: {
+      title?: string;
+      type?: string;
+      contentUrl?: string | null;
+      body?: string | null;
+      durationSec?: number | null;
+      thumbnailUrl?: string | null;
+    },
+  ) =>
+    apiRequest<Lesson>(`/courses/lessons/${lessonId}`, {
+      method: 'PATCH',
+      body: input,
+      auth: true,
+    }),
+  myProgress: (courseId: string) =>
+    apiRequest<CourseMyProgress>(`/courses/${courseId}/progress`, { auth: true }),
   publish: (id: string) =>
     apiRequest<CourseSummary>(`/courses/${id}/publish`, { method: 'POST', auth: true }),
   unpublish: (id: string) =>

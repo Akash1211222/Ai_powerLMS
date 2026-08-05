@@ -137,4 +137,38 @@ run('Community Q&A (e2e)', () => {
     const acceptedAnswers = (accepted.answers as Array<{ isAccepted: boolean }>).filter((a) => a.isAccepted);
     expect(acceptedAnswers).toHaveLength(1);
   });
+
+  it('supports feed posts, claps, DMs, study rooms, and event RSVPs', async () => {
+    const post = await api('post', '/api/v1/community/posts', studentToken, {
+      body: 'Shipping a quick update from e2e — community hub is live.',
+      kind: 'UPDATE',
+    });
+    expect(post.id).toBeTruthy();
+
+    const clap = await api('post', `/api/v1/community/posts/${post.id}/react`, trainerToken);
+    expect(clap).toMatchObject({ clappedByMe: true, clapCount: 1 });
+
+    const room = await api('post', '/api/v1/community/study-rooms', studentToken, {
+      title: 'E2E focus room',
+    });
+    const joined = await api('post', `/api/v1/community/study-rooms/${room.id}/join`, trainerToken);
+    expect(joined.success).toBe(true);
+
+    const conv = await api('post', '/api/v1/community/conversations', studentToken, {
+      userId: trainerId,
+      body: 'Hey from e2e',
+    });
+    expect(conv.id).toBeTruthy();
+    const msgs = await api('get', `/api/v1/community/conversations/${conv.id}/messages`, trainerToken);
+    expect(msgs.data.length).toBeGreaterThanOrEqual(1);
+
+    const event = await api('post', '/api/v1/community/events', studentToken, {
+      title: 'E2E community meetup',
+      startsAt: new Date(Date.now() + 86_400_000).toISOString(),
+    });
+    const rsvp = await api('post', `/api/v1/community/events/${event.id}/rsvp`, trainerToken, {
+      status: 'GOING',
+    });
+    expect(rsvp).toMatchObject({ success: true, status: 'GOING' });
+  });
 });

@@ -182,7 +182,7 @@ export class BatchesService {
       type: 'ENROLLMENT',
       title: 'You’ve been enrolled',
       body: `You have been added to the batch "${batch.name}".`,
-      deepLink: '/dashboard',
+      deepLink: '/courses',
     });
 
     // Auto-create a course-matched AI assignment if the batch has none yet,

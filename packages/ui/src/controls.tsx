@@ -43,11 +43,18 @@ export const Textarea = forwardRef<HTMLTextAreaElement, TextareaProps>(function 
 export function Spinner({ className }: { className?: string }) {
   return (
     <span
-      className={cn(
-        'inline-block h-5 w-5 animate-spin rounded-full border-2 border-brand-400 border-t-transparent',
-        className,
-      )}
+      className={cn('relative inline-block h-5 w-5', className)}
       aria-label="Loading"
-    />
+      role="status"
+    >
+      <span
+        className="absolute inset-0 animate-spin rounded-full border-2 border-brand-400/25 border-t-brand-400 border-r-accent-400/70"
+        aria-hidden
+      />
+      <span
+        className="absolute inset-[22%] animate-spin rounded-full border border-accent-400/40 border-b-accent-400 [animation-direction:reverse] [animation-duration:0.7s]"
+        aria-hidden
+      />
+    </span>
   );
 }

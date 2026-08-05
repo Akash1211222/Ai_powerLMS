@@ -26,16 +26,16 @@ import { DashboardHero, HeroPanel, todayLabel } from './dashboard-hero';
 function dueChip(dueAt: string | null): { label: string; cls: string } {
   if (!dueAt) return { label: 'No due date', cls: 'bg-chip text-faint' };
   const days = Math.ceil((new Date(dueAt).getTime() - Date.now()) / 86_400_000);
-  if (days < 0) return { label: 'Overdue', cls: 'bg-danger/10 text-danger' };
-  if (days === 0) return { label: 'Due today', cls: 'bg-accent-100 text-accent-700' };
-  if (days <= 3) return { label: `${days}d left`, cls: 'bg-warning/15 text-amber-700' };
+  if (days < 0) return { label: 'Overdue', cls: 'bg-danger/15 text-danger dark:text-red-300' };
+  if (days === 0) return { label: 'Due today', cls: 'bg-accent-100 text-accent-700 dark:bg-accent-500/20 dark:text-orange-300' };
+  if (days <= 3) return { label: `${days}d left`, cls: 'bg-warning/15 text-amber-700 dark:text-amber-300' };
   return { label: formatDate(dueAt), cls: 'bg-chip text-faint' };
 }
 
 function gradeChipCls(percent: number) {
-  if (percent >= 80) return 'bg-success/15 text-emerald-700';
-  if (percent >= 50) return 'bg-brand-100 text-brand-700';
-  return 'bg-danger/10 text-danger';
+  if (percent >= 80) return 'bg-success/15 text-emerald-700 dark:text-emerald-300';
+  if (percent >= 50) return 'bg-brand-100 text-brand-700 dark:bg-brand-400/15 dark:text-brand-300';
+  return 'bg-danger/15 text-danger dark:text-red-300';
 }
 
 function DeadlineRow({ d }: { d: Deadline }) {
@@ -46,7 +46,7 @@ function DeadlineRow({ d }: { d: Deadline }) {
     <li>
       <Link
         href={href}
-        className="flex items-center gap-3 rounded-panel bg-chip px-3 py-2 transition hover:bg-brand-50"
+        className="flex items-center gap-3 rounded-panel bg-chip px-3 py-2 transition hover:bg-soft dark:hover:bg-chip"
       >
         <span
           className={cn(

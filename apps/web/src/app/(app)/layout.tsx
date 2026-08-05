@@ -25,11 +25,12 @@ import {
   Radio,
   type LucideIcon,
 } from 'lucide-react';
-import { Logo, Spinner, cn } from '@fca/ui';
+import { Logo, cn } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { NotificationBell } from '@/components/notification-bell';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SectionArtworkBanner } from '@/components/section-artwork';
+import { BrandLoader } from '@/components/brand-loader';
 
 /**
  * Client-side guard + shell for authenticated pages. NOTE: this is UX only —
@@ -46,9 +47,9 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (status !== 'authenticated' || !user) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-bg">
-        <Spinner className="h-8 w-8" />
-      </div>
+      <BrandLoader
+        message={status === 'unauthenticated' ? 'Redirecting to sign in…' : undefined}
+      />
     );
   }
 
@@ -127,13 +128,13 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
                 'group flex items-center gap-3 rounded-panel px-3 py-2.5 text-sm font-semibold transition-all duration-200',
                 active
                   ? 'bg-grad-brand text-white shadow-glow'
-                  : 'text-faint hover:translate-x-0.5 hover:bg-chip hover:text-ink',
+                  : 'text-ink/75 hover:translate-x-0.5 hover:bg-chip hover:text-ink dark:text-faint dark:hover:text-ink',
               )}
             >
               <Icon
                 className={cn(
                   'h-[18px] w-[18px] transition-transform duration-200',
-                  active ? 'text-white' : 'text-brand-400 group-hover:scale-110',
+                  active ? 'text-white' : 'text-brand-500 group-hover:scale-110 dark:text-brand-300',
                 )}
                 aria-hidden
               />
@@ -160,7 +161,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
       <div className="flex min-w-0 flex-1 flex-col">
         <header className="glass sticky top-0 z-10 flex items-center justify-between gap-3 border-b px-8 py-3">
-          <span className="font-display text-sm font-bold uppercase tracking-widest text-faint">
+          <span className="font-display text-sm font-bold uppercase tracking-widest text-ink/70 dark:text-faint">
             {current?.label ?? 'FutureCorp Academy'}
           </span>
           <div className="flex items-center gap-3">

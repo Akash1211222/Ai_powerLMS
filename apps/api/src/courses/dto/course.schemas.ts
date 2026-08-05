@@ -45,8 +45,19 @@ export const createLessonSchema = z.object({
   title: z.string().min(1).max(160).trim(),
   type: z.enum(['VIDEO', 'READING', 'QUIZ', 'ASSIGNMENT']).optional(),
   contentUrl: z.string().url().optional(),
-  body: z.string().max(20000).optional(),
+  body: z.string().max(100_000).optional(),
   durationSec: z.number().int().min(0).max(86400).optional(),
   order: z.number().int().min(0).optional(),
 });
 export type CreateLessonDto = z.infer<typeof createLessonSchema>;
+
+export const updateLessonSchema = z.object({
+  title: z.string().min(1).max(160).trim().optional(),
+  type: z.enum(['VIDEO', 'READING', 'QUIZ', 'ASSIGNMENT']).optional(),
+  contentUrl: z.string().url().nullable().optional(),
+  body: z.string().max(100_000).nullable().optional(),
+  durationSec: z.number().int().min(0).max(86400).nullable().optional(),
+  thumbnailUrl: z.string().url().nullable().optional(),
+  order: z.number().int().min(0).optional(),
+});
+export type UpdateLessonDto = z.infer<typeof updateLessonSchema>;

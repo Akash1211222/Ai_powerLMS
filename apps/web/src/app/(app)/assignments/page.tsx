@@ -415,7 +415,7 @@ function StaffAssignments({ batchId }: { batchId: string }) {
                         <span className="flex h-10 w-10 items-center justify-center rounded-panel bg-white/15 backdrop-blur">
                           <Icon className="h-5 w-5" aria-hidden />
                         </span>
-                        <Badge tone={statusTone(a.status)} className="!bg-white/95 !text-ink">
+                        <Badge tone={statusTone(a.status)} className="!bg-white/95 !text-[#0f1e3d]">
                           {a.status}
                         </Badge>
                       </div>
@@ -547,11 +547,11 @@ function StudentAssignments() {
                         <Icon className="h-5 w-5" aria-hidden />
                       </span>
                       {score != null ? (
-                        <div className="rounded-panel bg-white/95 px-2.5 py-1 text-right shadow-card">
+                        <div className="rounded-panel bg-white/95 px-2.5 py-1 text-right shadow-card dark:bg-[#0b1528]/95">
                           <div className={cn('font-display text-xl font-extrabold leading-none', scoreTone(pct ?? 0))}>
                             {score}
                           </div>
-                          <div className="text-[10px] font-bold text-faint">/{a.maxScore}</div>
+                          <div className="text-[10px] font-bold text-slate-500 dark:text-slate-300">/{a.maxScore}</div>
                         </div>
                       ) : (
                         <span className="rounded-full bg-white/20 px-2.5 py-1 text-[10px] font-extrabold uppercase tracking-wide backdrop-blur">

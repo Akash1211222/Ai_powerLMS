@@ -163,7 +163,7 @@ export class AssessmentsService {
         type: 'ASSESSMENT_PUBLISHED',
         title: 'New test available',
         body: `"${assessment.title}" is now open in your batch.`,
-        deepLink: '/dashboard',
+        deepLink: `/assessments/${assessment.id}`,
       },
     );
     return updated;

@@ -138,6 +138,37 @@ async function cleanup() {
     await prisma.referral.deleteMany({ where: { opportunity: { organizationId: demoOrgRow.id } } });
     await prisma.application.deleteMany({ where: { opportunity: { organizationId: demoOrgRow.id } } });
     await prisma.opportunity.deleteMany({ where: { organizationId: demoOrgRow.id } });
+    // Social hub (children before parents)
+    await prisma.communityMessage.deleteMany({
+      where: { conversation: { organizationId: demoOrgRow.id } },
+    });
+    await prisma.conversationMember.deleteMany({
+      where: { conversation: { organizationId: demoOrgRow.id } },
+    });
+    await prisma.conversation.deleteMany({ where: { organizationId: demoOrgRow.id } });
+    await prisma.communityEventRsvp.deleteMany({
+      where: { event: { organizationId: demoOrgRow.id } },
+    });
+    await prisma.communityEvent.deleteMany({ where: { organizationId: demoOrgRow.id } });
+    await prisma.communityGroupMember.deleteMany({
+      where: { group: { organizationId: demoOrgRow.id } },
+    });
+    await prisma.communityGroup.deleteMany({ where: { organizationId: demoOrgRow.id } });
+    await prisma.communityStudyRoomPresence.deleteMany({
+      where: { room: { organizationId: demoOrgRow.id } },
+    });
+    await prisma.communityStudyRoom.deleteMany({ where: { organizationId: demoOrgRow.id } });
+    await prisma.communityPostReaction.deleteMany({
+      where: { post: { organizationId: demoOrgRow.id } },
+    });
+    await prisma.communityPostComment.deleteMany({
+      where: { post: { organizationId: demoOrgRow.id } },
+    });
+    await prisma.communityPost.deleteMany({ where: { organizationId: demoOrgRow.id } });
+    await prisma.communityChannelMember.deleteMany({
+      where: { channel: { organizationId: demoOrgRow.id } },
+    });
+    await prisma.communityChannel.deleteMany({ where: { organizationId: demoOrgRow.id } });
     await prisma.communityQuestion.deleteMany({ where: { organizationId: demoOrgRow.id } }); // cascades answers + votes
   }
   // Mentor/alumni artefacts for the users we're about to remove.
@@ -885,6 +916,219 @@ async function main() {
   console.log(`   • ${mentors.length} mentors (${slotsCreated} slots, ${bookingsCreated} bookings) · ${alumni.length} alumni`);
   console.log(`   • ${opportunities.length} opportunities · ${applicationsCreated} applications · ${referralsCreated} referrals`);
   console.log(`   • ${questionsCreated} community questions · ${answersCreated} answers`);
+
+  // --- Community social hub ------------------------------------------------
+  const batchForChannel = demoBatches[0];
+  const channelDefs = [
+    {
+      name: batchForChannel ? `Batch ${batchForChannel.code}` : 'General',
+      slug: batchForChannel ? `batch-${batchForChannel.code.toLowerCase()}` : 'general',
+      emoji: '📢',
+      kind: 'BATCH' as const,
+      batchId: batchForChannel?.id ?? null,
+    },
+    { name: 'Python help', slug: 'python-help', emoji: '🐍', kind: 'TOPIC' as const, batchId: null },
+    { name: 'SQL practice', slug: 'sql-practice', emoji: '🗄', kind: 'TOPIC' as const, batchId: null },
+    { name: 'Placement prep', slug: 'placement-prep', emoji: '💼', kind: 'TOPIC' as const, batchId: null },
+    { name: 'Capstone teams', slug: 'capstone-teams', emoji: '🚀', kind: 'TOPIC' as const, batchId: null },
+  ];
+  const channels = [];
+  for (const def of channelDefs) {
+    const ch = await prisma.communityChannel.create({
+      data: {
+        organizationId: demoOrg.id,
+        name: def.name,
+        slug: def.slug,
+        emoji: def.emoji,
+        kind: def.kind,
+        batchId: def.batchId,
+        members: {
+          create: demoStudents.slice(0, 12).map((s) => ({ userId: s.id })),
+        },
+      },
+    });
+    channels.push(ch);
+  }
+
+  const showcaseAuthor = demoStudents[0]!;
+  const amaAuthor = alumni[0] ?? demoStudents[1]!;
+  const qAuthor = demoStudents[2]!;
+  const openQ = await prisma.communityQuestion.findFirst({
+    where: { organizationId: demoOrg.id, status: 'OPEN' },
+  });
+
+  const hubPosts = [
+    await prisma.communityPost.create({
+      data: {
+        organizationId: demoOrg.id,
+        channelId: channels[4]!.id,
+        authorId: showcaseAuthor.id,
+        kind: 'SHOWCASE',
+        body: 'Shipped my capstone! Built a churn dashboard on 50k telecom rows — SQL + Python + Tableau. Biggest lesson: window functions saved me 200 lines of pandas.',
+        showcaseTitle: 'Telecom Churn Explorer',
+        showcaseSub: 'SQL · Python · Tableau · 3 weeks',
+        showcaseEmoji: '📊',
+        createdAt: daysFromNow(-2),
+      },
+    }),
+    await prisma.communityPost.create({
+      data: {
+        organizationId: demoOrg.id,
+        channelId: channels[3]!.id,
+        authorId: amaAuthor.id,
+        kind: 'AMA',
+        title: 'AMA: analyst interviews',
+        body: 'Doing an AMA this Friday on analyst interviews at product companies. Drop questions below — I will pick the top 10.',
+        createdAt: daysFromNow(-1),
+      },
+    }),
+    await prisma.communityPost.create({
+      data: {
+        organizationId: demoOrg.id,
+        channelId: channels[2]!.id,
+        authorId: qAuthor.id,
+        kind: 'QUESTION',
+        title: openQ?.title ?? 'Stuck on LEFT JOIN duplicates',
+        body: openQ?.body ?? 'My LEFT JOIN returns duplicates even after DISTINCT. Anyone else hit this?',
+        questionId: openQ?.id,
+        createdAt: daysFromNow(-1),
+      },
+    }),
+  ];
+
+  for (const p of hubPosts) {
+    const reactors = demoStudents.filter((s) => s.id !== p.authorId).slice(0, randInt(3, 8));
+    for (const r of reactors) {
+      await prisma.communityPostReaction.create({ data: { postId: p.id, userId: r.id } }).catch(() => undefined);
+    }
+    await prisma.communityPostComment.create({
+      data: {
+        postId: p.id,
+        authorId: demoStudents[5]?.id ?? showcaseAuthor.id,
+        body: 'This is gold — thanks for sharing!',
+      },
+    });
+  }
+
+  const room1 = await prisma.communityStudyRoom.create({
+    data: {
+      organizationId: demoOrg.id,
+      channelId: channels[2]!.id,
+      createdById: demoStudents[3]!.id,
+      title: 'SQL grind — quiz Thursday',
+      meetingUrl: 'https://meet.google.com/demo-sql-grind',
+      presence: {
+        create: demoStudents.slice(3, 8).map((s) => ({ userId: s.id, lastSeenAt: new Date() })),
+      },
+    },
+  });
+  const room2 = await prisma.communityStudyRoom.create({
+    data: {
+      organizationId: demoOrg.id,
+      createdById: demoStudents[6]!.id,
+      title: 'Silent focus room',
+      presence: {
+        create: demoStudents.slice(6, 12).map((s) => ({ userId: s.id, lastSeenAt: new Date() })),
+      },
+    },
+  });
+
+  const groupA = await prisma.communityGroup.create({
+    data: {
+      organizationId: demoOrg.id,
+      createdById: demoStudents[0]!.id,
+      name: 'Capstone squad Alpha',
+      description: 'Weekly check-ins for the churn dashboard project.',
+      members: {
+        create: [
+          { userId: demoStudents[0]!.id, role: 'OWNER' },
+          { userId: demoStudents[1]!.id, role: 'MEMBER' },
+          { userId: demoStudents[2]!.id, role: 'MEMBER' },
+        ],
+      },
+    },
+  });
+  const groupB = await prisma.communityGroup.create({
+    data: {
+      organizationId: demoOrg.id,
+      createdById: demoStudents[4]!.id,
+      name: 'Interview practice circle',
+      description: 'Mock behavioural rounds every Sunday.',
+      members: {
+        create: [
+          { userId: demoStudents[4]!.id, role: 'OWNER' },
+          { userId: demoStudents[5]!.id, role: 'MEMBER' },
+        ],
+      },
+    },
+  });
+
+  const dm = await prisma.conversation.create({
+    data: {
+      organizationId: demoOrg.id,
+      kind: 'DM',
+      createdById: demoStudents[0]!.id,
+      members: {
+        create: [{ userId: demoStudents[0]!.id }, { userId: demoStudents[1]!.id }],
+      },
+      messages: {
+        create: [
+          {
+            authorId: demoStudents[0]!.id,
+            body: 'Hey — want to pair on the SQL challenge tonight?',
+            createdAt: daysFromNow(-1),
+          },
+          {
+            authorId: demoStudents[1]!.id,
+            body: 'Yes! I am stuck on window functions — 8pm?',
+            createdAt: daysFromNow(-1),
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.communityEvent.create({
+    data: {
+      organizationId: demoOrg.id,
+      createdById: demoTrainers[0]!.id,
+      title: 'Friday AMA with alumni analysts',
+      description: 'Bring your interview questions — alumni pick the top 10.',
+      startsAt: daysFromNow(3),
+      endsAt: daysFromNow(3),
+      location: 'Main hall + Meet',
+      meetingUrl: 'https://meet.google.com/demo-ama',
+      rsvps: {
+        create: demoStudents.slice(0, 6).map((s) => ({ userId: s.id, status: 'GOING' as const })),
+      },
+    },
+  });
+  await prisma.communityEvent.create({
+    data: {
+      organizationId: demoOrg.id,
+      createdById: demoStudents[0]!.id,
+      title: 'Capstone showcase night',
+      description: 'Demo your project to mentors and peers.',
+      startsAt: daysFromNow(10),
+      location: 'Lab 2',
+      rsvps: {
+        create: [
+          { userId: demoStudents[0]!.id, status: 'GOING' },
+          { userId: demoStudents[1]!.id, status: 'MAYBE' },
+        ],
+      },
+    },
+  });
+
+  console.log(
+    `   • ${channels.length} channels · ${hubPosts.length} feed posts · 2 study rooms · 2 groups · 1 DM · 2 events`,
+  );
+  void room1;
+  void room2;
+  void groupA;
+  void groupB;
+  void dm;
+
   console.log('');
   console.log('   ⚠ Skills, scores and risk are NOT computed here (@fca/analytics');
   console.log('     cannot be a dependency of @fca/database). Run:');

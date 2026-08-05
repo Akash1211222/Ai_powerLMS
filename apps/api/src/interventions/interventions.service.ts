@@ -59,7 +59,7 @@ export class InterventionsService {
         type: 'RISK_INTERVENTION',
         title: 'We’re here to help',
         body: 'We noticed you might be falling behind, so we’re preparing a personalized recovery plan.',
-        deepLink: '/dashboard',
+        deepLink: '/intelligence',
       });
 
       // Heuristic provider is instant + free → generate inline so the workflow
@@ -82,7 +82,7 @@ export class InterventionsService {
       type: 'RECOVERY_TASK',
       title: 'Your recovery plan is ready',
       body: 'A personalized plan with concrete next steps is waiting on your dashboard.',
-      deepLink: '/dashboard',
+      deepLink: '/intelligence',
     });
   }
 

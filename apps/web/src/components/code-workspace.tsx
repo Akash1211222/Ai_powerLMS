@@ -131,7 +131,7 @@ export function CodeWorkspace({
 
       {language === 'WEB' && result?.previewHtml && (
         <div className="border-t border-white/10 bg-white">
-          <div className="border-b border-hair px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-faint">
+          <div className="border-b border-slate-200 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide text-[#475569]">
             Live preview
           </div>
           <iframe

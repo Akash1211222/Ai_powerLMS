@@ -40,9 +40,9 @@ export const SECTION_ART: Record<SectionArtKey, SectionArt> = {
     key: 'courses',
     src: '/artwork/mascot-courses.png',
     alt: 'Owl mascot reading a glowing book',
-    eyebrow: 'Learn',
-    title: 'Dive into your courses',
-    blurb: 'Lessons, videos, and modules ready when you are.',
+    eyebrow: 'Learning deck',
+    title: 'In-app courses cockpit',
+    blurb: 'Watch videos and read lessons inside FutureCorp — with watch time and dwell tracking.',
   },
   batches: {
     key: 'batches',
@@ -82,7 +82,7 @@ export const SECTION_ART: Record<SectionArtKey, SectionArt> = {
     alt: 'Fox with headset for live class',
     eyebrow: 'Go live',
     title: 'Class is in session',
-    blurb: 'Join Meet, earn watch-time attendance, stay connected.',
+    blurb: 'Paste Meet links, import duration attendance, publish AI session notes.',
   },
   skills: {
     key: 'skills',
@@ -129,8 +129,8 @@ export const SECTION_ART: Record<SectionArtKey, SectionArt> = {
     src: '/artwork/mascot-alumni.png',
     alt: 'Graduating fox with diploma',
     eyebrow: 'Legacy',
-    title: 'Alumni network',
-    blurb: 'Outcomes, stories, and doors opened by grads.',
+    title: 'Alumni legacy lounge',
+    blurb: 'Outcomes map, destination directory, and graduate stories — proof of where this path leads.',
   },
   community: {
     key: 'community',
@@ -168,9 +168,9 @@ export const SECTION_ART: Record<SectionArtKey, SectionArt> = {
     key: 'calendar',
     src: '/artwork/mascot-calendar.png',
     alt: 'Fox holding a calendar',
-    eyebrow: 'Plan',
-    title: 'What’s coming up',
-    blurb: 'Sessions, deadlines, and live classes on one timeline.',
+    eyebrow: 'Time deck',
+    title: 'Chronology command center',
+    blurb: 'Live classes, deadlines, mentor syncs, and personal tasks — filter the signal and jump in.',
   },
 };
 

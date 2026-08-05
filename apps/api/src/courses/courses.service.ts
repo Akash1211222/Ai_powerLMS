@@ -16,6 +16,7 @@ import type {
   ListCoursesQuery,
   CreateModuleDto,
   CreateLessonDto,
+  UpdateLessonDto,
 } from './dto/course.schemas';
 
 @Injectable()
@@ -155,5 +156,68 @@ export class CoursesService {
         order,
       },
     });
+  }
+
+  async updateLesson(userId: string, lessonId: string, dto: UpdateLessonDto) {
+    const lesson = await this.prisma.lesson.findUnique({
+      where: { id: lessonId },
+      include: { module: true },
+    });
+    if (!lesson) throw new NotFoundException('Lesson not found');
+    await this.loadOwnedCourse(userId, lesson.module.courseId);
+    return this.prisma.lesson.update({
+      where: { id: lessonId },
+      data: {
+        ...(dto.title !== undefined ? { title: dto.title } : {}),
+        ...(dto.type !== undefined ? { type: dto.type } : {}),
+        ...(dto.contentUrl !== undefined ? { contentUrl: dto.contentUrl } : {}),
+        ...(dto.body !== undefined ? { body: dto.body } : {}),
+        ...(dto.durationSec !== undefined ? { durationSec: dto.durationSec } : {}),
+        ...(dto.thumbnailUrl !== undefined ? { thumbnailUrl: dto.thumbnailUrl } : {}),
+        ...(dto.order !== undefined ? { order: dto.order } : {}),
+      },
+    });
+  }
+
+  /** Lesson + course progress for the current learner (empty if not enrolled). */
+  async myProgress(userId: string, courseId: string) {
+    await this.loadOwnedCourse(userId, courseId);
+    const enrollment = await this.prisma.enrollment.findFirst({
+      where: { userId, courseId, status: 'ACTIVE' },
+      include: { progress: true },
+    });
+    if (!enrollment) {
+      return { enrolled: false as const, course: null, lessons: [] as const };
+    }
+
+    const lessons = await this.prisma.lesson.findMany({
+      where: { module: { courseId } },
+      select: { id: true },
+    });
+    const lessonIds = lessons.map((l) => l.id);
+    const lessonProgress = lessonIds.length
+      ? await this.prisma.lessonProgress.findMany({
+          where: { enrollmentId: enrollment.id, lessonId: { in: lessonIds } },
+        })
+      : [];
+
+    return {
+      enrolled: true as const,
+      course: enrollment.progress
+        ? {
+            completedLessons: enrollment.progress.completedLessons,
+            totalLessons: enrollment.progress.totalLessons,
+            percent: enrollment.progress.percent,
+            lastActivityAt: enrollment.progress.lastActivityAt,
+          }
+        : { completedLessons: 0, totalLessons: lessonIds.length, percent: 0, lastActivityAt: null },
+      lessons: lessonProgress.map((p) => ({
+        lessonId: p.lessonId,
+        status: p.status,
+        lastPositionSec: p.lastPositionSec,
+        watchedSec: p.watchedSec,
+        completedAt: p.completedAt,
+      })),
+    };
   }
 }

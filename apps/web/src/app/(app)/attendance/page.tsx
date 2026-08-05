@@ -49,28 +49,28 @@ function statusVisual(status: string) {
     case 'PRESENT':
       return {
         icon: CheckCircle2,
-        chip: 'bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/25',
+        chip: 'bg-emerald-500/15 text-emerald-700 ring-1 ring-emerald-500/25 dark:text-emerald-300',
         bar: 'bg-emerald-500',
         label: 'Present',
       };
     case 'LATE':
       return {
         icon: Clock3,
-        chip: 'bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/25',
+        chip: 'bg-amber-500/15 text-amber-700 ring-1 ring-amber-500/25 dark:text-amber-300',
         bar: 'bg-amber-500',
         label: 'Late',
       };
     case 'EXCUSED':
       return {
         icon: ShieldCheck,
-        chip: 'bg-sky-500/15 text-sky-700 ring-1 ring-sky-500/25',
+        chip: 'bg-sky-500/15 text-sky-700 ring-1 ring-sky-500/25 dark:text-sky-300',
         bar: 'bg-sky-500',
         label: 'Excused',
       };
     default:
       return {
         icon: XCircle,
-        chip: 'bg-rose-500/15 text-rose-700 ring-1 ring-rose-500/25',
+        chip: 'bg-rose-500/15 text-rose-700 ring-1 ring-rose-500/25 dark:text-rose-300',
         bar: 'bg-rose-500',
         label: 'Absent',
       };

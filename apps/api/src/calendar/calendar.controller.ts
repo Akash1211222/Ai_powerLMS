@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -8,8 +8,10 @@ import { CalendarService } from './calendar.service';
 import {
   calendarQuerySchema,
   createEventSchema,
+  updateEventSchema,
   type CalendarQuery,
   type CreateEventDto,
+  type UpdateEventDto,
 } from './dto/calendar.schemas';
 
 /** Unified calendar for the current user (self-scoped). */
@@ -36,6 +38,16 @@ export class CalendarController {
     @Body(new ZodValidationPipe(createEventSchema)) dto: CreateEventDto,
   ) {
     return this.calendar.createPersonalEvent(user.userId, dto);
+  }
+
+  @Patch('events/:id')
+  @ApiOperation({ summary: 'Update a personal calendar event' })
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateEventSchema)) dto: UpdateEventDto,
+  ) {
+    return this.calendar.updatePersonalEvent(user.userId, id, dto);
   }
 
   @Delete('events/:id')

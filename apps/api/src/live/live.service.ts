@@ -11,13 +11,22 @@ import { UserContextService } from '../authz/user-context.service';
 import { hasPermission } from '../authz/principal';
 import { NotificationService } from '../notifications/notification.service';
 import { assertOrgAccess } from '../common/tenant';
-import { attendanceFromWatchTime, createGoogleMeetLink, utcDay } from './meet.provider';
+import {
+  attendanceFromPercent,
+  attendanceFromWatchTime,
+  parseMeetAttendanceCsv,
+  utcDay,
+} from './meet.provider';
 import type {
   HeartbeatDto,
+  ImportMeetAttendanceDto,
   LessonProgressDto,
+  LiveNotesQuery,
   LiveReportQuery,
   ScheduleLiveClassDto,
   SetLessonVideoDto,
+  UpdateGoogleEmailDto,
+  UpdateLiveSummaryDto,
 } from './dto/live.schemas';
 
 @Injectable()
@@ -64,25 +73,34 @@ export class LiveService {
     });
     if (!enrollment) throw new ForbiddenException('Not enrolled in this course');
 
+    const existing = await this.prisma.lessonProgress.findUnique({
+      where: { enrollmentId_lessonId: { enrollmentId: enrollment.id, lessonId } },
+    });
+
+    // Never decrease accumulated watch / reading time.
+    const watchedSec = Math.max(existing?.watchedSec ?? 0, Math.max(0, dto.watchedSec));
+    const positionSec = Math.max(0, dto.positionSec);
     const duration = lesson.durationSec ?? 0;
     const completed =
-      dto.completed === true || (duration > 0 && dto.watchedSec >= Math.floor(duration * 0.9));
+      dto.completed === true ||
+      existing?.status === 'COMPLETED' ||
+      (duration > 0 && watchedSec >= Math.floor(duration * 0.9));
 
     const progress = await this.prisma.lessonProgress.upsert({
       where: { enrollmentId_lessonId: { enrollmentId: enrollment.id, lessonId } },
       update: {
-        lastPositionSec: dto.positionSec,
-        watchedSec: Math.max(dto.watchedSec, 0),
+        lastPositionSec: positionSec,
+        watchedSec,
         status: completed ? 'COMPLETED' : 'IN_PROGRESS',
-        completedAt: completed ? new Date() : undefined,
+        completedAt: completed ? (existing?.completedAt ?? new Date()) : undefined,
         userId,
       },
       create: {
         enrollmentId: enrollment.id,
         lessonId,
         userId,
-        lastPositionSec: dto.positionSec,
-        watchedSec: dto.watchedSec,
+        lastPositionSec: positionSec,
+        watchedSec,
         status: completed ? 'COMPLETED' : 'IN_PROGRESS',
         completedAt: completed ? new Date() : null,
       },
@@ -106,10 +124,6 @@ export class LiveService {
     await assertOrgAccess(this.userContext, actorId, batch.organizationId);
     await this.assertCanTeachBatch(actorId, batch.id, batch.organizationId);
 
-    const meet = dto.meetingUrl
-      ? { meetingUrl: dto.meetingUrl, provider: 'EXTERNAL' as const }
-      : createGoogleMeetLink(`${dto.batchId}:${dto.title}:${dto.startsAt.toISOString()}`);
-
     const schedule = await this.prisma.batchSchedule.create({
       data: {
         batchId: batch.id,
@@ -118,8 +132,8 @@ export class LiveService {
         startsAt: dto.startsAt,
         endsAt: dto.endsAt,
         location: 'Google Meet',
-        meetingUrl: meet.meetingUrl,
-        meetingProvider: meet.provider,
+        meetingUrl: dto.meetingUrl,
+        meetingProvider: 'GOOGLE_MEET',
         status: 'SCHEDULED',
         createdById: actorId,
       },
@@ -169,10 +183,299 @@ export class LiveService {
       organizationId: batch.organizationId,
       targetType: 'BatchSchedule',
       targetId: schedule.id,
-      metadata: { meetingUrl: meet.meetingUrl },
+      metadata: { meetingUrl: dto.meetingUrl },
     });
 
     return schedule;
+  }
+
+  async updateSummary(actorId: string, scheduleId: string, dto: UpdateLiveSummaryDto) {
+    const schedule = await this.prisma.batchSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { batch: true },
+    });
+    if (!schedule) throw new NotFoundException('Live class not found');
+    await assertOrgAccess(this.userContext, actorId, schedule.batch.organizationId);
+    await this.assertCanTeachBatch(actorId, schedule.batchId, schedule.batch.organizationId);
+
+    return this.prisma.batchSchedule.update({
+      where: { id: scheduleId },
+      data: {
+        ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
+        ...(dto.keyPoints !== undefined ? { keyPoints: dto.keyPoints } : {}),
+        ...(dto.homework !== undefined ? { homework: dto.homework } : {}),
+        ...(dto.qaItems !== undefined ? { qaItems: dto.qaItems } : {}),
+        summaryUpdatedAt: new Date(),
+        summaryUpdatedById: actorId,
+      },
+    });
+  }
+
+  async listNotes(actorId: string, query: LiveNotesQuery) {
+    if (!query.courseId && !query.batchId) {
+      throw new BadRequestException('courseId or batchId is required');
+    }
+
+    const whereBatch = query.batchId
+      ? { id: query.batchId }
+      : { courseId: query.courseId! };
+
+    const batches = await this.prisma.batch.findMany({
+      where: whereBatch,
+      select: { id: true, organizationId: true, name: true, courseId: true },
+    });
+    if (batches.length === 0) return [];
+
+    const orgIds = [...new Set(batches.map((b) => b.organizationId))];
+    for (const orgId of orgIds) {
+      await assertOrgAccess(this.userContext, actorId, orgId);
+    }
+
+    const schedules = await this.prisma.batchSchedule.findMany({
+      where: { batchId: { in: batches.map((b) => b.id) } },
+      orderBy: { startsAt: 'desc' },
+      take: 40,
+      select: {
+        id: true,
+        title: true,
+        startsAt: true,
+        endsAt: true,
+        status: true,
+        summary: true,
+        keyPoints: true,
+        homework: true,
+        qaItems: true,
+        summaryUpdatedAt: true,
+        batch: { select: { id: true, name: true, courseId: true, course: { select: { title: true } } } },
+      },
+    });
+
+    return schedules
+      .filter(
+        (s) =>
+          Boolean(s.summary) ||
+          Boolean(s.homework) ||
+          (Array.isArray(s.keyPoints) && s.keyPoints.length > 0) ||
+          (Array.isArray(s.qaItems) && s.qaItems.length > 0),
+      )
+      .slice(0, 20);
+  }
+
+  /**
+   * Import Google Meet attendance CSV — match participant emails to LMS users
+   * (googleEmail ?? email) and mark % of class duration attended.
+   */
+  async importMeetAttendance(actorId: string, scheduleId: string, dto: ImportMeetAttendanceDto) {
+    const schedule = await this.prisma.batchSchedule.findUnique({
+      where: { id: scheduleId },
+      include: { batch: true },
+    });
+    if (!schedule) throw new NotFoundException('Live class not found');
+    await assertOrgAccess(this.userContext, actorId, schedule.batch.organizationId);
+    await this.assertCanTeachBatch(actorId, schedule.batchId, schedule.batch.organizationId);
+
+    let rows;
+    try {
+      rows = parseMeetAttendanceCsv(dto.csv);
+    } catch (e) {
+      throw new BadRequestException(e instanceof Error ? e.message : 'Invalid CSV');
+    }
+    if (rows.length === 0) throw new BadRequestException('No participant rows found in CSV');
+
+    const durationSec = Math.max(
+      1,
+      Math.round((schedule.endsAt.getTime() - schedule.startsAt.getTime()) / 1000),
+    );
+
+    const students = await this.prisma.batchStudent.findMany({
+      where: { batchId: schedule.batchId, status: 'ACTIVE' },
+      include: {
+        user: { select: { id: true, email: true, googleEmail: true } },
+      },
+    });
+
+    const byEmail = new Map<string, string>();
+    for (const s of students) {
+      const primary = (s.user.googleEmail ?? s.user.email).toLowerCase();
+      byEmail.set(primary, s.user.id);
+      byEmail.set(s.user.email.toLowerCase(), s.user.id);
+      if (s.user.googleEmail) byEmail.set(s.user.googleEmail.toLowerCase(), s.user.id);
+    }
+
+    let session = await this.prisma.attendanceSession.findFirst({ where: { scheduleId } });
+    if (!session) {
+      session = await this.prisma.attendanceSession.create({
+        data: {
+          batchId: schedule.batchId,
+          scheduleId,
+          title: schedule.title,
+          sessionDate: schedule.startsAt,
+          status: 'OPEN',
+          createdById: actorId,
+        },
+      });
+    }
+
+    const matched: Array<{
+      studentId: string;
+      email: string;
+      attendedSec: number;
+      attendancePct: number;
+      status: string;
+    }> = [];
+    const unmatched: Array<{ email: string; durationSec: number }> = [];
+    const matchedStudentIds = new Set<string>();
+
+    for (const row of rows) {
+      const studentId = byEmail.get(row.email);
+      if (!studentId) {
+        unmatched.push({ email: row.email, durationSec: row.durationSec });
+        continue;
+      }
+      // If same student appears twice, keep max duration.
+      const existing = matched.find((m) => m.studentId === studentId);
+      const attendedSec = Math.min(durationSec, Math.max(existing?.attendedSec ?? 0, row.durationSec));
+      const attendancePct = Math.round((attendedSec / durationSec) * 1000) / 10;
+      const status = attendanceFromPercent(attendancePct);
+
+      if (existing) {
+        existing.attendedSec = attendedSec;
+        existing.attendancePct = attendancePct;
+        existing.status = status;
+        existing.email = row.email;
+      } else {
+        matched.push({ studentId, email: row.email, attendedSec, attendancePct, status });
+      }
+      matchedStudentIds.add(studentId);
+    }
+
+    const now = new Date();
+    for (const m of matched) {
+      await this.prisma.liveClassPresence.upsert({
+        where: { scheduleId_studentId: { scheduleId, studentId: m.studentId } },
+        update: {
+          attendedSec: m.attendedSec,
+          watchedSec: m.attendedSec,
+          attendancePct: m.attendancePct,
+          meetEmail: m.email,
+          source: 'MEET_IMPORT',
+          leftAt: now,
+          lastHeartbeatAt: now,
+        },
+        create: {
+          scheduleId,
+          studentId: m.studentId,
+          joinedAt: schedule.startsAt,
+          leftAt: now,
+          watchedSec: m.attendedSec,
+          attendedSec: m.attendedSec,
+          attendancePct: m.attendancePct,
+          meetEmail: m.email,
+          source: 'MEET_IMPORT',
+          lastHeartbeatAt: now,
+        },
+      });
+
+      await this.prisma.attendanceRecord.upsert({
+        where: { sessionId_studentId: { sessionId: session.id, studentId: m.studentId } },
+        update: {
+          status: m.status as 'PRESENT' | 'LATE' | 'ABSENT',
+          source: 'IMPORT',
+          attendancePct: m.attendancePct,
+          note: `Meet attendance ${m.attendancePct}% (${Math.round(m.attendedSec / 60)} min of ${Math.round(durationSec / 60)} min)`,
+          markedById: actorId,
+        },
+        create: {
+          sessionId: session.id,
+          studentId: m.studentId,
+          status: m.status as 'PRESENT' | 'LATE' | 'ABSENT',
+          source: 'IMPORT',
+          attendancePct: m.attendancePct,
+          markedById: actorId,
+          note: `Meet attendance ${m.attendancePct}% (${Math.round(m.attendedSec / 60)} min of ${Math.round(durationSec / 60)} min)`,
+        },
+      });
+
+      if (m.status === 'PRESENT' || m.status === 'LATE') {
+        await this.bumpStreak(m.studentId, schedule.startsAt);
+      }
+    }
+
+    // Mark unmatched batch students as ABSENT when ending.
+    if (dto.endClass) {
+      for (const s of students) {
+        if (matchedStudentIds.has(s.userId)) continue;
+        await this.prisma.attendanceRecord.upsert({
+          where: { sessionId_studentId: { sessionId: session.id, studentId: s.userId } },
+          update: {
+            status: 'ABSENT',
+            source: 'IMPORT',
+            attendancePct: 0,
+            note: 'Not found in Meet attendance export',
+            markedById: actorId,
+          },
+          create: {
+            sessionId: session.id,
+            studentId: s.userId,
+            status: 'ABSENT',
+            source: 'IMPORT',
+            attendancePct: 0,
+            markedById: actorId,
+            note: 'Not found in Meet attendance export',
+          },
+        });
+      }
+
+      await this.prisma.attendanceSession.update({
+        where: { id: session.id },
+        data: { status: 'CLOSED' },
+      });
+      await this.prisma.batchSchedule.update({
+        where: { id: scheduleId },
+        data: { status: 'ENDED' },
+      });
+    }
+
+    const present = matched.filter((m) => m.status === 'PRESENT').length;
+    const late = matched.filter((m) => m.status === 'LATE').length;
+    const absent = dto.endClass
+      ? students.length - matchedStudentIds.size + matched.filter((m) => m.status === 'ABSENT').length
+      : matched.filter((m) => m.status === 'ABSENT').length;
+
+    const summary = {
+      scheduleId,
+      title: schedule.title,
+      present,
+      late,
+      absent,
+      matched: matched.length,
+      unmatched: unmatched.length,
+      avgWatchPercent:
+        matched.length === 0
+          ? 0
+          : Math.round(matched.reduce((a, m) => a + m.attendancePct, 0) / matched.length),
+      total: students.length,
+      durationSec,
+    };
+
+    await this.audit.record({
+      action: 'live.attendance.import',
+      actorUserId: actorId,
+      organizationId: schedule.batch.organizationId,
+      targetType: 'BatchSchedule',
+      targetId: scheduleId,
+      metadata: summary,
+    });
+
+    return { summary, matched, unmatched };
+  }
+
+  async updateGoogleEmail(userId: string, dto: UpdateGoogleEmailDto) {
+    return this.prisma.user.update({
+      where: { id: userId },
+      data: { googleEmail: dto.googleEmail === undefined ? undefined : dto.googleEmail },
+      select: { id: true, email: true, googleEmail: true },
+    });
   }
 
   async listForBatch(actorId: string, batchId: string) {
@@ -320,14 +623,20 @@ export class LiveService {
 
       await this.prisma.attendanceRecord.upsert({
         where: { sessionId_studentId: { sessionId: session.id, studentId: s.userId } },
-        update: { status, source: 'LIVE', note: `Watched ${watchPercent}% of live session` },
+        update: {
+          status,
+          source: 'LIVE',
+          attendancePct: watchPercent,
+          note: `App presence ${watchPercent}% of live session (prefer Meet CSV import for final marks)`,
+        },
         create: {
           sessionId: session.id,
           studentId: s.userId,
           status,
           source: 'LIVE',
+          attendancePct: watchPercent,
           markedById: actorId,
-          note: `Watched ${watchPercent}% of live session`,
+          note: `App presence ${watchPercent}% of live session (prefer Meet CSV import for final marks)`,
         },
       });
 
@@ -432,13 +741,20 @@ export class LiveService {
       include: {
         batch: { select: { id: true, name: true, code: true } },
         _count: { select: { presences: true } },
-        presences: { select: { watchedSec: true, studentId: true } },
+        presences: { select: { watchedSec: true, attendedSec: true, attendancePct: true, studentId: true } },
+        summary: true,
+        keyPoints: true,
+        homework: true,
       },
     });
 
     return schedules.map((s) => {
       const durationSec = Math.max(1, Math.round((s.endsAt.getTime() - s.startsAt.getTime()) / 1000));
-      const watches = s.presences.map((p) => Math.min(100, Math.round((p.watchedSec / durationSec) * 100)));
+      const watches = s.presences.map((p) => {
+        if (p.attendancePct != null) return Math.min(100, Math.round(p.attendancePct));
+        const sec = p.attendedSec > 0 ? p.attendedSec : p.watchedSec;
+        return Math.min(100, Math.round((sec / durationSec) * 100));
+      });
       const avgWatch = watches.length ? Math.round(watches.reduce((a, b) => a + b, 0) / watches.length) : 0;
       return {
         id: s.id,
@@ -450,6 +766,7 @@ export class LiveService {
         meetingUrl: s.meetingUrl,
         joinedCount: s._count.presences,
         avgWatchPercent: avgWatch,
+        hasSummary: Boolean(s.summary || s.keyPoints || s.homework),
       };
     });
   }

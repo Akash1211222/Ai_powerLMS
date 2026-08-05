@@ -44,14 +44,14 @@ const STATUS_META: Record<
     label: 'Excused',
     short: 'E',
     active: 'bg-sky-500 text-white shadow-md ring-2 ring-sky-500/30',
-    idle: 'bg-sky-500/10 text-sky-700 hover:bg-sky-500/20',
+    idle: 'bg-sky-500/10 text-sky-700 hover:bg-sky-500/20 dark:text-sky-300',
     icon: ShieldCheck,
   },
   ABSENT: {
     label: 'Absent',
     short: 'A',
     active: 'bg-rose-500 text-white shadow-md ring-2 ring-rose-500/30',
-    idle: 'bg-rose-500/10 text-rose-700 hover:bg-rose-500/20',
+    idle: 'bg-rose-500/10 text-rose-700 hover:bg-rose-500/20 dark:text-rose-300',
     icon: XCircle,
   },
 };

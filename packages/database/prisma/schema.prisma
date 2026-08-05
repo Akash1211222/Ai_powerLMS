@@ -27,6 +27,8 @@ enum UserStatus {
 model User {
   id              String     @id @default(cuid())
   email           String     @unique // stored lowercased by the app
+  /// Google account used to join Meet — attendance import matches this (falls back to email).
+  googleEmail     String?
   passwordHash    String
   status          UserStatus @default(PENDING)
   emailVerifiedAt DateTime?
@@ -34,6 +36,8 @@ model User {
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt
   deletedAt       DateTime? // soft delete — users are rarely hard-deleted (audit)
+
+  liveSummariesUpdated BatchSchedule[] @relation("LiveSummaryUpdater")
 
   profile        Profile?
   roles          UserRole[]
@@ -102,6 +106,21 @@ model User {
   communityAnswers     CommunityAnswer[]     @relation("AnswerAuthor")
   communityAnswerVotes CommunityAnswerVote[]
   achievements         Achievement[]
+
+  // Community hub
+  communityChannelMemberships CommunityChannelMember[]
+  communityPosts              CommunityPost[]              @relation("PostAuthor")
+  communityPostReactions      CommunityPostReaction[]
+  communityPostComments       CommunityPostComment[]       @relation("PostCommentAuthor")
+  communityStudyRoomsCreated  CommunityStudyRoom[]         @relation("StudyRoomCreator")
+  communityStudyPresences     CommunityStudyRoomPresence[]
+  communityGroupsCreated      CommunityGroup[]             @relation("GroupCreator")
+  communityGroupMemberships   CommunityGroupMember[]
+  conversationsCreated        Conversation[]               @relation("ConversationCreator")
+  conversationMemberships     ConversationMember[]
+  communityMessages           CommunityMessage[]           @relation("MessageAuthor")
+  communityEventsCreated      CommunityEvent[]             @relation("EventCreator")
+  communityEventRsvps         CommunityEventRsvp[]
 
   @@index([status])
   @@index([deletedAt])
@@ -280,7 +299,13 @@ model Organization {
   opportunities Opportunity[]
 
   // Network effects (Phase 4)
-  communityQuestions CommunityQuestion[]
+  communityQuestions  CommunityQuestion[]
+  communityChannels   CommunityChannel[]
+  communityPosts      CommunityPost[]
+  communityStudyRooms CommunityStudyRoom[]
+  communityGroups     CommunityGroup[]
+  communityEvents     CommunityEvent[]
+  conversations       Conversation[]
 
   @@map("organizations")
 }
@@ -572,6 +597,7 @@ model Batch {
   assessments        Assessment[]
   calendarEvents     CalendarEvent[]
   riskSnapshots      StudentRiskSnapshot[]
+  communityChannels  CommunityChannel[]
 
   @@unique([organizationId, code])
   @@index([organizationId, status])
@@ -632,24 +658,40 @@ enum MeetingProvider {
   EXTERNAL
 }
 
-model BatchSchedule {
-  id              String           @id @default(cuid())
-  batchId         String
-  title           String
-  startsAt        DateTime
-  endsAt          DateTime
-  location        String?
-  description     String?
-  meetingUrl      String?
-  meetingProvider MeetingProvider?
-  status          LiveClassStatus  @default(SCHEDULED)
-  createdById     String?
-  createdAt       DateTime         @default(now())
-  updatedAt       DateTime         @updatedAt
+enum LivePresenceSource {
+  APP_HEARTBEAT
+  MEET_IMPORT
+}
 
-  batch      Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  createdBy  User?               @relation("LiveClassCreator", fields: [createdById], references: [id], onDelete: SetNull)
-  presences  LiveClassPresence[]
+model BatchSchedule {
+  id                 String           @id @default(cuid())
+  batchId            String
+  title              String
+  startsAt           DateTime
+  endsAt             DateTime
+  location           String?
+  description        String?
+  meetingUrl         String?
+  meetingProvider    MeetingProvider?
+  status             LiveClassStatus  @default(SCHEDULED)
+  /// Trainer-pasted Meet AI / session summary for student reference.
+  summary            String?
+  /// Bullet key points discussed in the session.
+  keyPoints          Json?
+  /// Homework / follow-ups assigned in the session.
+  homework           String?
+  /// Q&A solved in session: [{ question, answer? }].
+  qaItems            Json?
+  summaryUpdatedAt   DateTime?
+  summaryUpdatedById String?
+  createdById        String?
+  createdAt          DateTime         @default(now())
+  updatedAt          DateTime         @updatedAt
+
+  batch            Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdBy        User?               @relation("LiveClassCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  summaryUpdatedBy User?               @relation("LiveSummaryUpdater", fields: [summaryUpdatedById], references: [id], onDelete: SetNull)
+  presences        LiveClassPresence[]
 
   @@index([batchId, startsAt])
   @@index([status, startsAt])
@@ -658,15 +700,20 @@ model BatchSchedule {
 
 /// Per-student join/watch tracking for a live class (Google Meet session).
 model LiveClassPresence {
-  id              String    @id @default(cuid())
+  id              String             @id @default(cuid())
   scheduleId      String
   studentId       String
-  joinedAt        DateTime  @default(now())
+  joinedAt        DateTime           @default(now())
   leftAt          DateTime?
-  watchedSec      Int       @default(0)
-  lastHeartbeatAt DateTime  @default(now())
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  watchedSec      Int                @default(0)
+  /// Authoritative attended seconds from Meet attendance import (when present).
+  attendedSec     Int                @default(0)
+  attendancePct   Float?
+  meetEmail       String?
+  source          LivePresenceSource @default(APP_HEARTBEAT)
+  lastHeartbeatAt DateTime           @default(now())
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
 
   schedule BatchSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
   student  User          @relation("LivePresenceStudent", fields: [studentId], references: [id], onDelete: Cascade)
@@ -756,15 +803,17 @@ model AttendanceSession {
 }
 
 model AttendanceRecord {
-  id         String           @id @default(cuid())
-  sessionId  String
-  studentId  String
-  status     AttendanceStatus
-  source     AttendanceSource @default(MANUAL)
-  note       String?
-  markedById String?
-  createdAt  DateTime         @default(now())
-  updatedAt  DateTime         @updatedAt
+  id            String           @id @default(cuid())
+  sessionId     String
+  studentId     String
+  status        AttendanceStatus
+  source        AttendanceSource @default(MANUAL)
+  note          String?
+  /// Percent of scheduled class duration attended (e.g. 50 for 1h of 2h).
+  attendancePct Float?
+  markedById    String?
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
 
   session     AttendanceSession             @relation(fields: [sessionId], references: [id], onDelete: Cascade)
   student     User                          @relation("AttendanceStudent", fields: [studentId], references: [id], onDelete: Cascade)
@@ -1170,6 +1219,10 @@ enum NotificationType {
   PROGRESS_REPORT
   ACHIEVEMENT
   GENERAL
+  COMMUNITY_POST_COMMENT
+  COMMUNITY_MESSAGE
+  COMMUNITY_GROUP_INVITE
+  COMMUNITY_EVENT_REMINDER
 }
 
 enum NotificationChannel {
@@ -1908,6 +1961,7 @@ model CommunityQuestion {
   organization Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
   author       User              @relation("QuestionAuthor", fields: [authorId], references: [id], onDelete: Cascade)
   answers      CommunityAnswer[]
+  posts        CommunityPost[]
 
   @@index([organizationId, status])
   @@index([organizationId, createdAt])
@@ -1944,6 +1998,294 @@ model CommunityAnswerVote {
   @@id([answerId, userId])
   @@index([userId])
   @@map("community_answer_votes")
+}
+
+// ===========================================================================
+// COMMUNITY SOCIAL HUB — channels, feed, study rooms, chat, groups, events
+// ===========================================================================
+
+enum CommunityChannelKind {
+  GENERAL
+  TOPIC
+  BATCH
+}
+
+enum CommunityPostKind {
+  UPDATE
+  SHOWCASE
+  QUESTION
+  AMA
+}
+
+enum CommunityStudyRoomStatus {
+  OPEN
+  CLOSED
+}
+
+enum CommunityGroupVisibility {
+  OPEN
+  REQUEST
+}
+
+enum CommunityGroupMemberRole {
+  OWNER
+  MEMBER
+}
+
+enum ConversationKind {
+  DM
+  GROUP_CHAT
+}
+
+enum CommunityEventRsvpStatus {
+  GOING
+  MAYBE
+  DECLINED
+}
+
+model CommunityChannel {
+  id             String               @id @default(cuid())
+  organizationId String
+  batchId        String?
+  name           String
+  slug           String
+  emoji          String               @default("💬")
+  kind           CommunityChannelKind @default(TOPIC)
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  organization Organization             @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  batch        Batch?                   @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  members      CommunityChannelMember[]
+  posts        CommunityPost[]
+  studyRooms   CommunityStudyRoom[]
+
+  @@unique([organizationId, slug])
+  @@index([organizationId])
+  @@map("community_channels")
+}
+
+model CommunityChannelMember {
+  channelId  String
+  userId     String
+  lastReadAt DateTime?
+  joinedAt   DateTime  @default(now())
+
+  channel CommunityChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+  user    User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([channelId, userId])
+  @@index([userId])
+  @@map("community_channel_members")
+}
+
+model CommunityPost {
+  id             String            @id @default(cuid())
+  organizationId String
+  channelId      String?
+  authorId       String
+  kind           CommunityPostKind @default(UPDATE)
+  title          String?
+  body           String
+  questionId     String?
+  showcaseTitle  String?
+  showcaseSub    String?
+  showcaseEmoji  String?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+
+  organization Organization            @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel      CommunityChannel?       @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  author       User                    @relation("PostAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+  question     CommunityQuestion?      @relation(fields: [questionId], references: [id], onDelete: SetNull)
+  reactions    CommunityPostReaction[]
+  comments     CommunityPostComment[]
+
+  @@index([organizationId, createdAt])
+  @@index([channelId, createdAt])
+  @@index([authorId])
+  @@map("community_posts")
+}
+
+model CommunityPostReaction {
+  postId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  post CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  user User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([postId, userId])
+  @@index([userId])
+  @@map("community_post_reactions")
+}
+
+model CommunityPostComment {
+  id        String   @id @default(cuid())
+  postId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  post   CommunityPost @relation(fields: [postId], references: [id], onDelete: Cascade)
+  author User          @relation("PostCommentAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([postId, createdAt])
+  @@index([authorId])
+  @@map("community_post_comments")
+}
+
+model CommunityStudyRoom {
+  id             String                   @id @default(cuid())
+  organizationId String
+  channelId      String?
+  createdById    String
+  title          String
+  status         CommunityStudyRoomStatus @default(OPEN)
+  meetingUrl     String?
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  organization Organization                 @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  channel      CommunityChannel?            @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  createdBy    User                         @relation("StudyRoomCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  presence     CommunityStudyRoomPresence[]
+
+  @@index([organizationId, status])
+  @@map("community_study_rooms")
+}
+
+model CommunityStudyRoomPresence {
+  roomId     String
+  userId     String
+  joinedAt   DateTime @default(now())
+  lastSeenAt DateTime @default(now())
+  leftAt     DateTime?
+
+  room CommunityStudyRoom @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  user User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([roomId, userId])
+  @@index([userId])
+  @@map("community_study_room_presence")
+}
+
+model CommunityGroup {
+  id             String                   @id @default(cuid())
+  organizationId String
+  createdById    String
+  name           String
+  description    String?
+  visibility     CommunityGroupVisibility @default(OPEN)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  organization Organization           @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User                   @relation("GroupCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members      CommunityGroupMember[]
+  conversation Conversation?
+
+  @@index([organizationId])
+  @@map("community_groups")
+}
+
+model CommunityGroupMember {
+  groupId  String
+  userId   String
+  role     CommunityGroupMemberRole @default(MEMBER)
+  joinedAt DateTime                 @default(now())
+
+  group CommunityGroup @relation(fields: [groupId], references: [id], onDelete: Cascade)
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([groupId, userId])
+  @@index([userId])
+  @@map("community_group_members")
+}
+
+model Conversation {
+  id             String           @id @default(cuid())
+  organizationId String
+  kind           ConversationKind @default(DM)
+  groupId        String?          @unique
+  createdById    String
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  group        CommunityGroup?      @relation(fields: [groupId], references: [id], onDelete: SetNull)
+  createdBy    User                 @relation("ConversationCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  members      ConversationMember[]
+  messages     CommunityMessage[]
+
+  @@index([organizationId, updatedAt])
+  @@map("community_conversations")
+}
+
+model ConversationMember {
+  conversationId String
+  userId         String
+  lastReadAt     DateTime?
+  joinedAt       DateTime  @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([conversationId, userId])
+  @@index([userId])
+  @@map("community_conversation_members")
+}
+
+model CommunityMessage {
+  id             String   @id @default(cuid())
+  conversationId String
+  authorId       String
+  body           String
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  author       User         @relation("MessageAuthor", fields: [authorId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([authorId])
+  @@map("community_messages")
+}
+
+model CommunityEvent {
+  id             String    @id @default(cuid())
+  organizationId String
+  createdById    String
+  title          String
+  description    String?
+  startsAt       DateTime
+  endsAt         DateTime?
+  location       String?
+  meetingUrl     String?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  organization Organization         @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy    User                 @relation("EventCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  rsvps        CommunityEventRsvp[]
+
+  @@index([organizationId, startsAt])
+  @@map("community_events")
+}
+
+model CommunityEventRsvp {
+  eventId   String
+  userId    String
+  status    CommunityEventRsvpStatus @default(GOING)
+  createdAt DateTime                 @default(now())
+  updatedAt DateTime                 @updatedAt
+
+  event CommunityEvent @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  user  User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([eventId, userId])
+  @@index([userId])
+  @@map("community_event_rsvps")
 }
 
 // ===========================================================================

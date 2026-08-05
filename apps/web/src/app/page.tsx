@@ -29,7 +29,7 @@ const modules: Array<{ name: string; status: string; phase: string; icon: Lucide
   { name: 'Career & Placement', status: 'live', phase: 'Phase 2', icon: Briefcase },
   { name: 'Student Intelligence', status: 'live', phase: 'Phase 3', icon: BrainCircuit },
   { name: 'Mentorship', status: 'live', phase: 'Phase 4', icon: HeartHandshake },
-  { name: 'Community', status: 'planned', phase: 'Phase 4', icon: MessagesSquare },
+  { name: 'Community', status: 'live', phase: 'Phase 4', icon: MessagesSquare },
 ];
 
 const statusStyles: Record<string, string> = {

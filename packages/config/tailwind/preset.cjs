@@ -87,8 +87,8 @@ module.exports = {
         panel: '12px',
       },
       boxShadow: {
-        card: '0 18px 40px 0 rgba(15, 30, 61, 0.09)',
-        'card-hover': '0 24px 52px -8px rgba(15, 30, 61, 0.16), 0 4px 16px -4px rgba(37, 99, 235, 0.12)',
+        card: 'var(--fca-shadow-card)',
+        'card-hover': 'var(--fca-shadow-card-hover)',
         glow: '0 14px 34px 0 rgba(249, 115, 22, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.4)',
         'glow-pink': '0 8px 20px 0 rgba(249, 115, 22, 0.4)',
         'glow-aqua': '0 8px 24px -6px rgba(37, 99, 235, 0.45)',

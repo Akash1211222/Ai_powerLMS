@@ -34,7 +34,7 @@ export function RecoveryPlanCard() {
     <Card className="border-brand-300">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2.5">
-          <span className="flex h-9 w-9 items-center justify-center rounded-panel bg-brand-100 text-brand-600">
+          <span className="flex h-9 w-9 items-center justify-center rounded-panel bg-brand-100 text-brand-600 dark:bg-brand-400/20 dark:text-brand-300">
             <IconTarget width={18} height={18} />
           </span>
           <div>

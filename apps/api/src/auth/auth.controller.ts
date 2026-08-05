@@ -128,6 +128,7 @@ export class AuthController {
     return {
       id: record.id,
       email: record.email,
+      googleEmail: record.googleEmail,
       status: record.status,
       profile: record.profile
         ? {

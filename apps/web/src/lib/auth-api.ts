@@ -10,6 +10,7 @@ export interface AuthTokens {
 export interface CurrentUser {
   id: string;
   email: string;
+  googleEmail?: string | null;
   status: string;
   profile: { firstName: string; lastName: string; avatarUrl: string | null } | null;
   roles: Array<{ role: string; organizationId: string | null; organizationName: string | null }>;

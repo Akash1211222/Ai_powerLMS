@@ -23,6 +23,7 @@ export function LiveClassPanel({
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
+  const [meetingUrl, setMeetingUrl] = useState('');
   const [startsAt, setStartsAt] = useState(() => toLocalInputValue(new Date(Date.now() + 60 * 60_000)));
   const [endsAt, setEndsAt] = useState(() =>
     toLocalInputValue(new Date(Date.now() + 2 * 60 * 60_000)),
@@ -40,14 +41,18 @@ export function LiveClassPanel({
         batchId,
         title: title.trim(),
         description: description.trim() || undefined,
+        meetingUrl: meetingUrl.trim(),
         startsAt: new Date(startsAt).toISOString(),
         endsAt: new Date(endsAt).toISOString(),
       }),
     onSuccess: () => {
       setTitle('');
       setDescription('');
+      setMeetingUrl('');
       setError(null);
       qc.invalidateQueries({ queryKey: ['live-classes', batchId] });
+      qc.invalidateQueries({ queryKey: ['calendar'] });
+      qc.invalidateQueries({ queryKey: ['live', 'upcoming'] });
     },
     onError: (e) => setError(e instanceof Error ? e.message : 'Could not schedule'),
   });
@@ -59,8 +64,9 @@ export function LiveClassPanel({
         <h2 className="font-display font-bold">Live classes</h2>
       </div>
       <p className="text-sm text-faint">
-        Schedule a session — a Google Meet link is created automatically and shared with every student
-        in this batch.
+        Create a Google Meet (or Google Calendar event with Meet), paste the link here. The LMS books
+        the class on the calendar and notifies every student in this batch. After class, import Meet
+        attendance CSV to mark duration %.
       </p>
 
       {error && <Alert tone="error">{error}</Alert>}
@@ -84,6 +90,14 @@ export function LiveClassPanel({
             <Input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} />
           </label>
           <label className="flex flex-col gap-1 sm:col-span-2">
+            <span className="text-xs font-semibold text-faint">Google Meet link (required)</span>
+            <Input
+              value={meetingUrl}
+              onChange={(e) => setMeetingUrl(e.target.value)}
+              placeholder="https://meet.google.com/abc-defg-hij"
+            />
+          </label>
+          <label className="flex flex-col gap-1 sm:col-span-2">
             <span className="text-xs font-semibold text-faint">Notes (optional)</span>
             <Textarea
               rows={2}
@@ -96,10 +110,15 @@ export function LiveClassPanel({
             <Button
               onClick={() => schedule.mutate()}
               loading={schedule.isPending}
-              disabled={title.trim().length < 2 || !startsAt || !endsAt}
+              disabled={
+                title.trim().length < 2 ||
+                !startsAt ||
+                !endsAt ||
+                !meetingUrl.trim().includes('meet.google.com')
+              }
             >
               <Plus className="mr-1.5 h-4 w-4" aria-hidden />
-              Schedule + create Meet link
+              Schedule · book calendar · notify batch
             </Button>
           </div>
         </div>
@@ -129,10 +148,7 @@ export function LiveClassPanel({
                   {c.meetingUrl ? ' · Meet ready' : ''}
                 </div>
               </div>
-              <Link
-                href={`/live/${c.id}`}
-                className="text-sm font-bold text-brand-600 hover:underline"
-              >
+              <Link href={`/live/${c.id}`} className="text-sm font-bold text-brand-600 hover:underline">
                 Open →
               </Link>
             </li>

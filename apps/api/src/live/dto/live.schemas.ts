@@ -1,5 +1,21 @@
 import { z } from 'zod';
 
+const meetUrl = z
+  .string()
+  .url()
+  .max(500)
+  .refine(
+    (u) => {
+      try {
+        const host = new URL(u).hostname;
+        return host === 'meet.google.com' || host.endsWith('.meet.google.com');
+      } catch {
+        return false;
+      }
+    },
+    { message: 'meetingUrl must be a Google Meet link (meet.google.com)' },
+  );
+
 export const scheduleLiveClassSchema = z
   .object({
     batchId: z.string().min(1),
@@ -7,8 +23,8 @@ export const scheduleLiveClassSchema = z
     description: z.string().max(2000).trim().optional(),
     startsAt: z.coerce.date(),
     endsAt: z.coerce.date(),
-    /** Optional override; if omitted a Google Meet link is auto-generated. */
-    meetingUrl: z.string().url().max(500).optional(),
+    /** Required — paste the real Google Meet link created by the trainer. */
+    meetingUrl: meetUrl,
   })
   .refine((v) => v.endsAt > v.startsAt, {
     message: 'endsAt must be after startsAt',
@@ -46,3 +62,41 @@ export const liveReportQuerySchema = z.object({
   batchId: z.string().min(1).optional(),
 });
 export type LiveReportQuery = z.infer<typeof liveReportQuerySchema>;
+
+export const liveNotesQuerySchema = z.object({
+  courseId: z.string().min(1).optional(),
+  batchId: z.string().min(1).optional(),
+});
+export type LiveNotesQuery = z.infer<typeof liveNotesQuerySchema>;
+
+const qaItemSchema = z.object({
+  question: z.string().min(1).max(500).trim(),
+  answer: z.string().max(2000).trim().optional(),
+});
+
+export const updateLiveSummarySchema = z.object({
+  summary: z.string().max(20_000).trim().optional().nullable(),
+  keyPoints: z.array(z.string().min(1).max(400).trim()).max(40).optional().nullable(),
+  homework: z.string().max(5000).trim().optional().nullable(),
+  qaItems: z.array(qaItemSchema).max(40).optional().nullable(),
+});
+export type UpdateLiveSummaryDto = z.infer<typeof updateLiveSummarySchema>;
+
+export const importMeetAttendanceSchema = z.object({
+  /** Raw CSV text from Google Meet attendance report. */
+  csv: z.string().min(10).max(2_000_000),
+  /** When true, mark class ENDED and close attendance session. Default true. */
+  endClass: z.boolean().optional().default(true),
+});
+export type ImportMeetAttendanceDto = z.infer<typeof importMeetAttendanceSchema>;
+
+export const updateGoogleEmailSchema = z.object({
+  googleEmail: z
+    .string()
+    .email()
+    .max(320)
+    .transform((e) => e.toLowerCase())
+    .nullable()
+    .optional(),
+});
+export type UpdateGoogleEmailDto = z.infer<typeof updateGoogleEmailSchema>;

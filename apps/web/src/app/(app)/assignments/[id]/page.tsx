@@ -68,7 +68,7 @@ function ScorePanel({
 }) {
   const pct = Math.round((score / Math.max(1, maxScore)) * 100);
   return (
-    <div className="overflow-hidden rounded-card border border-accent-200 bg-card shadow-card">
+    <div className="overflow-hidden rounded-card border border-accent-200 bg-card shadow-card dark:border-accent-400/30">
       <div className="relative overflow-hidden bg-grad-brand px-5 py-5 text-white">
         <div className="pointer-events-none absolute -right-10 -top-10 h-32 w-32 rounded-full bg-white/15" />
         <div className="relative flex items-end justify-between gap-3">
@@ -111,7 +111,9 @@ function ScorePanel({
                   <div className="h-1.5 overflow-hidden rounded-full bg-track">
                     <div className="h-full rounded-full bg-grad-aqua" style={{ width: `${bar}%` }} />
                   </div>
-                  {cs.comment && <p className="mt-1.5 text-xs text-faint">{cs.comment}</p>}
+                  {cs.comment && (
+                    <p className="mt-1.5 text-xs font-medium text-ink/75 dark:text-faint">{cs.comment}</p>
+                  )}
                 </li>
               );
             })}
@@ -376,11 +378,12 @@ function StudentSubmit({ id }: { id: string }) {
               key={s.n}
               className={cn(
                 'inline-flex items-center gap-2 rounded-full px-3 py-1.5 text-xs font-bold backdrop-blur transition',
-                step >= s.n ? 'bg-white text-ink' : 'bg-white/15 text-white/70',
+                // Keep navy ink on white pills — theme `text-ink` flips light in dark mode.
+                step >= s.n ? 'bg-white text-[#0f1e3d]' : 'bg-white/15 text-white/85',
               )}
             >
               {step > s.n ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" aria-hidden />
+                <CheckCircle2 className="h-3.5 w-3.5 text-[#059669]" aria-hidden />
               ) : (
                 <s.icon className="h-3.5 w-3.5" aria-hidden />
               )}
@@ -408,16 +411,18 @@ function StudentSubmit({ id }: { id: string }) {
                       key={c.id}
                       className={cn(
                         'rounded-panel border border-hair p-3',
-                        i === 0 && 'bg-brand-50',
-                        i === 1 && 'bg-accent-50',
-                        i >= 2 && 'bg-chip',
+                        i === 0 && 'bg-brand-500/10 ring-1 ring-inset ring-brand-400/25 dark:bg-brand-400/15',
+                        i === 1 && 'bg-accent-500/10 ring-1 ring-inset ring-accent-400/25 dark:bg-accent-400/15',
+                        i >= 2 && 'bg-chip ring-1 ring-inset ring-hair',
                       )}
                     >
-                      <div className="text-xs font-extrabold uppercase tracking-wide text-faint">
+                      <div className="text-xs font-extrabold uppercase tracking-wide text-brand-600 dark:text-brand-300">
                         {c.weight} pts
                       </div>
-                      <div className="mt-0.5 text-sm font-bold">{c.title}</div>
-                      {c.description && <p className="mt-1 text-xs text-faint">{c.description}</p>}
+                      <div className="mt-0.5 text-sm font-bold text-ink">{c.title}</div>
+                      {c.description && (
+                        <p className="mt-1 text-xs font-medium text-ink/75 dark:text-faint">{c.description}</p>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -452,7 +457,7 @@ function StudentSubmit({ id }: { id: string }) {
 
           <div className="sticky bottom-4 z-10">
             <Button
-              className="w-full shadow-glow sm:w-auto"
+              className="w-full !text-white shadow-glow sm:w-auto"
               onClick={() => submit.mutate()}
               disabled={submit.isPending || (isCode ? !editorValue.trim() : text.trim().length < 10)}
             >

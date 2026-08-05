@@ -14,11 +14,13 @@ import {
   listCoursesQuerySchema,
   createModuleSchema,
   createLessonSchema,
+  updateLessonSchema,
   type CreateCourseDto,
   type UpdateCourseDto,
   type ListCoursesQuery,
   type CreateModuleDto,
   type CreateLessonDto,
+  type UpdateLessonDto,
 } from './dto/course.schemas';
 
 @ApiTags('courses')
@@ -46,6 +48,36 @@ export class CoursesController {
     @Query(new ZodValidationPipe(listCoursesQuerySchema)) query: ListCoursesQuery,
   ) {
     return this.courses.list(user.userId, query);
+  }
+
+  // Static path segments before parametric :id routes.
+  @Post('modules/:moduleId/lessons')
+  @RequirePermissions(PERMISSIONS.COURSE_UPDATE)
+  @ApiOperation({ summary: 'Add a lesson to a module' })
+  addLesson(
+    @CurrentUser() user: AuthUser,
+    @Param('moduleId') moduleId: string,
+    @Body(new ZodValidationPipe(createLessonSchema)) dto: CreateLessonDto,
+  ) {
+    return this.courses.addLesson(user.userId, moduleId, dto);
+  }
+
+  @Patch('lessons/:lessonId')
+  @RequirePermissions(PERMISSIONS.COURSE_UPDATE)
+  @ApiOperation({ summary: 'Update a lesson (video URL, reading body, metadata)' })
+  updateLesson(
+    @CurrentUser() user: AuthUser,
+    @Param('lessonId') lessonId: string,
+    @Body(new ZodValidationPipe(updateLessonSchema)) dto: UpdateLessonDto,
+  ) {
+    return this.courses.updateLesson(user.userId, lessonId, dto);
+  }
+
+  @Get(':id/progress')
+  @RequirePermissions(PERMISSIONS.COURSE_VIEW)
+  @ApiOperation({ summary: 'My lesson progress for a course (if enrolled)' })
+  myProgress(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.courses.myProgress(user.userId, id);
   }
 
   @Get(':id')
@@ -89,16 +121,5 @@ export class CoursesController {
     @Body(new ZodValidationPipe(createModuleSchema)) dto: CreateModuleDto,
   ) {
     return this.courses.addModule(user.userId, id, dto);
-  }
-
-  @Post('modules/:moduleId/lessons')
-  @RequirePermissions(PERMISSIONS.COURSE_UPDATE)
-  @ApiOperation({ summary: 'Add a lesson to a module' })
-  addLesson(
-    @CurrentUser() user: AuthUser,
-    @Param('moduleId') moduleId: string,
-    @Body(new ZodValidationPipe(createLessonSchema)) dto: CreateLessonDto,
-  ) {
-    return this.courses.addLesson(user.userId, moduleId, dto);
   }
 }
