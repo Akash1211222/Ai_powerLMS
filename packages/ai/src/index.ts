@@ -11,7 +11,9 @@ export {
 } from './recovery-schema';
 export { HeuristicProvider } from './heuristic-provider';
 export { AnthropicProvider } from './anthropic-provider';
+export { GeminiProvider } from './gemini-provider';
 export { getProvider } from './factory';
+export { resolveLlmConfig, completeJson } from './complete-json';
 export { runSubmissionEvaluation, type EvaluationResult } from './evaluate';
 export { runRecoveryPlanGeneration, type RecoveryPlanResult } from './recovery';
 export {
@@ -27,10 +29,23 @@ export {
 } from './match';
 export {
   computeStudentInsight,
+  emptyStudentSignals,
   type StudentSignals,
   type StudentInsight,
+  type InsightPillar,
+  type FocusArea,
+  type WeekPlanItem,
   type RiskLevel,
+  type Momentum,
+  type PillarStatus,
 } from './insights';
+export {
+  enrichInsightWithLlm,
+  enrichCohortBriefingWithLlm,
+  type EnrichedStudentInsight,
+  type CohortBriefing,
+  type CohortBriefingInputRow,
+} from './narrate-insight';
 export {
   generateAssignment,
   generateAssignmentHeuristic,
@@ -39,3 +54,9 @@ export {
   type GenerateAssignmentInput,
   type GeneratedAssignment,
 } from './generate-assignment';
+export {
+  generateAssessment,
+  generateAssessmentHeuristic,
+  type GenerateAssessmentInput,
+  type GeneratedAssessment,
+} from './generate-assessment';

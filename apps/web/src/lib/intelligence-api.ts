@@ -1,24 +1,68 @@
 import { apiRequest } from './api-client';
 
+export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH';
+export type Momentum = 'RISING' | 'STABLE' | 'SLIPPING';
+export type PillarStatus = 'strong' | 'ok' | 'weak' | 'critical' | 'unknown';
+
 export interface StudentSignals {
   attendanceRate: number;
   attendanceCount: number;
+  presentCount: number;
+  lateCount: number;
+  absentCount: number;
   assignmentAvg: number;
   assignmentCount: number;
   missingAssignments: number;
+  submissionRate: number;
   assessmentAvg: number;
   assessmentCount: number;
   courseProgress: number;
   topics: Array<{ topic: string; percent: number }>;
 }
 
+export interface InsightPillar {
+  id: 'attendance' | 'assignments' | 'assessments' | 'progress' | 'engagement';
+  label: string;
+  score: number;
+  weight: number;
+  status: PillarStatus;
+  note: string;
+}
+
+export interface FocusArea {
+  area: string;
+  severity: 'high' | 'medium' | 'low';
+  evidence: string;
+  action: string;
+}
+
+export interface WeekPlanItem {
+  focus: string;
+  why: string;
+}
+
 export interface StudentInsight {
   riskScore: number;
-  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  riskLevel: RiskLevel;
+  momentum: Momentum;
+  engagementScore: number;
+  consistencyScore: number;
+  interventionPriority: number;
   strengths: string[];
   concerns: string[];
   recommendations: string[];
   summary: string;
+  studentHeadline: string;
+  studentNarrative: string;
+  trainerBrief: string;
+  celebrationWins: string[];
+  studentActions: string[];
+  trainerActions: string[];
+  focusAreas: FocusArea[];
+  weekPlan: WeekPlanItem[];
+  pillars: InsightPillar[];
+  predictedTrajectory: string;
+  provider?: string;
 }
 
 export interface CohortRow {
@@ -31,8 +75,27 @@ export interface CohortRow {
   insight: StudentInsight;
 }
 
+export interface CohortBriefing {
+  headline: string;
+  overview: string;
+  themes: string[];
+  priorityActions: string[];
+  watchlist: Array<{ name: string; reason: string; action: string }>;
+  brightSpots: string[];
+  coachingCadence: string;
+  provider: string;
+}
+
 export interface CohortResponse {
-  stats: { total: number; high: number; medium: number; low: number };
+  stats: {
+    total: number;
+    high: number;
+    medium: number;
+    low: number;
+    avgEngagement: number;
+    avgRisk: number;
+  };
+  briefing: CohortBriefing;
   students: CohortRow[];
 }
 

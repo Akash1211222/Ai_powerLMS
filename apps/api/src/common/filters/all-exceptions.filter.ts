@@ -56,6 +56,30 @@ export class AllExceptionsFilter implements ExceptionFilter {
       );
     }
 
+    // #region agent log
+    if (status === HttpStatus.NOT_FOUND || status >= 500) {
+      fetch('http://127.0.0.1:7530/ingest/1805f349-12c4-4574-b318-85c0b7b0d469', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4b859f' },
+        body: JSON.stringify({
+          sessionId: '4b859f',
+          runId: 'health-check',
+          hypothesisId: status === HttpStatus.NOT_FOUND ? 'A' : 'C',
+          location: 'apps/api/src/common/filters/all-exceptions.filter.ts:catch',
+          message: 'API exception response',
+          data: {
+            status,
+            code,
+            method: req.method,
+            path: req.originalUrl ?? req.url,
+            pid: process.pid,
+          },
+          timestamp: Date.now(),
+        }),
+      }).catch(() => undefined);
+    }
+    // #endregion
+
     const body: ApiErrorBody = {
       error: { code, message, ...(details ? { details } : {}), ...(requestId ? { requestId } : {}) },
     };

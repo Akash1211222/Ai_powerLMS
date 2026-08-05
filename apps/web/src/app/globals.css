@@ -170,3 +170,23 @@ body {
 *::-webkit-scrollbar-track {
   background: transparent;
 }
+
+/* Attendance mascot — gentle float for presence/streak personality */
+@keyframes att-mascot-float {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.5deg);
+  }
+  50% {
+    transform: translateY(-10px) rotate(1.5deg);
+  }
+}
+.att-mascot {
+  animation: att-mascot-float 3.6s ease-in-out infinite;
+  will-change: transform;
+}
+@media (prefers-reduced-motion: reduce) {
+  .att-mascot {
+    animation: none;
+  }
+}

@@ -13,6 +13,8 @@ import {
   Briefcase,
   Award,
   ArrowRight,
+  Radio,
+  Flame,
 } from 'lucide-react';
 import { Card, Badge, statusTone, Spinner, Alert, cn } from '@fca/ui';
 import { dashboardApi, type Deadline } from '@/lib/dashboard-api';
@@ -95,16 +97,35 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
         title="Welcome back,"
         highlight={firstName}
         suffix="👋"
-        subtitle={`${todayLabel()} · ${d.todaySessions.length} session${d.todaySessions.length === 1 ? '' : 's'} today · ${d.stats.pendingDeadlines} item${d.stats.pendingDeadlines === 1 ? '' : 's'} due soon`}
+        subtitle={`${todayLabel()} · ${d.stats.attendanceStreak ?? 0}-day streak · ${d.todaySessions.length} session${d.todaySessions.length === 1 ? '' : 's'} today · ${d.stats.pendingDeadlines} due soon`}
         actions={[
-          { label: 'Continue learning', href: '/courses', icon: BookOpen, primary: true },
+          ...(d.nextLiveClass
+            ? [{ label: 'Join live class', href: `/live/${d.nextLiveClass.id}`, icon: Radio, primary: true as const }]
+            : [{ label: 'Continue learning', href: '/courses', icon: BookOpen, primary: true as const }]),
           { label: 'Assignments', href: '/assignments', icon: ClipboardList },
           { label: 'Take a test', href: '/assessments', icon: FileCheck2 },
           { label: 'Book a mentor', href: '/mentorship', icon: HeartHandshake },
         ]}
       >
         <HeroPanel title="Today's schedule">
-          {d.todaySessions.length === 0 ? (
+          {d.nextLiveClass && (
+            <Link
+              href={`/live/${d.nextLiveClass.id}`}
+              className="mb-3 flex items-center gap-3 rounded-panel bg-accent-500/90 px-3 py-2.5 text-white shadow-lg ring-2 ring-white/30 transition hover:bg-accent-500"
+            >
+              <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/20">
+                <Radio className="h-4 w-4 animate-pulse" aria-hidden />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block text-[10px] font-bold uppercase tracking-wide text-white/80">
+                  Live class · {formatTime(d.nextLiveClass.startsAt)}
+                </span>
+                <span className="block truncate text-sm font-extrabold">{d.nextLiveClass.title}</span>
+              </span>
+              <ArrowRight className="h-4 w-4 shrink-0" aria-hidden />
+            </Link>
+          )}
+          {d.todaySessions.length === 0 && !d.nextLiveClass ? (
             <p className="text-sm font-medium text-white/70">
               No sessions today — a great day to catch up on lessons.
             </p>
@@ -116,7 +137,12 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
                     {formatTime(s.startsAt)}
                   </span>
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-semibold">{s.title}</span>
+                    <span className="block truncate text-sm font-semibold">
+                      {s.meetingUrl ? (
+                        <span className="mr-1 inline-block h-2 w-2 rounded-full bg-accent-400 align-middle" aria-hidden />
+                      ) : null}
+                      {s.title}
+                    </span>
                     <span className="block truncate text-xs text-white/60">{s.batch.name}</span>
                   </span>
                 </li>
@@ -126,10 +152,17 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
         </HeroPanel>
       </DashboardHero>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile label="Active courses" value={d.stats.activeCourses} icon={BookOpen} accent="violet" />
         <StatTile label="Avg progress" value={`${d.stats.avgProgress}%`} icon={TrendingUp} accent="pink" />
         <StatTile label="Attendance" value={`${d.stats.attendanceRate}%`} icon={CalendarCheck} accent="aqua" />
+        <StatTile
+          label="Streak"
+          value={`${d.stats.attendanceStreak ?? 0}d`}
+          sub={`best ${d.stats.longestStreak ?? 0}d`}
+          icon={Flame}
+          accent="amber"
+        />
         <StatTile label="Due soon" value={d.stats.pendingDeadlines} sub="assignments & tests" icon={AlarmClock} accent="amber" />
       </div>
 

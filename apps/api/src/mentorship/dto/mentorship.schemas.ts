@@ -34,3 +34,26 @@ export const completeSchema = z.object({
   status: z.enum(['COMPLETED', 'NO_SHOW']).optional(),
 });
 export type CompleteDto = z.infer<typeof completeSchema>;
+
+export const createMentorRequestSchema = z.object({
+  topic: z.string().min(3).max(200).trim(),
+  detail: z.string().min(10).max(4000).trim(),
+  preferredExpertise: z.string().max(120).trim().optional(),
+});
+export type CreateMentorRequestDto = z.infer<typeof createMentorRequestSchema>;
+
+export const arrangeMentorRequestSchema = z
+  .object({
+    startsAt: z.coerce.date(),
+    endsAt: z.coerce.date(),
+    mentorNote: z.string().max(2000).trim().optional(),
+  })
+  .refine((v) => v.endsAt > v.startsAt, {
+    message: 'endsAt must be after startsAt',
+    path: ['endsAt'],
+  })
+  .refine((v) => v.startsAt.getTime() > Date.now() - 60_000, {
+    message: 'Call must start in the future',
+    path: ['startsAt'],
+  });
+export type ArrangeMentorRequestDto = z.infer<typeof arrangeMentorRequestSchema>;

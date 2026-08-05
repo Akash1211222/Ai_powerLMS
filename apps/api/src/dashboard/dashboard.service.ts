@@ -214,6 +214,31 @@ export class DashboardService {
       0,
     );
 
+    const streak = await this.prisma.attendanceStreak.findUnique({ where: { userId } });
+    const mapSession = <
+      T extends {
+        id: string;
+        title: string;
+        startsAt: Date;
+        endsAt: Date;
+        location: string | null;
+        meetingUrl?: string | null;
+        status?: string;
+        batch: { name: string; course?: { title: string } };
+      },
+    >(
+      s: T,
+    ) => ({
+      id: s.id,
+      title: s.title,
+      startsAt: s.startsAt,
+      endsAt: s.endsAt,
+      location: s.location,
+      meetingUrl: s.meetingUrl ?? null,
+      status: s.status ?? 'SCHEDULED',
+      batch: s.batch,
+    });
+
     return {
       stats: {
         activeCourses: enrollments.filter((e) => e.status === 'ACTIVE').length,
@@ -224,13 +249,26 @@ export class DashboardService {
         pendingDeadlines: deadlines.length,
         openJobs,
         myApplications,
+        attendanceStreak: streak?.currentStreak ?? 0,
+        longestStreak: streak?.longestStreak ?? 0,
       },
       enrollments,
-      todaySessions,
-      upcomingSessions,
+      todaySessions: todaySessions.map(mapSession),
+      upcomingSessions: upcomingSessions.map(mapSession),
       deadlines,
       recentGrades,
       attendanceTrend,
+      nextLiveClass: (() => {
+        const raw =
+          upcomingSessions.find(
+            (s) => Boolean(s.meetingUrl) && s.status !== 'ENDED' && s.status !== 'CANCELLED',
+          ) ??
+          todaySessions.find(
+            (s) => Boolean(s.meetingUrl) && (s.status === 'LIVE' || s.status === 'SCHEDULED'),
+          ) ??
+          null;
+        return raw ? mapSession(raw) : null;
+      })(),
       nextMentorSession: nextMentorSession
         ? {
             id: nextMentorSession.id,

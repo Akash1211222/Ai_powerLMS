@@ -2,6 +2,7 @@ import { apiRequest } from './api-client';
 
 export type SlotStatus = 'OPEN' | 'BOOKED' | 'CANCELLED';
 export type BookingStatus = 'CONFIRMED' | 'COMPLETED' | 'CANCELLED' | 'NO_SHOW';
+export type MentorRequestStatus = 'OPEN' | 'SCHEDULED' | 'CLOSED' | 'CANCELLED';
 
 export interface MentorProfile {
   id: string;
@@ -37,7 +38,7 @@ interface Person {
 }
 
 export interface MentorSlotWithBookings extends MentorSlot {
-  bookings: Array<{ id: string; topic: string; status: BookingStatus; student: Person }>;
+  bookings: Array<{ id: string; topic: string; status: BookingStatus; student: Person; meetUrl?: string | null }>;
 }
 
 export interface Booking {
@@ -49,9 +50,29 @@ export interface Booking {
   note: string | null;
   status: BookingStatus;
   mentorNotes: string | null;
+  meetUrl?: string | null;
   slot: MentorSlot;
   mentor?: Person;
   student?: Person;
+}
+
+export interface MentorRequest {
+  id: string;
+  organizationId: string;
+  studentId: string;
+  topic: string;
+  detail: string;
+  preferredExpertise: string | null;
+  status: MentorRequestStatus;
+  mentorId: string | null;
+  bookingId: string | null;
+  meetUrl: string | null;
+  mentorNote: string | null;
+  scheduledAt: string | null;
+  createdAt: string;
+  student?: Person;
+  mentor?: Person | null;
+  booking?: (Booking & { slot: MentorSlot }) | null;
 }
 
 export const mentorshipApi = {
@@ -59,9 +80,19 @@ export const mentorshipApi = {
   directory: () => apiRequest<MentorDirectoryEntry[]>('/mentors', { auth: true }),
   slotsFor: (mentorId: string) => apiRequest<MentorSlot[]>(`/mentors/${mentorId}/slots`, { auth: true }),
   book: (slotId: string, topic: string, note?: string) =>
-    apiRequest<Booking>(`/mentor-slots/${slotId}/book`, { method: 'POST', body: note ? { topic, note } : { topic }, auth: true }),
+    apiRequest<Booking>(`/mentor-slots/${slotId}/book`, {
+      method: 'POST',
+      body: note ? { topic, note } : { topic },
+      auth: true,
+    }),
   myBookings: () => apiRequest<Booking[]>('/me/bookings', { auth: true }),
   cancelBooking: (id: string) => apiRequest<Booking>(`/me/bookings/${id}/cancel`, { method: 'POST', auth: true }),
+
+  createHelpRequest: (input: { topic: string; detail: string; preferredExpertise?: string }) =>
+    apiRequest<MentorRequest>('/me/mentor-help-requests', { method: 'POST', body: input, auth: true }),
+  myHelpRequests: () => apiRequest<MentorRequest[]>('/me/mentor-help-requests', { auth: true }),
+  cancelHelpRequest: (id: string) =>
+    apiRequest<MentorRequest>(`/me/mentor-help-requests/${id}/cancel`, { method: 'POST', auth: true }),
 
   // mentor
   profile: () => apiRequest<MentorProfile>('/me/mentor-profile', { auth: true }),
@@ -77,4 +108,13 @@ export const mentorshipApi = {
       body: mentorNotes ? { mentorNotes, status } : { status },
       auth: true,
     }),
+  incomingHelpRequests: () => apiRequest<MentorRequest[]>('/me/incoming-help-requests', { auth: true }),
+  arrangeHelpRequest: (id: string, input: { startsAt: string; endsAt: string; mentorNote?: string }) =>
+    apiRequest<MentorRequest>(`/me/incoming-help-requests/${id}/arrange`, {
+      method: 'POST',
+      body: input,
+      auth: true,
+    }),
+  closeHelpRequest: (id: string) =>
+    apiRequest<MentorRequest>(`/me/incoming-help-requests/${id}/close`, { method: 'POST', auth: true }),
 };

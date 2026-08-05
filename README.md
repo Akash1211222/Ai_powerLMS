@@ -56,7 +56,7 @@ docker-compose.yml   Local Postgres, Redis, MinIO, Mailhog
 - **Node.js 22+** (see `.nvmrc`)
 - **pnpm 9+** — `corepack enable && corepack prepare pnpm@9.12.0 --activate`
 - **Docker Desktop** — for Postgres, Redis, MinIO, Mailhog
-- Optional: **Anthropic API key** for live AI generation/scoring (heuristic fallbacks work without it)
+- Optional: **Gemini** or **Anthropic** API key for live AI generation/scoring (heuristic fallbacks work without it)
 - Optional for code runtimes on the API host: `node`, `python3`, `javac`/`java`, `gcc`/`g++` (missing tools return a clear error for that language)
 
 ---

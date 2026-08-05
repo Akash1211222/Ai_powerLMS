@@ -142,6 +142,8 @@ function StaffAssignments({ batchId }: { batchId: string }) {
   const [language, setLanguage] = useState<CodeLanguage>('JAVASCRIPT');
   const [instructions, setInstructions] = useState('');
   const [topicHint, setTopicHint] = useState('');
+  const [aiLanguage, setAiLanguage] = useState<CodeLanguage>('JAVASCRIPT');
+  const [aiDifficulty, setAiDifficulty] = useState<'EASY' | 'MEDIUM' | 'HARD'>('MEDIUM');
   const [error, setError] = useState<string | null>(null);
   const [mode, setMode] = useState<'ai' | 'manual'>('ai');
 
@@ -178,7 +180,9 @@ function StaffAssignments({ batchId }: { batchId: string }) {
     mutationFn: () =>
       assignmentsApi.aiGenerate({
         batchId,
-        topicHint: topicHint.trim() || undefined,
+        topicHint: topicHint.trim(),
+        languageHint: aiLanguage === 'NONE' ? undefined : aiLanguage,
+        difficulty: aiDifficulty,
         publish: true,
       }),
     onSuccess: () => {
@@ -263,20 +267,54 @@ function StaffAssignments({ batchId }: { batchId: string }) {
             {mode === 'ai' ? (
               <>
                 <div className="rounded-panel bg-brand-50 px-4 py-3 text-sm text-brand-900">
-                  <span className="font-bold">AI reads the course</span> — Python → Python lab, Java → Java
-                  compiler, Full Stack → JS — then publishes starter code to the whole batch.
+                  <span className="font-bold">Topic-driven coding lab</span> — AI builds a relevant exercise
+                  with runnable starter code for the in-browser emulator (JS / Python / SQL / etc.).
                 </div>
-                <Field label="Topic hint (optional)">
+                <Field label="Topic (required)">
                   {({ id }) => (
                     <Input
                       id={id}
                       value={topicHint}
                       onChange={(e) => setTopicHint(e.target.value)}
-                      placeholder="e.g. REST APIs, OOP inheritance, SQL joins"
+                      placeholder="e.g. async await & promises, SQL joins, React state"
                     />
                   )}
                 </Field>
-                <Button onClick={() => aiGen.mutate()} disabled={aiGen.isPending} className="w-fit">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <Field label="Emulator language">
+                    {({ id }) => (
+                      <Select
+                        id={id}
+                        value={aiLanguage}
+                        onChange={(e) => setAiLanguage(e.target.value as CodeLanguage)}
+                      >
+                        {LANG_OPTIONS.filter((o) => o.value !== 'NONE').map((o) => (
+                          <option key={o.value} value={o.value}>
+                            {o.label}
+                          </option>
+                        ))}
+                      </Select>
+                    )}
+                  </Field>
+                  <Field label="Difficulty">
+                    {({ id }) => (
+                      <Select
+                        id={id}
+                        value={aiDifficulty}
+                        onChange={(e) => setAiDifficulty(e.target.value as 'EASY' | 'MEDIUM' | 'HARD')}
+                      >
+                        <option value="EASY">Easy</option>
+                        <option value="MEDIUM">Medium</option>
+                        <option value="HARD">Hard</option>
+                      </Select>
+                    )}
+                  </Field>
+                </div>
+                <Button
+                  onClick={() => aiGen.mutate()}
+                  disabled={aiGen.isPending || topicHint.trim().length < 2}
+                  className="w-fit"
+                >
                   <Sparkles className="mr-1.5 h-4 w-4" aria-hidden />
                   {aiGen.isPending ? 'Generating…' : 'Generate & publish with AI'}
                 </Button>

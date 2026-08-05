@@ -1,5 +1,13 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { computeStudentInsight, type StudentInsight, type StudentSignals } from '@fca/ai';
+import {
+  computeStudentInsight,
+  emptyStudentSignals,
+  enrichInsightWithLlm,
+  enrichCohortBriefingWithLlm,
+  type StudentInsight,
+  type StudentSignals,
+  type CohortBriefing,
+} from '@fca/ai';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../authz/user-context.service';
 import { assertOrgAccess } from '../common/tenant';
@@ -18,7 +26,7 @@ export interface StudentIntelligenceRow {
 /**
  * Student Intelligence (§16, §41): aggregates real academic signals
  * (attendance, assignments, assessments, progress) into explainable
- * per-student risk insights. All scores are deterministic.
+ * per-student risk insights. Scores stay deterministic; Gemini narrates.
  */
 @Injectable()
 export class IntelligenceService {
@@ -78,13 +86,50 @@ export class IntelligenceService {
     students.sort((a, b) => b.insight.riskScore - a.insight.riskScore);
 
     const counts = { high: 0, medium: 0, low: 0 };
+    let engagementSum = 0;
     for (const s of students) {
       if (s.insight.riskLevel === 'HIGH') counts.high += 1;
       else if (s.insight.riskLevel === 'MEDIUM') counts.medium += 1;
       else counts.low += 1;
+      engagementSum += s.insight.engagementScore;
     }
 
-    return { stats: { total: students.length, ...counts }, students };
+    const stats = { total: students.length, ...counts };
+    const avgEngagement = students.length ? Math.round(engagementSum / students.length) : 0;
+    const avgRisk = students.length
+      ? Math.round(students.reduce((a, s) => a + s.insight.riskScore, 0) / students.length)
+      : 0;
+
+    let batchName: string | undefined;
+    if (batchId) {
+      const batch = await this.prisma.batch.findUnique({
+        where: { id: batchId },
+        select: { name: true },
+      });
+      batchName = batch?.name;
+    }
+
+    const briefingRows = students.slice(0, 12).map((s) => ({
+      name: `${s.firstName} ${s.lastName}`.trim() || s.email,
+      riskLevel: s.insight.riskLevel,
+      riskScore: s.insight.riskScore,
+      momentum: s.insight.momentum,
+      engagementScore: s.insight.engagementScore,
+      interventionPriority: s.insight.interventionPriority,
+      summary: s.insight.summary,
+      topConcern: s.insight.concerns[0],
+    }));
+
+    const briefing: CohortBriefing = await enrichCohortBriefingWithLlm(stats, briefingRows, {
+      batchName,
+      organizationHint: 'FutureCorp Academy',
+    });
+
+    return {
+      stats: { ...stats, avgEngagement, avgRisk },
+      briefing,
+      students,
+    };
   }
 
   /** Detailed report for one student (staff view). */
@@ -105,12 +150,15 @@ export class IntelligenceService {
     });
     if (!membership) throw new NotFoundException('Student not found in this organization');
 
-    return this.buildReport({
-      id: membership.user.id,
-      email: membership.user.email,
-      firstName: membership.user.profile?.firstName ?? '',
-      lastName: membership.user.profile?.lastName ?? '',
-    });
+    return this.buildReport(
+      {
+        id: membership.user.id,
+        email: membership.user.email,
+        firstName: membership.user.profile?.firstName ?? '',
+        lastName: membership.user.profile?.lastName ?? '',
+      },
+      'trainer',
+    );
   }
 
   /** A student's own intelligence report. */
@@ -124,20 +172,26 @@ export class IntelligenceService {
       },
     });
     if (!user) throw new NotFoundException('User not found');
-    return this.buildReport({
-      id: user.id,
-      email: user.email,
-      firstName: user.profile?.firstName ?? '',
-      lastName: user.profile?.lastName ?? '',
-    });
+    return this.buildReport(
+      {
+        id: user.id,
+        email: user.email,
+        firstName: user.profile?.firstName ?? '',
+        lastName: user.profile?.lastName ?? '',
+      },
+      'student',
+    );
   }
 
-  private async buildReport(user: {
-    id: string;
-    firstName: string;
-    lastName: string;
-    email: string;
-  }) {
+  private async buildReport(
+    user: {
+      id: string;
+      firstName: string;
+      lastName: string;
+      email: string;
+    },
+    audience: 'student' | 'trainer',
+  ) {
     const signalsById = await this.collectSignals([user.id]);
     const signals = signalsById.get(user.id)!;
 
@@ -165,11 +219,18 @@ export class IntelligenceService {
       }),
     ]);
 
+    const baseInsight = computeStudentInsight(signals);
+    const insight = await enrichInsightWithLlm(signals, baseInsight, {
+      studentName: `${user.firstName} ${user.lastName}`.trim() || user.email,
+      audience,
+      batches: batches.map((b) => b.batch.name),
+    });
+
     return {
       student: user,
       batches: batches.map((b) => ({ id: b.batch.id, name: b.batch.name })),
       signals,
-      insight: computeStudentInsight(signals),
+      insight,
       recentAssignments: recentEvaluations.map((s) => ({
         assignmentId: s.assignment.id,
         title: s.assignment.title,
@@ -192,18 +253,9 @@ export class IntelligenceService {
    * size, grouped in memory per student.
    */
   private async collectSignals(studentIds: string[]): Promise<Map<string, StudentSignals>> {
-    const empty = (): StudentSignals => ({
-      attendanceRate: 0,
-      attendanceCount: 0,
-      assignmentAvg: 0,
-      assignmentCount: 0,
-      missingAssignments: 0,
-      assessmentAvg: 0,
-      assessmentCount: 0,
-      courseProgress: 0,
-      topics: [],
-    });
-    const result = new Map<string, StudentSignals>(studentIds.map((id) => [id, empty()]));
+    const result = new Map<string, StudentSignals>(
+      studentIds.map((id) => [id, emptyStudentSignals()]),
+    );
     if (studentIds.length === 0) return result;
 
     const [attendance, submissions, batchLinks, attempts, enrollments] = await Promise.all([
@@ -239,7 +291,6 @@ export class IntelligenceService {
       }),
     ]);
 
-    // Attendance
     const attendanceByStudent = new Map<string, Array<{ status: (typeof attendance)[number]['status'] }>>();
     for (const r of attendance) {
       const list = attendanceByStudent.get(r.studentId) ?? [];
@@ -251,9 +302,11 @@ export class IntelligenceService {
       const s = result.get(id)!;
       s.attendanceRate = summary.rate;
       s.attendanceCount = summary.total;
+      s.presentCount = summary.present;
+      s.lateCount = summary.late;
+      s.absentCount = summary.absent;
     }
 
-    // Assignments: average evaluated percent + missing published work
     const publishedByBatch = new Map<string, Array<{ id: string }>>();
     const batchIds = [...new Set(batchLinks.map((l) => l.batchId))];
     if (batchIds.length) {
@@ -293,15 +346,19 @@ export class IntelligenceService {
       const myBatches = batchLinks.filter((l) => l.userId === id).map((l) => l.batchId);
       const submitted = submittedByStudent.get(id) ?? new Set<string>();
       let missing = 0;
+      let publishedTotal = 0;
       for (const batchId of myBatches) {
         for (const a of publishedByBatch.get(batchId) ?? []) {
+          publishedTotal += 1;
           if (!submitted.has(a.id)) missing += 1;
         }
       }
       s.missingAssignments = missing;
+      const submittedCount = submitted.size;
+      const denom = submittedCount + missing;
+      s.submissionRate = denom > 0 ? Math.round((submittedCount / denom) * 100) : publishedTotal === 0 ? 0 : 100;
     }
 
-    // Assessments: best attempt per assessment, plus topic averages
     const bestByStudent = new Map<string, Map<string, number>>();
     const topicAgg = new Map<string, Map<string, { sum: number; count: number }>>();
     for (const at of attempts) {
@@ -334,7 +391,6 @@ export class IntelligenceService {
         .sort((a, b) => a.percent - b.percent);
     }
 
-    // Course progress
     const progressByStudent = new Map<string, number[]>();
     for (const e of enrollments) {
       const list = progressByStudent.get(e.userId) ?? [];

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { completeJson, resolveLlmConfig } from './complete-json';
 
 /** Mirrors the Prisma CodeLanguage enum (string-typed to avoid a client dep). */
 export type CodeLang =
@@ -284,9 +285,8 @@ function templatesFor(lang: CodeLang): GeneratedAssignment[] {
 }
 
 /**
- * Generate course-appropriate assignments. Uses Anthropic when configured
- * (AI_PROVIDER=anthropic + ANTHROPIC_API_KEY), otherwise a curated template
- * bank keyed by the course's detected language. Always returns `count` items.
+ * Generate course-appropriate assignments. Uses Gemini/Anthropic when configured,
+ * otherwise a curated template bank keyed by course language. Always returns `count` items.
  */
 export async function generateAssignments(opts: {
   courseTitle: string;
@@ -294,23 +294,21 @@ export async function generateAssignments(opts: {
   count?: number;
   topic?: string | null;
   env?: NodeJS.ProcessEnv;
-}): Promise<{ items: GeneratedAssignment[]; provider: 'anthropic' | 'templates' }> {
+}): Promise<{ items: GeneratedAssignment[]; provider: 'gemini' | 'anthropic' | 'templates' }> {
   const count = Math.max(1, Math.min(5, opts.count ?? 3));
   const env = opts.env ?? process.env;
-  const apiKey = env.ANTHROPIC_API_KEY;
-  const useLlm = env.AI_PROVIDER === 'anthropic' && Boolean(apiKey);
+  const cfg = resolveLlmConfig(env);
 
-  if (useLlm) {
+  if (cfg) {
     try {
-      const items = await generateWithAnthropic(
-        apiKey!,
-        env.ANTHROPIC_MODEL ?? 'claude-sonnet-4-20250514',
+      const items = await generateWithLlm(
+        env,
         opts.courseTitle,
         opts.level ?? null,
         count,
         opts.topic ?? null,
       );
-      return { items, provider: 'anthropic' };
+      return { items, provider: cfg.kind };
     } catch {
       // fall through to templates
     }
@@ -320,15 +318,13 @@ export async function generateAssignments(opts: {
   const bank = templatesFor(lang);
   const items = Array.from({ length: count }, (_, i) => bank[i % bank.length]!).map((t, i) => ({
     ...t,
-    // De-duplicate titles when count exceeds the bank size.
     title: i >= bank.length ? `${t.title} (variant ${Math.floor(i / bank.length) + 1})` : t.title,
   }));
   return { items, provider: 'templates' };
 }
 
-async function generateWithAnthropic(
-  apiKey: string,
-  model: string,
+async function generateWithLlm(
+  env: NodeJS.ProcessEnv,
   courseTitle: string,
   level: string | null,
   count: number,
@@ -355,33 +351,7 @@ async function generateWithAnthropic(
     .filter(Boolean)
     .join('\n\n');
 
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), 60_000);
-  try {
-    const res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST',
-      headers: {
-        'content-type': 'application/json',
-        'x-api-key': apiKey,
-        'anthropic-version': '2023-06-01',
-      },
-      body: JSON.stringify({
-        model,
-        max_tokens: 4000,
-        system,
-        messages: [{ role: 'user', content: user }],
-      }),
-      signal: controller.signal,
-    });
-    if (!res.ok) throw new Error(`Anthropic API error ${res.status}`);
-    const data = (await res.json()) as { content?: Array<{ type: string; text?: string }> };
-    const text = data.content?.find((b) => b.type === 'text')?.text ?? '';
-    const start = text.indexOf('[');
-    const end = text.lastIndexOf(']');
-    if (start === -1 || end === -1) throw new Error('No JSON array in AI response');
-    const parsed = generatedListSchema.parse(JSON.parse(text.slice(start, end + 1)));
-    return parsed.map((p) => ({ ...p, starterCode: p.starterCode ?? null }));
-  } finally {
-    clearTimeout(timer);
-  }
+  const json = await completeJson(system, user, 4000, env);
+  const parsed = generatedListSchema.parse(json);
+  return parsed.map((p) => ({ ...p, starterCode: p.starterCode ?? null }));
 }

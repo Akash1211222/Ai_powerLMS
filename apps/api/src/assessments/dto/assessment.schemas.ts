@@ -43,6 +43,15 @@ export const createAssessmentSchema = z.object({
 });
 export type CreateAssessmentDto = z.infer<typeof createAssessmentSchema>;
 
+export const aiGenerateAssessmentSchema = z.object({
+  batchId: z.string().min(1),
+  topicHint: z.string().max(200).optional(),
+  difficulty: z.enum(['EASY', 'MEDIUM', 'HARD']).optional(),
+  questionCount: z.number().int().min(3).max(15).optional(),
+  publish: z.boolean().optional(),
+});
+export type AiGenerateAssessmentDto = z.infer<typeof aiGenerateAssessmentSchema>;
+
 export const listAssessmentsQuerySchema = z.object({ batchId: z.string().min(1) });
 export type ListAssessmentsQuery = z.infer<typeof listAssessmentsQuerySchema>;
 

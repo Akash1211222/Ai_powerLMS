@@ -66,6 +66,7 @@ export class CalendarService {
         endsAt: s.endsAt,
         allDay: false,
         location: s.location,
+        meetingUrl: s.meetingUrl ?? null,
         sourceType: 'BatchSchedule',
         sourceId: s.id,
         context: s.batch.name,

@@ -9,9 +9,11 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import { AssessmentsService } from './assessments.service';
 import {
+  aiGenerateAssessmentSchema,
   createAssessmentSchema,
   listAssessmentsQuerySchema,
   submitAttemptSchema,
+  type AiGenerateAssessmentDto,
   type CreateAssessmentDto,
   type ListAssessmentsQuery,
   type SubmitAttemptDto,
@@ -32,6 +34,16 @@ export class AssessmentsController {
     @Body(new ZodValidationPipe(createAssessmentSchema)) dto: CreateAssessmentDto,
   ) {
     return this.assessments.create(user.userId, dto);
+  }
+
+  @Post('ai-generate')
+  @RequirePermissions(PERMISSIONS.ASSESSMENT_CREATE)
+  @ApiOperation({ summary: 'AI-generate a quiz/assessment for a batch (Gemini when configured)' })
+  aiGenerate(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(aiGenerateAssessmentSchema)) dto: AiGenerateAssessmentDto,
+  ) {
+    return this.assessments.aiGenerate(user.userId, dto);
   }
 
   @Get()

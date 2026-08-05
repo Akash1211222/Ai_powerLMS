@@ -25,6 +25,8 @@ export interface Lesson {
   type: 'VIDEO' | 'READING' | 'QUIZ' | 'ASSIGNMENT';
   order: number;
   durationSec: number | null;
+  contentUrl?: string | null;
+  thumbnailUrl?: string | null;
 }
 export interface CourseModule {
   id: string;
@@ -65,7 +67,7 @@ export const coursesApi = {
       body: { title },
       auth: true,
     }),
-  addLesson: (moduleId: string, input: { title: string; type: string }) =>
+  addLesson: (moduleId: string, input: { title: string; type: string; contentUrl?: string }) =>
     apiRequest<Lesson>(`/courses/modules/${moduleId}/lessons`, {
       method: 'POST',
       body: input,

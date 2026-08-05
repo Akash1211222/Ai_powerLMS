@@ -118,7 +118,7 @@ async function main() {
 
   // Feature flags — placement enabled for demo
   const flags = [
-    { key: 'module.live_class', enabled: false },
+    { key: 'module.live_class', enabled: true },
     { key: 'module.placement', enabled: true },
     { key: 'module.intelligence', enabled: true },
     { key: 'module.mentorship', enabled: true },
@@ -172,6 +172,7 @@ async function main() {
           order: 0,
           type: 'VIDEO',
           durationSec: 900,
+          contentUrl: 'https://www.youtube.com/watch?v=W6NZfCO5SIk',
         },
         {
           moduleId: module.id,
@@ -186,9 +187,29 @@ async function main() {
           order: 2,
           type: 'VIDEO',
           durationSec: 1200,
+          contentUrl: 'https://www.youtube.com/watch?v=PoRJizFvM7s',
         },
       ],
     });
+  } else {
+    // Ensure demo VIDEO lessons have playable URLs for existing DBs.
+    const videoLessons = await prisma.lesson.findMany({
+      where: { moduleId: module.id, type: 'VIDEO' },
+      orderBy: { order: 'asc' },
+    });
+    const demoUrls = [
+      'https://www.youtube.com/watch?v=W6NZfCO5SIk',
+      'https://www.youtube.com/watch?v=PoRJizFvM7s',
+    ];
+    for (let i = 0; i < videoLessons.length; i++) {
+      const lesson = videoLessons[i]!;
+      if (!lesson.contentUrl) {
+        await prisma.lesson.update({
+          where: { id: lesson.id },
+          data: { contentUrl: demoUrls[i % demoUrls.length] },
+        });
+      }
+    }
   }
 
   const totalLessons = await prisma.lesson.count({
@@ -740,8 +761,54 @@ list();
     });
   }
 
+  // Live class for the demo batch (Google Meet–style link + streak)
+  const liveTitle = 'Live: JS deep-dive & Q&A';
+  let liveClass = await prisma.batchSchedule.findFirst({
+    where: { batchId: batch.id, title: liveTitle },
+  });
+  if (!liveClass) {
+    const startsAt = new Date(Date.now() + 2 * 60 * 60 * 1000);
+    const endsAt = new Date(startsAt.getTime() + 60 * 60 * 1000);
+    liveClass = await prisma.batchSchedule.create({
+      data: {
+        batchId: batch.id,
+        title: liveTitle,
+        description: 'Interactive session on async patterns. Join via Google Meet.',
+        startsAt,
+        endsAt,
+        meetingUrl: 'https://meet.google.com/fca-demo-live',
+        meetingProvider: 'GOOGLE_MEET',
+        status: 'SCHEDULED',
+        createdById: trainerId,
+        location: 'Google Meet',
+      },
+    });
+  } else if (!liveClass.meetingUrl) {
+    liveClass = await prisma.batchSchedule.update({
+      where: { id: liveClass.id },
+      data: {
+        meetingUrl: 'https://meet.google.com/fca-demo-live',
+        meetingProvider: 'GOOGLE_MEET',
+        status: 'SCHEDULED',
+        createdById: trainerId,
+      },
+    });
+  }
+
+  await prisma.attendanceStreak.upsert({
+    where: { userId: studentId },
+    update: {},
+    create: {
+      userId: studentId,
+      currentStreak: 3,
+      longestStreak: 5,
+      lastPresentOn: new Date(Date.UTC(new Date().getUTCFullYear(), new Date().getUTCMonth(), new Date().getUTCDate() - 1)),
+    },
+  });
+
   console.log(`✅ Seed complete. ${SEED_USERS.length} users, org "${org.slug}".`);
   console.log(`   Course "${course.title}", batch "${batch.code}", assignment + assessment + opportunities.`);
+  console.log(`   Live class "${liveClass.title}" · Meet ${liveClass.meetingUrl}`);
   console.log(`   Dev login password for all seed users: ${DEV_PASSWORD}`);
 }
 

@@ -9,6 +9,7 @@ import { batchesApi } from '@/lib/lms-api';
 import { ApiError } from '@/lib/api-client';
 import { BatchHealthPanel } from '@/components/batch-health-panel';
 import { BatchPlacementPanel } from '@/components/batch-placement-panel';
+import { LiveClassPanel } from '@/components/live-class-panel';
 
 interface BatchDetail {
   id: string;
@@ -33,6 +34,10 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const [error, setError] = useState<string | null>(null);
 
   const canManage = user?.permissions.includes('batch:manage');
+  const canScheduleLive =
+    Boolean(canManage) ||
+    user?.permissions.includes('course:update') ||
+    user?.permissions.includes('attendance:mark');
   const canViewAnalytics = user?.permissions.includes('analytics:view');
 
   const batchQuery = useQuery({
@@ -108,6 +113,8 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
           Attendance
         </Link>
       </div>
+
+      <LiveClassPanel batchId={id} canSchedule={Boolean(canScheduleLive)} />
 
       {canViewAnalytics && <BatchHealthPanel batchId={id} />}
       {canViewAnalytics && <BatchPlacementPanel batchId={id} />}

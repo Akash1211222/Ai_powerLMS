@@ -6,6 +6,8 @@ export interface Session {
   startsAt: string;
   endsAt: string;
   location: string | null;
+  meetingUrl?: string | null;
+  status?: string;
   batch: { name: string; course?: { title: string } };
 }
 
@@ -34,6 +36,8 @@ export interface StudentDashboard {
     pendingDeadlines: number;
     openJobs: number;
     myApplications: number;
+    attendanceStreak: number;
+    longestStreak: number;
   };
   enrollments: Array<{
     id: string;
@@ -47,6 +51,7 @@ export interface StudentDashboard {
   deadlines: Deadline[];
   recentGrades: RecentGrade[];
   attendanceTrend: Array<{ date: string; value: number }>;
+  nextLiveClass: Session | null;
   nextMentorSession: {
     id: string;
     topic: string;

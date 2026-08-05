@@ -1,0 +1,137 @@
+import type { AIProvider } from './provider';
+import { completeJson } from './complete-json';
+import { evaluationOutputSchema, type EvaluationInput, type EvaluationOutput } from './schema';
+import {
+  recoveryPlanOutputSchema,
+  type RecoveryPlanInput,
+  type RecoveryPlanOutput,
+} from './recovery-schema';
+import {
+  progressReportOutputSchema,
+  type ProgressReportInput,
+  type ProgressReportOutput,
+} from './report-schema';
+
+const PROMPT_VERSION = 'eval-v1';
+
+/**
+ * Google Gemini–backed provider. Uses the Generative Language API (REST)
+ * with structured JSON responses. Instantiated when AI_PROVIDER=gemini and
+ * GEMINI_API_KEY is set.
+ */
+export class GeminiProvider implements AIProvider {
+  readonly name = 'gemini';
+  readonly promptVersion = PROMPT_VERSION;
+
+  constructor(
+    private readonly apiKey: string,
+    readonly model: string,
+    private readonly timeoutMs = 60_000,
+  ) {}
+
+  private env(): NodeJS.ProcessEnv {
+    return {
+      ...process.env,
+      AI_PROVIDER: 'gemini',
+      GEMINI_API_KEY: this.apiKey,
+      AI_DEFAULT_MODEL: this.model,
+      AI_REQUEST_TIMEOUT_MS: String(this.timeoutMs),
+    };
+  }
+
+  private async ask(system: string, user: string, maxTokens: number): Promise<unknown> {
+    return completeJson(system, user, maxTokens, this.env());
+  }
+
+  async evaluateSubmission(input: EvaluationInput): Promise<EvaluationOutput> {
+    const isCode = Boolean(input.language && input.language !== 'NONE');
+    const system = isCode
+      ? 'You are a strict coding assignment evaluator for an AI LMS. Score each rubric criterion from 0 to its weight based on the source code and run output. Prefer evidence from compilation/runtime results. Respond with ONLY a JSON object — no prose, no markdown fences.'
+      : 'You are an assignment evaluator. Score each rubric criterion from 0 to its weight based ONLY on the submission. Be strict and evidence-based. Respond with ONLY a JSON object matching the given shape — no prose, no markdown fences.';
+
+    const shape = {
+      criteria: input.rubric.map((c) => ({ criterionId: c.id, score: `0..${c.weight}`, comment: 'string' })),
+      confidence: '0..1',
+      summary: 'string',
+      strengths: ['string'],
+      improvements: ['string'],
+    };
+
+    const user = [
+      `Assignment: ${input.assignmentTitle}`,
+      input.instructions ? `Instructions: ${input.instructions}` : '',
+      input.language ? `Language: ${input.language}` : '',
+      `Rubric: ${JSON.stringify(input.rubric)}`,
+      `Submission ${isCode ? 'source code' : 'text'}: ${input.submissionText ?? '(none)'}`,
+      input.codeOutput ? `Program output / console:\n${input.codeOutput}` : '',
+      input.repoUrl ? `Repository: ${input.repoUrl}` : '',
+      `Return JSON of exactly this shape: ${JSON.stringify(shape)}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const json = await this.ask(system, user, 1500);
+    return evaluationOutputSchema.parse(json);
+  }
+
+  async generateRecoveryPlan(input: RecoveryPlanInput): Promise<RecoveryPlanOutput> {
+    const system =
+      'You are an academic support planner for a training academy. Given deterministic risk signals and weak skills ' +
+      '(computed by the platform — do not invent numbers), produce a concrete, encouraging recovery plan the student can ' +
+      'act on. 3-6 specific tasks, each achievable within a week. Respond with ONLY a JSON object matching the given ' +
+      'shape — no prose, no markdown fences.';
+
+    const shape = {
+      summary: 'string (2-4 sentences addressed to staff + student)',
+      tasks: [{ title: 'string', detail: 'string' }],
+      mentorActions: ['string'],
+      trainerActions: ['string'],
+      followUpDays: '3..30 (integer)',
+    };
+
+    const user = [
+      `Risk level: ${input.riskLevel} (score ${input.riskScore}/100)`,
+      `Contributing factors: ${JSON.stringify(input.factors)}`,
+      `Weak skills: ${JSON.stringify(input.weakSkills)}`,
+      input.courseTitle ? `Course: ${input.courseTitle}` : '',
+      `Return JSON of exactly this shape: ${JSON.stringify(shape)}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const json = await this.ask(system, user, 1500);
+    return recoveryPlanOutputSchema.parse(json);
+  }
+
+  async generateProgressReport(input: ProgressReportInput): Promise<ProgressReportOutput> {
+    const system =
+      'You write concise weekly progress reports for a training academy. The numeric metrics are computed by the ' +
+      'platform — narrate and interpret them, never invent figures. Be specific, encouraging and actionable. ' +
+      'Respond with ONLY a JSON object matching the given shape — no prose, no markdown fences.';
+
+    const shape = {
+      summary: 'string (3-5 sentences)',
+      achievements: ['string'],
+      improvements: ['string'],
+      weakAreas: ['string'],
+      nextWeekGoals: ['string'],
+      trainerNote: 'string',
+      mentorNote: 'string',
+    };
+
+    const user = [
+      `Student: ${input.studentName}`,
+      `Period: ${input.periodLabel}`,
+      `Metrics: ${JSON.stringify(input.metrics)}`,
+      `Skill trends: ${JSON.stringify(input.skillTrends)}`,
+      `Weak skills: ${JSON.stringify(input.weakSkills)}`,
+      input.riskLevel ? `Risk level: ${input.riskLevel}` : '',
+      `Return JSON of exactly this shape: ${JSON.stringify(shape)}`,
+    ]
+      .filter(Boolean)
+      .join('\n\n');
+
+    const json = await this.ask(system, user, 1500);
+    return progressReportOutputSchema.parse(json);
+  }
+}

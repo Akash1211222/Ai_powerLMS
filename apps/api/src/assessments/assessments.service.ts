@@ -11,9 +11,14 @@ import { NotificationService } from '../notifications/notification.service';
 import { SkillsService } from '../skills/skills.service';
 import { ScoresService } from '../skills/scores.service';
 import { RiskService } from '../skills/risk.service';
+import { generateAssessment } from '@fca/ai';
 import { assertOrgAccess } from '../common/tenant';
 import { gradeAttempt, type GradableQuestion } from './grading';
-import type { CreateAssessmentDto, SubmitAttemptDto } from './dto/assessment.schemas';
+import type {
+  AiGenerateAssessmentDto,
+  CreateAssessmentDto,
+  SubmitAttemptDto,
+} from './dto/assessment.schemas';
 
 const OBJECTIVE = new Set(['MCQ', 'MULTI_SELECT', 'TRUE_FALSE']);
 
@@ -30,10 +35,42 @@ export class AssessmentsService {
   ) {}
 
   private async loadOwnedBatch(userId: string, batchId: string) {
-    const batch = await this.prisma.batch.findUnique({ where: { id: batchId } });
+    const batch = await this.prisma.batch.findUnique({
+      where: { id: batchId },
+      include: { course: { select: { id: true, title: true, level: true } } },
+    });
     if (!batch) throw new NotFoundException('Batch not found');
     await assertOrgAccess(this.userContext, userId, batch.organizationId);
     return batch;
+  }
+
+  /** Gemini/Anthropic generates a full quiz for the batch course. */
+  async aiGenerate(userId: string, dto: AiGenerateAssessmentDto) {
+    const batch = await this.loadOwnedBatch(userId, dto.batchId);
+    const generated = await generateAssessment({
+      courseTitle: batch.course.title,
+      courseLevel: batch.course.level,
+      batchName: batch.name,
+      topicHint: dto.topicHint,
+      difficulty: dto.difficulty,
+      questionCount: dto.questionCount,
+    });
+
+    const assessment = await this.create(userId, {
+      batchId: dto.batchId,
+      courseId: batch.courseId,
+      title: generated.title,
+      description: generated.description,
+      timeLimitMin: generated.timeLimitMin,
+      passingScore: generated.passingScore,
+      maxAttempts: 1,
+      questions: generated.questions,
+    });
+
+    if (dto.publish) {
+      return this.publish(userId, assessment.id);
+    }
+    return assessment;
   }
 
   private async loadOwnedAssessment(userId: string, id: string) {

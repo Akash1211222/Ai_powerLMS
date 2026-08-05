@@ -51,6 +51,9 @@ model User {
   batchStudentships  BatchStudent[]
   batchTrainerships  BatchTrainer[]
   batchAnnouncements BatchAnnouncement[] @relation("AnnouncementAuthor")
+  livePresences    LiveClassPresence[] @relation("LivePresenceStudent")
+  schedulesCreated BatchSchedule[]     @relation("LiveClassCreator")
+  attendanceStreak AttendanceStreak?
 
   // Attendance (Phase 1)
   attendanceRecords         AttendanceRecord[]            @relation("AttendanceStudent")
@@ -89,6 +92,8 @@ model User {
   mentorSlots          MentorSlot[]          @relation("SlotMentor")
   bookingsAsMentor     MentorBooking[]       @relation("BookingMentor")
   bookingsAsStudent    MentorBooking[]       @relation("BookingStudent")
+  mentorRequestsMade   MentorRequest[]       @relation("MentorRequestStudent")
+  mentorRequestsClaimed MentorRequest[]      @relation("MentorRequestMentor")
   alumniProfile        AlumniProfile?
   referralsMade        Referral[]            @relation("ReferralReferrer")
   referralsReceived    Referral[]            @relation("ReferralStudent")
@@ -427,16 +432,17 @@ enum LessonType {
 }
 
 model Lesson {
-  id          String     @id @default(cuid())
-  moduleId    String
-  title       String
-  order       Int        @default(0)
-  type        LessonType @default(VIDEO)
-  contentUrl  String?
-  body        String?
-  durationSec Int?
-  createdAt   DateTime   @default(now())
-  updatedAt   DateTime   @updatedAt
+  id           String     @id @default(cuid())
+  moduleId     String
+  title        String
+  order        Int        @default(0)
+  type         LessonType @default(VIDEO)
+  contentUrl   String? // video URL (uploaded file path or external)
+  thumbnailUrl String?
+  body         String?
+  durationSec  Int?
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
 
   module    CourseModule       @relation(fields: [moduleId], references: [id], onDelete: Cascade)
   resources LearningResource[]
@@ -614,19 +620,75 @@ model BatchTrainer {
   @@map("batch_trainers")
 }
 
-model BatchSchedule {
-  id        String   @id @default(cuid())
-  batchId   String
-  title     String
-  startsAt  DateTime
-  endsAt    DateTime
-  location  String?
-  createdAt DateTime @default(now())
+enum LiveClassStatus {
+  SCHEDULED
+  LIVE
+  ENDED
+  CANCELLED
+}
 
-  batch Batch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+enum MeetingProvider {
+  GOOGLE_MEET
+  EXTERNAL
+}
+
+model BatchSchedule {
+  id              String           @id @default(cuid())
+  batchId         String
+  title           String
+  startsAt        DateTime
+  endsAt          DateTime
+  location        String?
+  description     String?
+  meetingUrl      String?
+  meetingProvider MeetingProvider?
+  status          LiveClassStatus  @default(SCHEDULED)
+  createdById     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  batch      Batch               @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  createdBy  User?               @relation("LiveClassCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  presences  LiveClassPresence[]
 
   @@index([batchId, startsAt])
+  @@index([status, startsAt])
   @@map("batch_schedules")
+}
+
+/// Per-student join/watch tracking for a live class (Google Meet session).
+model LiveClassPresence {
+  id              String    @id @default(cuid())
+  scheduleId      String
+  studentId       String
+  joinedAt        DateTime  @default(now())
+  leftAt          DateTime?
+  watchedSec      Int       @default(0)
+  lastHeartbeatAt DateTime  @default(now())
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  schedule BatchSchedule @relation(fields: [scheduleId], references: [id], onDelete: Cascade)
+  student  User          @relation("LivePresenceStudent", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([scheduleId, studentId])
+  @@index([studentId])
+  @@map("live_class_presences")
+}
+
+/// Consecutive present-day streak to motivate regular attendance.
+model AttendanceStreak {
+  id            String    @id @default(cuid())
+  userId        String    @unique
+  currentStreak Int       @default(0)
+  longestStreak Int       @default(0)
+  lastPresentOn DateTime? // calendar day of last PRESENT (UTC date)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("attendance_streaks")
 }
 
 model BatchAnnouncement {
@@ -1090,6 +1152,9 @@ model TopicPerformance {
 
 enum NotificationType {
   CLASS_REMINDER
+  LIVE_CLASS_SCHEDULED
+  ATTENDANCE_REPORT
+  STREAK_MILESTONE
   ASSIGNMENT_PUBLISHED
   ASSIGNMENT_DEADLINE
   ASSIGNMENT_EVALUATED
@@ -1097,6 +1162,7 @@ enum NotificationType {
   ENROLLMENT
   ATTENDANCE_CORRECTION
   MENTOR_BOOKING
+  MENTOR_REQUEST
   PLACEMENT_OPPORTUNITY
   APPLICATION_UPDATE
   RISK_INTERVENTION
@@ -1701,17 +1767,53 @@ model MentorBooking {
   note        String?
   status      BookingStatus @default(CONFIRMED)
   mentorNotes String? // written after the session
+  meetUrl     String? // stub Meet link when a call is arranged
   createdAt   DateTime      @default(now())
   updatedAt   DateTime      @updatedAt
 
-  slot    MentorSlot @relation(fields: [slotId], references: [id], onDelete: Cascade)
-  mentor  User       @relation("BookingMentor", fields: [mentorId], references: [id], onDelete: Cascade)
-  student User       @relation("BookingStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  slot    MentorSlot     @relation(fields: [slotId], references: [id], onDelete: Cascade)
+  mentor  User           @relation("BookingMentor", fields: [mentorId], references: [id], onDelete: Cascade)
+  student User           @relation("BookingStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  request MentorRequest?
 
   @@index([slotId])
   @@index([studentId, status])
   @@index([mentorId, status])
   @@map("mentor_bookings")
+}
+
+enum MentorRequestStatus {
+  OPEN
+  SCHEDULED
+  CLOSED
+  CANCELLED
+}
+
+/// Student help request when no mentor/slot is available — mentors arrange a call from here.
+model MentorRequest {
+  id                 String              @id @default(cuid())
+  organizationId     String
+  studentId          String
+  topic              String
+  detail             String
+  preferredExpertise String?
+  status             MentorRequestStatus @default(OPEN)
+  mentorId           String?
+  bookingId          String?             @unique
+  meetUrl            String?
+  mentorNote         String?
+  scheduledAt        DateTime?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+
+  student User           @relation("MentorRequestStudent", fields: [studentId], references: [id], onDelete: Cascade)
+  mentor  User?          @relation("MentorRequestMentor", fields: [mentorId], references: [id], onDelete: SetNull)
+  booking MentorBooking? @relation(fields: [bookingId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, status, createdAt])
+  @@index([studentId, status])
+  @@index([mentorId, status])
+  @@map("mentor_requests")
 }
 
 // ===========================================================================

@@ -13,7 +13,10 @@ import type {
   CreateSlotDto,
   BookDto,
   CompleteDto,
+  CreateMentorRequestDto,
+  ArrangeMentorRequestDto,
 } from './dto/mentorship.schemas';
+import { createGoogleMeetLink } from '../live/meet.provider';
 
 const studentSelect = {
   id: true,
@@ -259,6 +262,212 @@ export class MentorshipService {
       title: 'Mentorship booking cancelled',
       body: `The session "${booking.topic}" was cancelled.`,
       deepLink: '/mentors',
+    });
+    return updated;
+  }
+
+  // --- Help requests (topic / doubt when no mentor slot is free) ---------
+
+  private async primaryOrgId(userId: string) {
+    const membership = await this.prisma.organizationMember.findFirst({
+      where: { userId },
+      orderBy: { createdAt: 'asc' },
+      select: { organizationId: true },
+    });
+    if (!membership) throw new BadRequestException('Join an organization first');
+    return membership.organizationId;
+  }
+
+  async createRequest(studentId: string, dto: CreateMentorRequestDto) {
+    const organizationId = await this.primaryOrgId(studentId);
+    const openCount = await this.prisma.mentorRequest.count({
+      where: { studentId, status: 'OPEN' },
+    });
+    if (openCount >= 5) {
+      throw new BadRequestException('You already have 5 open help requests — wait for a mentor or cancel one');
+    }
+
+    const request = await this.prisma.mentorRequest.create({
+      data: {
+        organizationId,
+        studentId,
+        topic: dto.topic,
+        detail: dto.detail,
+        preferredExpertise: dto.preferredExpertise ?? null,
+      },
+    });
+
+    // Notify mentors in the same org who are accepting bookings.
+    const mentors = await this.prisma.mentorProfile.findMany({
+      where: {
+        isAcceptingBookings: true,
+        user: { orgMemberships: { some: { organizationId } } },
+      },
+      select: { userId: true },
+      take: 40,
+    });
+    await Promise.all(
+      mentors
+        .filter((m) => m.userId !== studentId)
+        .map((m) =>
+          this.notifications.notify(m.userId, {
+            type: 'MENTOR_REQUEST',
+            title: 'New student help request',
+            body: `"${dto.topic}" — arrange a call if you can help.`,
+            deepLink: '/mentorship',
+          }),
+        ),
+    );
+
+    await this.audit.record({
+      action: 'mentor.request.create',
+      actorUserId: studentId,
+      targetType: 'MentorRequest',
+      targetId: request.id,
+    });
+    return request;
+  }
+
+  async listMyRequests(studentId: string) {
+    return this.prisma.mentorRequest.findMany({
+      where: { studentId },
+      orderBy: { createdAt: 'desc' },
+      include: {
+        mentor: { select: studentSelect },
+        booking: { include: { slot: true } },
+      },
+    });
+  }
+
+  async cancelRequest(studentId: string, requestId: string) {
+    const request = await this.prisma.mentorRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Request not found');
+    if (request.studentId !== studentId) throw new ForbiddenException('Not your request');
+    if (request.status !== 'OPEN') {
+      throw new BadRequestException(`This request is already ${request.status.toLowerCase()}`);
+    }
+    return this.prisma.mentorRequest.update({
+      where: { id: requestId },
+      data: { status: 'CANCELLED' },
+    });
+  }
+
+  /** Open help requests in the mentor's organization. */
+  async listOpenRequestsForMentor(mentorId: string) {
+    const organizationId = await this.primaryOrgId(mentorId);
+    return this.prisma.mentorRequest.findMany({
+      where: {
+        organizationId,
+        status: { in: ['OPEN', 'SCHEDULED'] },
+        OR: [{ status: 'OPEN' }, { mentorId }],
+      },
+      orderBy: [{ status: 'asc' }, { createdAt: 'desc' }],
+      include: {
+        student: { select: studentSelect },
+        booking: { include: { slot: true } },
+      },
+      take: 100,
+    });
+  }
+
+  /**
+   * Mentor arranges a call for an OPEN request: creates a booked slot + booking
+   * with a Meet stub link, then marks the request SCHEDULED.
+   */
+  async arrangeRequest(mentorId: string, requestId: string, dto: ArrangeMentorRequestDto) {
+    const request = await this.prisma.mentorRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Request not found');
+    if (request.status !== 'OPEN') {
+      throw new ConflictException(`This request is already ${request.status.toLowerCase()}`);
+    }
+    if (request.studentId === mentorId) {
+      throw new BadRequestException('You cannot arrange a call for your own request');
+    }
+
+    const organizationId = await this.primaryOrgId(mentorId);
+    if (request.organizationId !== organizationId) {
+      throw new ForbiddenException('Request is outside your organization');
+    }
+
+    await this.getOrCreateProfile(mentorId);
+    const meetUrl = createGoogleMeetLink(`${requestId}-${mentorId}`).meetingUrl;
+
+    const result = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.mentorRequest.updateMany({
+        where: { id: requestId, status: 'OPEN' },
+        data: {
+          status: 'SCHEDULED',
+          mentorId,
+          meetUrl,
+          mentorNote: dto.mentorNote ?? null,
+          scheduledAt: dto.startsAt,
+        },
+      });
+      if (claimed.count === 0) throw new ConflictException('Another mentor just claimed this request');
+
+      const slot = await tx.mentorSlot.create({
+        data: {
+          mentorId,
+          startsAt: dto.startsAt,
+          endsAt: dto.endsAt,
+          status: 'BOOKED',
+        },
+      });
+      const booking = await tx.mentorBooking.create({
+        data: {
+          slotId: slot.id,
+          mentorId,
+          studentId: request.studentId,
+          topic: request.topic,
+          note: request.detail,
+          meetUrl,
+        },
+      });
+      const updated = await tx.mentorRequest.update({
+        where: { id: requestId },
+        data: { bookingId: booking.id },
+        include: {
+          student: { select: studentSelect },
+          booking: { include: { slot: true } },
+          mentor: { select: studentSelect },
+        },
+      });
+      return updated;
+    });
+
+    await this.notifications.notify(request.studentId, {
+      type: 'MENTOR_REQUEST',
+      title: 'Mentor call arranged',
+      body: `A mentor booked a call for "${request.topic}" — join via the Meet link.`,
+      deepLink: '/mentorship',
+    });
+    await this.audit.record({
+      action: 'mentor.request.arrange',
+      actorUserId: mentorId,
+      targetType: 'MentorRequest',
+      targetId: requestId,
+    });
+    return result;
+  }
+
+  async closeRequest(mentorId: string, requestId: string) {
+    const request = await this.prisma.mentorRequest.findUnique({ where: { id: requestId } });
+    if (!request) throw new NotFoundException('Request not found');
+    if (request.status !== 'OPEN') {
+      throw new BadRequestException(`This request is already ${request.status.toLowerCase()}`);
+    }
+    const organizationId = await this.primaryOrgId(mentorId);
+    if (request.organizationId !== organizationId) throw new ForbiddenException('Not in your organization');
+
+    const updated = await this.prisma.mentorRequest.update({
+      where: { id: requestId },
+      data: { status: 'CLOSED', mentorId },
+    });
+    await this.notifications.notify(request.studentId, {
+      type: 'MENTOR_REQUEST',
+      title: 'Help request closed',
+      body: `Your request "${request.topic}" was closed by a mentor.`,
+      deepLink: '/mentorship',
     });
     return updated;
   }

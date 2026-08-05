@@ -30,6 +30,7 @@ function AssessmentsInner() {
 function StaffAssessments({ batchId }: { batchId: string }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
+  const [topicHint, setTopicHint] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const listQ = useQuery({
@@ -89,6 +90,22 @@ function StaffAssessments({ batchId }: { batchId: string }) {
     onError: (e) => setError(e instanceof ApiError ? e.message : 'Failed'),
   });
 
+  const aiGenerate = useMutation({
+    mutationFn: () =>
+      assessmentsApi.aiGenerate({
+        batchId,
+        topicHint: topicHint.trim() || undefined,
+        questionCount: 8,
+        publish: false,
+      }),
+    onSuccess: () => {
+      setTopicHint('');
+      setError(null);
+      qc.invalidateQueries({ queryKey: ['assessments', batchId] });
+    },
+    onError: (e) => setError(e instanceof ApiError ? e.message : 'AI generate failed'),
+  });
+
   const publish = useMutation({
     mutationFn: (id: string) => assessmentsApi.publish(id),
     onSuccess: () => qc.invalidateQueries({ queryKey: ['assessments', batchId] }),
@@ -106,12 +123,36 @@ function StaffAssessments({ batchId }: { batchId: string }) {
       </div>
 
       <Card>
-        <h2 className="font-bold">Create quiz (sample questions included)</h2>
+        <h2 className="font-bold">AI generate quiz</h2>
+        <p className="mt-1 text-sm text-faint">
+          Gemini creates course-matched MCQ / true-false questions for this batch.
+        </p>
         {error && (
           <Alert tone="error" className="mt-2">
             {error}
           </Alert>
         )}
+        <div className="mt-3">
+          <Field label="Topic hint (optional)">
+            {({ id }) => (
+              <Input
+                id={id}
+                value={topicHint}
+                onChange={(e) => setTopicHint(e.target.value)}
+                placeholder="e.g. async JavaScript, React hooks"
+              />
+            )}
+          </Field>
+        </div>
+        <div className="mt-3">
+          <Button onClick={() => aiGenerate.mutate()} disabled={aiGenerate.isPending}>
+            {aiGenerate.isPending ? 'Generating…' : 'Generate with AI'}
+          </Button>
+        </div>
+      </Card>
+
+      <Card>
+        <h2 className="font-bold">Create quiz (sample questions included)</h2>
         <div className="mt-3">
           <Field label="Title">
             {({ id }) => (

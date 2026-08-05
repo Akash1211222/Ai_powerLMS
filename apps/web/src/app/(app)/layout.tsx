@@ -22,12 +22,14 @@ import {
   MessagesSquare,
   LineChart,
   FileBarChart,
+  Radio,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo, Spinner, cn } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { NotificationBell } from '@/components/notification-bell';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { SectionArtworkBanner } from '@/components/section-artwork';
 
 /**
  * Client-side guard + shell for authenticated pages. NOTE: this is UX only —
@@ -78,6 +80,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: CalendarCheck,
       show: can('attendance:view') || can('attendance:mark'),
     },
+    { href: '/live', label: 'Live classes', icon: Radio, show: true },
     { href: '/skills', label: 'Skills', icon: Sparkles, show: true },
     { href: '/career', label: 'Career', icon: Briefcase, show: true },
     { href: '/opportunities', label: 'Opportunities', icon: Target, show: can('placement:view') },
@@ -166,7 +169,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
           </div>
         </header>
         <main className="flex-1 px-8 py-8">
-          <div className="mx-auto max-w-6xl animate-fadeUp">{children}</div>
+          <div className="mx-auto max-w-6xl animate-fadeUp">
+            <SectionArtworkBanner />
+            {children}
+          </div>
         </main>
       </div>
     </div>

@@ -134,6 +134,7 @@ export class AssignmentsService {
       batchName: batch.name,
       topicHint: dto.topicHint,
       difficulty: dto.difficulty,
+      languageHint: dto.languageHint,
     });
     return this.create(userId, {
       batchId: dto.batchId,
@@ -162,7 +163,11 @@ export class AssignmentsService {
       where: { batchId, status: 'PUBLISHED' },
     });
     if (published > 0) return { created: false, reason: 'already_has_assignments' as const };
-    const created = await this.aiGenerate(actorUserId, { batchId, publish: true });
+    const created = await this.aiGenerate(actorUserId, {
+      batchId,
+      topicHint: 'course fundamentals coding lab',
+      publish: true,
+    });
     return { created: true, assignmentId: created.id };
   }
 

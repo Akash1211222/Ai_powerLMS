@@ -44,8 +44,11 @@ export type CreateAssignmentDto = z.infer<typeof createAssignmentSchema>;
 
 export const aiGenerateAssignmentSchema = z.object({
   batchId: z.string().min(1),
-  topicHint: z.string().max(200).optional(),
+  topicHint: z.string().min(2).max(200).trim(),
   difficulty: z.enum(['EASY', 'MEDIUM', 'HARD']).optional(),
+  languageHint: z
+    .enum(['NONE', 'PYTHON', 'JAVASCRIPT', 'TYPESCRIPT', 'JAVA', 'C', 'CPP', 'SQL', 'WEB'])
+    .optional(),
   publish: z.boolean().optional().default(true),
 });
 export type AiGenerateAssignmentDto = z.infer<typeof aiGenerateAssignmentSchema>;
