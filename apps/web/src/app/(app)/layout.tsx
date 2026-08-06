@@ -52,9 +52,22 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     if (status === 'unauthenticated') router.replace('/login');
   }, [status, router]);
 
+  // Accounts issued with the shared role-default password are pinned to the
+  // change-password screen. The API refuses every other route anyway (see
+  // JwtAuthGuard); this just avoids showing a shell full of failing requests.
+  useEffect(() => {
+    if (status === 'authenticated' && user?.mustChangePassword) {
+      router.replace('/change-password');
+    }
+  }, [status, user?.mustChangePassword, router]);
+
   useEffect(() => {
     setDrawerOpen(false);
   }, [pathname]);
+
+  if (status === 'authenticated' && user?.mustChangePassword) {
+    return <BrandLoader message="Set your own password to continue…" />;
+  }
 
   if (status !== 'authenticated' || !user) {
     return (

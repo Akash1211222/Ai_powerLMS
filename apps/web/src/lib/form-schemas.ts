@@ -35,3 +35,19 @@ export const resetForm = z
     path: ['confirm'],
   });
 export type ResetForm = z.infer<typeof resetForm>;
+
+export const changePasswordForm = z
+  .object({
+    currentPassword: z.string().min(1, 'Enter the password you were given'),
+    password,
+    confirm: z.string(),
+  })
+  .refine((v) => v.password === v.confirm, {
+    message: 'Passwords do not match',
+    path: ['confirm'],
+  })
+  .refine((v) => v.password !== v.currentPassword, {
+    message: 'Choose a password different from the one you were given',
+    path: ['password'],
+  });
+export type ChangePasswordForm = z.infer<typeof changePasswordForm>;

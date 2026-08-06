@@ -155,6 +155,29 @@ run('AuthService (integration)', () => {
     await expect(auth.resetPassword(email, first, 'Stale123456')).rejects.toThrow();
   });
 
+  it('clears mustChangePassword when the member sets their own password', async () => {
+    // Simulate an admin-issued account (POST /admin/members sets this flag).
+    await prisma.user.update({ where: { email }, data: { mustChangePassword: true } });
+
+    const issued = await auth.login({ email, password: 'Rotated456' }, ctx);
+    expect(issued.accessToken).toBeTruthy();
+
+    await expect(
+      auth.changePassword((await prisma.user.findUnique({ where: { email } }))!.id, 'WrongOne1', 'Chosen789', ctx),
+    ).rejects.toThrow(/current password/i);
+
+    const user = (await prisma.user.findUnique({ where: { email } }))!;
+    const tokens = await auth.changePassword(user.id, 'Rotated456', 'Chosen789', ctx);
+    expect(tokens.accessToken).toBeTruthy();
+
+    const after = await prisma.user.findUnique({ where: { email } });
+    expect(after?.mustChangePassword).toBe(false);
+
+    // Old password dead, chosen one live.
+    await expect(auth.login({ email, password: 'Rotated456' }, ctx)).rejects.toThrow();
+    expect((await auth.login({ email, password: 'Chosen789' }, ctx)).accessToken).toBeTruthy();
+  });
+
   it('locks out after too many failed attempts', async () => {
     const bad = { email, password: 'WrongPassword1' };
     for (let i = 0; i < 5; i++) {

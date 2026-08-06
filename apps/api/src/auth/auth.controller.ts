@@ -14,12 +14,14 @@ import {
   logoutSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  changePasswordSchema,
   type LoginDto,
   type VerifyEmailDto,
   type RefreshDto,
   type LogoutDto,
   type ForgotPasswordDto,
   type ResetPasswordDto,
+  type ChangePasswordDto,
 } from './dto/auth.schemas';
 
 @ApiTags('auth')
@@ -87,6 +89,23 @@ export class AuthController {
     return this.auth.resetPassword(dto.email, dto.otp, dto.password);
   }
 
+  @Post('change-password')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary:
+      'Change your own password. Returns a fresh token pair, and clears the ' +
+      'must-change-password lock on admin-issued accounts.',
+  })
+  changePassword(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(changePasswordSchema)) dto: ChangePasswordDto,
+    @ReqContext() ctx: RequestContext,
+  ) {
+    return this.auth.changePassword(user.userId, dto.currentPassword, dto.password, ctx);
+  }
+
   @Get('me')
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
@@ -121,6 +140,7 @@ export class AuthController {
       email: record.email,
       googleEmail: record.googleEmail,
       status: record.status,
+      mustChangePassword: record.mustChangePassword,
       profile: record.profile
         ? {
             firstName: record.profile.firstName,

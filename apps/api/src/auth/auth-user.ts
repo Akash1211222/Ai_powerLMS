@@ -2,6 +2,8 @@
 export interface AuthUser {
   userId: string;
   email: string;
+  /** True while the account still has its admin-issued default password. */
+  mustChangePassword?: boolean;
 }
 
 /** Express request augmented with the authenticated user + request id. */

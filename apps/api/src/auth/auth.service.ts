@@ -105,7 +105,7 @@ export class AuthService {
       throw new UnauthorizedException('This account is not active');
     }
 
-    const tokens = await this.issueSession(user.id, user.email, ctx);
+    const tokens = await this.issueSession(user.id, user.email, ctx, user.mustChangePassword);
 
     await this.prisma.user.update({ where: { id: user.id }, data: { lastLoginAt: new Date() } });
     await this.recordLoginAttempt(dto.email, ctx, true, null);
@@ -142,6 +142,7 @@ export class AuthService {
     const accessToken = await this.tokens.signAccessToken({
       sub: session.userId,
       email: session.user.email,
+      ...(session.user.mustChangePassword ? { mcp: true } : {}),
     });
 
     await this.prisma.$transaction([
@@ -199,6 +200,55 @@ export class AuthService {
     return { success: true };
   }
 
+  // ---- Password change (authenticated) -----------------------------------
+
+  /**
+   * Replace your own password. Also the only way out of the
+   * mustChangePassword lock, so it returns a fresh token pair — otherwise the
+   * caller would keep the `mcp` claim until their access token expired and
+   * stay locked out of the app they just unlocked.
+   */
+  async changePassword(
+    userId: string,
+    currentPassword: string,
+    newPassword: string,
+    ctx: RequestContext,
+  ): Promise<AuthTokens> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException('Account not found');
+
+    const ok = await this.passwords.verify(user.passwordHash, currentPassword);
+    if (!ok) throw new UnauthorizedException('Current password is incorrect');
+
+    if (await this.passwords.verify(user.passwordHash, newPassword)) {
+      throw new BadRequestException('New password must be different from the current one');
+    }
+
+    const passwordHash = await this.passwords.hash(newPassword);
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: user.id },
+        data: { passwordHash, mustChangePassword: false },
+      }),
+      // Any other session was established with the old password — drop them.
+      this.prisma.session.updateMany({
+        where: { userId: user.id, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    await this.audit.record({
+      action: 'auth.password.changed',
+      actorUserId: user.id,
+      targetType: 'User',
+      targetId: user.id,
+      ipAddress: ctx.ipAddress,
+      requestId: ctx.requestId,
+    });
+
+    return this.issueSession(user.id, user.email, ctx, false);
+  }
+
   // ---- Password reset ----------------------------------------------------
 
   async forgotPassword(email: string, ctx: RequestContext): Promise<{ success: true }> {
@@ -247,7 +297,11 @@ export class AuthService {
 
     const passwordHash = await this.passwords.hash(newPassword);
     await this.prisma.$transaction([
-      this.prisma.user.update({ where: { id: record.userId }, data: { passwordHash } }),
+      this.prisma.user.update({
+        where: { id: record.userId },
+        // Choosing a password via the emailed code satisfies the requirement.
+        data: { passwordHash, mustChangePassword: false },
+      }),
       this.prisma.passwordResetToken.update({
         where: { id: record.id },
         data: { consumedAt: new Date() },
@@ -274,9 +328,14 @@ export class AuthService {
     userId: string,
     email: string,
     ctx: RequestContext,
+    mustChangePassword = false,
   ): Promise<AuthTokens> {
     const refresh = this.tokens.createRefreshToken();
-    const accessToken = await this.tokens.signAccessToken({ sub: userId, email });
+    const accessToken = await this.tokens.signAccessToken({
+      sub: userId,
+      email,
+      ...(mustChangePassword ? { mcp: true } : {}),
+    });
     await this.prisma.session.create({
       data: {
         userId,

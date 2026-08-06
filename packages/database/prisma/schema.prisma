@@ -32,6 +32,11 @@ model User {
   passwordHash    String
   status          UserStatus @default(PENDING)
   emailVerifiedAt DateTime?
+  /// Set when an admin issues the account with a shared role-default password
+  /// (see apps/api/src/admin/member-passwords.ts). While true the API refuses
+  /// every route except changing the password, so the well-known issued
+  /// password cannot be used against the API directly.
+  mustChangePassword Boolean @default(false)
   lastLoginAt     DateTime?
   createdAt       DateTime   @default(now())
   updatedAt       DateTime   @updatedAt

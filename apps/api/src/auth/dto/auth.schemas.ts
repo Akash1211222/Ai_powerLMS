@@ -38,3 +38,9 @@ export const resetPasswordSchema = z.object({
   password,
 });
 export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;
+
+export const changePasswordSchema = z.object({
+  currentPassword: z.string().min(1).max(128),
+  password,
+});
+export type ChangePasswordDto = z.infer<typeof changePasswordSchema>;

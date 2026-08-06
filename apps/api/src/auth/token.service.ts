@@ -7,6 +7,13 @@ import type { Env } from '../config/env';
 export interface AccessTokenClaims {
   sub: string; // user id
   email: string;
+  /**
+   * "must change password" — carried in the token so the guard needs no DB
+   * round-trip per request. Access tokens are short-lived, and
+   * POST /auth/change-password returns a fresh pair, so the user is never
+   * stuck behind a stale claim after setting their own password.
+   */
+  mcp?: boolean;
 }
 
 /**

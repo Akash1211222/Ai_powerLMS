@@ -55,6 +55,9 @@ export class AdminService {
           passwordHash,
           status: 'ACTIVE',
           emailVerifiedAt: new Date(),
+          // The issued password is a shared, well-known role default, so the
+          // member must replace it before the API will do anything else.
+          mustChangePassword: true,
           profile: { create: { firstName: dto.firstName, lastName: dto.lastName } },
           orgMemberships: { create: { organizationId: dto.organizationId, isPrimary: true } },
         },

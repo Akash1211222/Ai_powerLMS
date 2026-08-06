@@ -10,6 +10,7 @@ interface AuthState {
   user: CurrentUser | null;
   status: 'loading' | 'authenticated' | 'unauthenticated';
   login: (email: string, password: string) => Promise<void>;
+  changePassword: (currentPassword: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
 }
@@ -51,6 +52,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     [applyTokens, refreshUser],
   );
 
+  // Returns a fresh token pair, which must replace the current one: the old
+  // access token still carries the must-change-password claim and the API
+  // would keep refusing every route until it expired.
+  const changePassword = useCallback(
+    async (currentPassword: string, password: string) => {
+      const tokens = await authApi.changePassword({ currentPassword, password });
+      applyTokens(tokens.accessToken, tokens.refreshToken);
+      await refreshUser();
+    },
+    [applyTokens, refreshUser],
+  );
+
   const logout = useCallback(async () => {
     const refreshToken = readRefreshToken();
     if (refreshToken) await authApi.logout(refreshToken).catch(() => undefined);
@@ -83,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [applyTokens, refreshUser]);
 
   return (
-    <AuthContext.Provider value={{ user, status, login, logout, refreshUser }}>
+    <AuthContext.Provider value={{ user, status, login, changePassword, logout, refreshUser }}>
       {children}
     </AuthContext.Provider>
   );

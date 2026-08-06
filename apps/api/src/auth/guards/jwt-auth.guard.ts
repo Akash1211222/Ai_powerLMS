@@ -7,6 +7,7 @@ import {
 import type { Request } from 'express';
 import { TokenService } from '../token.service';
 import type { AuthUser } from '../auth-user';
+import { assertPasswordChanged } from './password-change';
 
 /**
  * Authenticates a request via `Authorization: Bearer <accessToken>` (§6, §39).
@@ -26,10 +27,18 @@ export class JwtAuthGuard implements CanActivate {
     const token = header.slice('Bearer '.length).trim();
     try {
       const claims = await this.tokens.verifyAccessToken(token);
-      req.user = { userId: claims.sub, email: claims.email };
-      return true;
+      req.user = {
+        userId: claims.sub,
+        email: claims.email,
+        mustChangePassword: claims.mcp === true,
+      };
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
     }
+
+    // Outside the try: a ForbiddenException here must reach the client as 403,
+    // not be swallowed and rewritten as "invalid token".
+    assertPasswordChanged(req.user.mustChangePassword === true, req.path);
+    return true;
   }
 }

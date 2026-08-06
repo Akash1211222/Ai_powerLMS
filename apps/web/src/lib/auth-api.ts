@@ -12,6 +12,8 @@ export interface CurrentUser {
   email: string;
   googleEmail?: string | null;
   status: string;
+  /** True while the account still has its admin-issued default password. */
+  mustChangePassword?: boolean;
   profile: { firstName: string; lastName: string; avatarUrl: string | null } | null;
   roles: Array<{ role: string; organizationId: string | null; organizationName: string | null }>;
   permissions: string[];
@@ -19,6 +21,9 @@ export interface CurrentUser {
 
 export const authApi = {
   // No register(): accounts are created by an admin via POST /admin/members.
+
+  changePassword: (input: { currentPassword: string; password: string }) =>
+    apiRequest<AuthTokens>('/auth/change-password', { method: 'POST', body: input, auth: true }),
 
   login: (input: { email: string; password: string }) =>
     apiRequest<AuthTokens>('/auth/login', { method: 'POST', body: input }),
