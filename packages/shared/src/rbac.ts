@@ -80,10 +80,17 @@ export const ALL_PERMISSIONS: Permission[] = Object.values(PERMISSIONS);
  */
 export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
   SUPER_ADMIN: [...ALL_PERMISSIONS],
+  // Everything SUPER_ADMIN can do, minus the platform-wide switches, and
+  // always confined to their own college: every org-scoped service calls
+  // assertOrgAccess, so these grants cannot reach another college's data.
+  // Deliberately excluded:
+  //   ORG_MANAGE / FEATURE_FLAG_MANAGE — platform-wide, affect every college
+  //   ASSIGNMENT_SUBMIT               — "submit my own work", a student action
   COLLEGE_ADMIN: [
     PERMISSIONS.ORG_VIEW,
     PERMISSIONS.USER_MANAGE,
     PERMISSIONS.USER_VIEW,
+    PERMISSIONS.ROLE_MANAGE,
     PERMISSIONS.COURSE_CREATE,
     PERMISSIONS.COURSE_UPDATE,
     PERMISSIONS.COURSE_PUBLISH,
@@ -91,19 +98,32 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.BATCH_CREATE,
     PERMISSIONS.BATCH_MANAGE,
     PERMISSIONS.BATCH_VIEW,
+    PERMISSIONS.ATTENDANCE_MARK,
     PERMISSIONS.ATTENDANCE_VIEW,
+    PERMISSIONS.ASSIGNMENT_CREATE,
+    PERMISSIONS.ASSIGNMENT_EVALUATE,
     PERMISSIONS.ASSESSMENT_CREATE,
     PERMISSIONS.ASSESSMENT_GRADE,
     PERMISSIONS.STUDENT_VIEW,
+    PERMISSIONS.STUDENT_INTERVENE,
+    PERMISSIONS.MENTOR_MANAGE,
+    PERMISSIONS.PLACEMENT_MANAGE,
     PERMISSIONS.PLACEMENT_VIEW,
     PERMISSIONS.COMMUNITY_POST,
     PERMISSIONS.COMMUNITY_MODERATE,
     PERMISSIONS.ANALYTICS_VIEW,
     PERMISSIONS.AUDIT_VIEW,
   ],
+  // Owns their college's batches end to end. BATCH_CREATE was missing, so the
+  // role could manage a batch but not open one; COURSE_VIEW is needed because
+  // a batch is created against a course; ATTENDANCE_MARK because running a
+  // batch means recording who turned up. Still org-scoped via assertOrgAccess.
   BATCH_MANAGER: [
+    PERMISSIONS.BATCH_CREATE,
     PERMISSIONS.BATCH_MANAGE,
     PERMISSIONS.BATCH_VIEW,
+    PERMISSIONS.COURSE_VIEW,
+    PERMISSIONS.ATTENDANCE_MARK,
     PERMISSIONS.ATTENDANCE_VIEW,
     PERMISSIONS.STUDENT_VIEW,
     PERMISSIONS.COMMUNITY_POST,
@@ -130,6 +150,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.STUDENT_VIEW,
     PERMISSIONS.STUDENT_INTERVENE,
     PERMISSIONS.MENTOR_MANAGE,
+    // Advising a mentee is guesswork without seeing their curriculum.
+    PERMISSIONS.COURSE_VIEW,
     PERMISSIONS.COMMUNITY_POST,
   ],
   PLACEMENT_OFFICER: [
