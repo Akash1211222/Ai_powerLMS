@@ -112,6 +112,9 @@ jobs:
           KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
           VPS_HOST: ${{ secrets.VPS_HOST }}
         run: |
+          # Without pipefail, `ssh ... | tee` reports tee's exit status and a
+          # failed deploy looks green. This bit us once — keep it.
+          set -o pipefail
           install -m 700 -d ~/.ssh
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
@@ -122,16 +125,38 @@ jobs:
           # ONLY run deploy.sh — the command sent here is ignored by the server.
           # A leaked key therefore cannot touch nginx, the landing page, or
           # anything else on the box.
-          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=30 \
-              "root@${VPS_HOST}" 'deploy' 2>&1 | tee deploy.log
+          #
+          # Runner -> VPS connectivity is occasionally dropped upstream (a whole
+          # runner IP gets filtered before it reaches the box, on 22 and 443
+          # alike). deploy.sh is idempotent and holds a flock, so retrying is
+          # safe: a retry either re-runs a no-op or completes the deploy.
+          rc=1
+          for attempt in 1 2 3; do
+            echo "--- SSH attempt $attempt/3 ---"
+            if ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=30 \
+                   -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
+                   "root@${VPS_HOST}" 'deploy' 2>&1 | tee deploy.log; then
+              rc=0; break
+            fi
+            echo "attempt $attempt failed; backing off"
+            sleep $((attempt * 30))
+          done
           rm -f ~/.ssh/deploy_key
+          exit $rc
 
       - name: Verify public endpoints
         if: steps.creds.outputs.ready == 'true'
         run: |
           fail=0
+          # Retry before declaring a failure: a runner whose egress is filtered
+          # will time out (curl 28) against a perfectly healthy site, and a
+          # false alarm here is worse than a slow check.
           check() {
-            code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$1")
+            for attempt in 1 2 3; do
+              code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$1" || echo 000)
+              [ "$code" = "$2" ] && break
+              [ "$attempt" -lt 3 ] && sleep 10
+            done
             printf '%-46s %s\n' "$1" "$code"
             [ "$code" = "$2" ] || { echo "  expected $2"; fail=1; }
           }
