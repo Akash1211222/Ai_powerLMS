@@ -138,6 +138,16 @@ run_limited pnpm --filter @fca/web build || die "web build failed — nothing re
 log "Applying database migrations"
 run_limited pnpm db:migrate:deploy || die "migration failed — nothing restarted"
 
+# Roles/permissions live in code (packages/shared/src/rbac.ts) but are enforced
+# from the role_permissions table, so editing the matrix does nothing until it
+# is re-seeded. Without this a permission change ships silently and has no
+# effect in production. Idempotent (pure upserts) and creates no users.
+#
+# Note it only ADDS mappings — revoking a permission needs a deliberate
+# migration, since blindly deleting rows would clobber any hand-granted ones.
+log "Syncing roles + permissions"
+run_limited node deploy/seed-rbac.mjs || die "RBAC seed failed — nothing restarted"
+
 # ---------------------------------------------------------------------------
 # Restart LMS processes by explicit name. Never `all`.
 # ---------------------------------------------------------------------------
