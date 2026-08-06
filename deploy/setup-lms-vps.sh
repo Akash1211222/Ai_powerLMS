@@ -57,15 +57,23 @@ mkdir -p "$(dirname "$LMS_ROOT")"
 if [[ ! -d "$LMS_ROOT/.git" ]]; then
   git clone --depth 1 --branch "$BRANCH" "$REPO_URL" "$LMS_ROOT"
 else
+  git -C "$LMS_ROOT" remote set-url origin "$REPO_URL" || true
   git -C "$LMS_ROOT" fetch origin "$BRANCH"
-  git -C "$LMS_ROOT" checkout "$BRANCH"
-  git -C "$LMS_ROOT" pull --ff-only origin "$BRANCH"
+  git -C "$LMS_ROOT" checkout -B "$BRANCH" "origin/$BRANCH"
 fi
 cd "$LMS_ROOT"
 
+if [[ ! -f deploy/env.production.example || ! -f deploy/setup-lms-vps.sh ]]; then
+  echo "ERROR: deploy/ files missing in $LMS_ROOT — wrong or outdated clone."
+  echo "Fix with:"
+  echo "  rm -rf $LMS_ROOT"
+  echo "  git clone --depth 1 --branch $BRANCH $REPO_URL $LMS_ROOT"
+  exit 1
+fi
+
 if [[ ! -f .env ]]; then
-  echo "==> Creating .env from deploy template — YOU MUST EDIT SECRETS"
-  cp deploy/.env.production.example .env
+  echo "==> Creating .env from deploy template"
+  cp deploy/env.production.example .env
   DB_PASS="$(openssl rand -base64 24 | tr -d '/+=' | head -c 32)"
   ACCESS="$(openssl rand -base64 48)"
   REFRESH="$(openssl rand -base64 48)"
