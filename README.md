@@ -98,7 +98,9 @@ pnpm dev
 | MinIO console | http://localhost:9001 |
 | Mailhog | http://localhost:8025 |
 
-> **Tip:** When running the API alone, load env from the repo root (e.g. `set -a && source .env && set +a`) so `DATABASE_URL`, JWT secrets, and Redis match Docker.
+> **Tip:** The `dev` scripts load the repo-root `.env` themselves (via `dotenv-cli`), so `pnpm dev` and `pnpm --filter @fca/api dev` both pick up `DATABASE_URL`, JWT secrets, and Redis with no shell setup. Production entrypoints (`start`, `start:prod`) still read the real environment only.
+
+> **Note:** Keep this repo out of an iCloud-synced folder (Desktop/Documents). iCloud evicts rarely-read files, and `node_modules` source maps then take ~1s each to fault back in — enough to stall a Node process that reads them at boot.
 
 ---
 
