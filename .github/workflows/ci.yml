@@ -5,6 +5,13 @@ on:
     branches: [main]
   pull_request:
     branches: [main]
+  # Manual trigger. GitHub has intermittently failed to create runs for pushes
+  # to this repo (five consecutive commits produced zero runs while the
+  # workflow was active and the repo public), and queued runs have been
+  # auto-cancelled. Without this there is no way to start CI by hand, which
+  # also blocks deployment — the VPS poller only ships commits CI has passed.
+  #   gh workflow run ci.yml --ref main
+  workflow_dispatch:
 
 concurrency:
   group: ci-${{ github.ref }}
