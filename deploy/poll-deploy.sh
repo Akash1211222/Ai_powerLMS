@@ -34,6 +34,8 @@ set -uo pipefail
 LMS_ROOT="${LMS_ROOT:-/opt/fca-lms}"
 BRANCH="${BRANCH:-main}"
 REPO="${REPO:-Akash1211222/Ai_powerLMS}"
+# Only this workflow gates a deploy — see the check below.
+CI_WORKFLOW="${CI_WORKFLOW:-ci.yml}"
 STATE_DIR="${STATE_DIR:-/var/lib/fca-lms}"
 STATE_FILE="$STATE_DIR/deploy-state"
 LOCK_FILE="/var/lock/fca-lms-poll.lock"
@@ -102,31 +104,37 @@ fi
 log "new commit on $BRANCH: ${REMOTE_SHA:0:8} (deployed: ${LOCAL_SHA:0:8})"
 
 # ---------------------------------------------------------------------------
-# Ask GitHub whether this commit's checks passed. Fail closed: anything other
-# than an explicit all-green answer means we do not deploy on this tick.
+# Ask GitHub whether OUR CI workflow passed for this commit. Fail closed:
+# anything other than an explicit green answer means no deploy this tick.
+#
+# Deliberately scoped to ci.yml rather than "all check runs on the commit".
+# Other workflows also report against the same SHA — GitHub Pages
+# (pages-build-deployment) runs on every push here, and its `deploy` check can
+# sit in_progress indefinitely. Gating on every check would let an unrelated,
+# stuck workflow block LMS deploys forever.
 # ---------------------------------------------------------------------------
-CHECKS="$(curl -fsS -m 25 \
+RUNS="$(curl -fsS -m 25 \
   -H 'Accept: application/vnd.github+json' \
-  "https://api.github.com/repos/$REPO/commits/$REMOTE_SHA/check-runs?per_page=100" 2>/dev/null)"
+  "https://api.github.com/repos/$REPO/actions/workflows/$CI_WORKFLOW/runs?head_sha=$REMOTE_SHA&per_page=1" 2>/dev/null)"
 
-if [[ -z "$CHECKS" ]]; then
-  log "could not read check status — will retry next tick"
+if [[ -z "$RUNS" ]]; then
+  log "could not read CI status — will retry next tick"
   exit 0
 fi
 
-VERDICT="$(printf '%s' "$CHECKS" | python3 -c '
+VERDICT="$(printf '%s' "$RUNS" | python3 -c '
 import json, sys
 try:
-    runs = json.load(sys.stdin).get("check_runs", [])
+    runs = json.load(sys.stdin).get("workflow_runs", [])
 except Exception:
     print("unknown"); sys.exit()
 if not runs:
-    print("pending"); sys.exit()          # CI has not reported yet
-if any(r.get("status") != "completed" for r in runs):
-    print("pending"); sys.exit()
-ok = {"success", "skipped", "neutral"}
-bad = [r["name"] for r in runs if r.get("conclusion") not in ok]
-print("failed:" + ",".join(bad) if bad else "passed")
+    print("pending"); sys.exit()          # CI has not been queued yet
+run = runs[0]
+if run.get("status") != "completed":
+    print("pending"); sys.exit()          # queued / in_progress
+concl = run.get("conclusion")
+print("passed" if concl == "success" else "failed:" + str(concl))
 ' 2>/dev/null)"
 
 case "$VERDICT" in
@@ -143,7 +151,7 @@ case "$VERDICT" in
     fi
     ;;
   pending)
-    log "CI still running for ${REMOTE_SHA:0:8} — waiting"
+    log "CI not finished for ${REMOTE_SHA:0:8} — waiting"
     ;;
   failed:*)
     log "CI FAILED for ${REMOTE_SHA:0:8} (${VERDICT#failed:}) — not deploying"

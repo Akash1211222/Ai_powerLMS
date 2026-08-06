@@ -1,7 +1,10 @@
 /**
  * Auth flow integration test (§41). Exercises the real AuthService against a
- * real Postgres via Prisma: register → verify → login → refresh → logout,
- * plus brute-force lockout.
+ * real Postgres via Prisma: activation → login → refresh → logout, brute-force
+ * lockout, and the emailed-OTP password reset.
+ *
+ * There is no registration step: this is a paid LMS, so accounts are created
+ * by an admin (POST /admin/members) and the fixture is seeded directly.
  *
  * Runs only when TEST_DATABASE_URL is set (a migrated, disposable database):
  *   TEST_DATABASE_URL=postgresql://... pnpm --filter @fca/api test
@@ -32,6 +35,7 @@ run('AuthService (integration)', () => {
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'vitest', requestId: 'test' };
   const email = `it-${Date.now()}@example.com`;
   const password = 'Password123!';
+  let sentOtp = '';
 
   beforeAll(async () => {
     process.env.DATABASE_URL = TEST_DB;
@@ -46,7 +50,10 @@ run('AuthService (integration)', () => {
     const audit = new AuditService(prisma);
     const mail = {
       sendEmailVerification: async () => undefined,
-      sendPasswordReset: async () => undefined,
+      // Capture the emitted code so the reset flow can be driven end to end.
+      sendPasswordResetOtp: async (_to: string, code: string) => {
+        sentOtp = code;
+      },
     } as unknown as MailService;
 
     auth = new AuthService(
@@ -57,30 +64,39 @@ run('AuthService (integration)', () => {
       mail,
       cfg({ LOGIN_MAX_ATTEMPTS: 5, LOGIN_LOCKOUT_MINUTES: 15 }),
     );
+
+    // Stand in for POST /admin/members, but PENDING so the status gate below
+    // is exercised before the account is activated.
+    await prisma.user.create({
+      data: {
+        email,
+        passwordHash: await passwords.hash(password),
+        status: 'PENDING',
+        profile: { create: { firstName: 'It', lastName: 'Test' } },
+      },
+    });
   });
 
   afterAll(async () => {
     if (prisma) {
       await prisma.loginAttempt.deleteMany({ where: { email } });
       const user = await prisma.user.findUnique({ where: { email } });
-      if (user) await prisma.user.delete({ where: { id: user.id } });
+      if (user) {
+        await prisma.passwordResetToken.deleteMany({ where: { userId: user.id } });
+        await prisma.session.deleteMany({ where: { userId: user.id } });
+        await prisma.user.delete({ where: { id: user.id } });
+      }
       await (prisma as unknown as PrismaClient).$disconnect();
     }
   });
 
-  it('registers a user in PENDING state and can verify email', async () => {
-    const { userId } = await auth.register(
-      { email, password, firstName: 'It', lastName: 'Test' },
-      ctx,
-    );
-    const pending = await prisma.user.findUnique({ where: { id: userId } });
-    expect(pending?.status).toBe('PENDING');
-
-    const token = await prisma.emailVerificationToken.findFirst({ where: { userId } });
-    expect(token).toBeTruthy();
+  it('has no self-registration surface', () => {
+    // Accounts come from POST /admin/members; AuthService must not grow a
+    // register() again without this test being reconsidered.
+    expect((auth as unknown as Record<string, unknown>).register).toBeUndefined();
   });
 
-  it('blocks login before verification, then succeeds after', async () => {
+  it('blocks login while PENDING, then succeeds once ACTIVE', async () => {
     await expect(auth.login({ email, password }, ctx)).rejects.toThrow();
 
     // Simulate clicking the verification link by activating directly.
@@ -103,6 +119,40 @@ run('AuthService (integration)', () => {
     // Logout the rotated session.
     await auth.logout({ refreshToken: rotated.refreshToken, allDevices: true }, ctx);
     await expect(auth.refresh({ refreshToken: rotated.refreshToken }, ctx)).rejects.toThrow();
+  });
+
+  it('resets the password with an emailed OTP, once, and revokes sessions', async () => {
+    const live = await auth.login({ email, password }, ctx);
+
+    await auth.forgotPassword(email, ctx);
+    expect(sentOtp).toMatch(/^\d{6}$/);
+
+    // A wrong code must not work, and must not consume the real one.
+    await expect(
+      auth.resetPassword(email, '000000', 'Rejected123'),
+    ).rejects.toThrow(/invalid or expired/i);
+
+    const newPassword = 'Rotated456';
+    await auth.resetPassword(email, sentOtp, newPassword);
+
+    // Old password dead, new one live.
+    await expect(auth.login({ email, password }, ctx)).rejects.toThrow();
+    const after = await auth.login({ email, password: newPassword }, ctx);
+    expect(after.accessToken).toBeTruthy();
+
+    // A reset invalidates sessions that existed before it.
+    await expect(auth.refresh({ refreshToken: live.refreshToken }, ctx)).rejects.toThrow();
+
+    // The code is single use.
+    await expect(
+      auth.resetPassword(email, sentOtp, 'Another789'),
+    ).rejects.toThrow(/invalid or expired/i);
+
+    // Requesting a new code retires the previous one.
+    const first = sentOtp;
+    await auth.forgotPassword(email, ctx);
+    expect(sentOtp).not.toBe('');
+    await expect(auth.resetPassword(email, first, 'Stale123456')).rejects.toThrow();
   });
 
   it('locks out after too many failed attempts', async () => {
