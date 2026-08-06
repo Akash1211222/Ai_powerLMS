@@ -6,7 +6,10 @@ Wants=network-online.target
 
 [Service]
 Type=oneshot
-ExecStart=/usr/bin/bash /opt/fca-lms/deploy/poll-deploy.sh
+# Runs the INSTALLED copy, not the one inside the working tree — a deploy
+# moves HEAD and would otherwise swap this script out mid-run. The poller
+# refreshes this copy itself after each successful deploy.
+ExecStart=/usr/local/bin/fca-lms-poll-deploy
 
 # systemd gives services a minimal PATH; git/curl/node/pnpm/pm2 all live in
 # /usr/bin on this host, but be explicit so a PATH change cannot break deploys.

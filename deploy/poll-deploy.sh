@@ -20,6 +20,13 @@
 # tick — the unauthenticated API allows 60 requests/hour and this must not
 # starve itself.
 #
+# This script is INSTALLED OUTSIDE the repo (/usr/local/bin) and run from
+# there. It must not execute from inside the working tree it checks out: a
+# deploy that moves HEAD would swap the file out from under the running bash,
+# which reads scripts incrementally. It keeps itself current by refreshing the
+# installed copy after each successful deploy, via an atomic rename so the
+# running process keeps reading its original inode.
+#
 # Logs: journalctl -u fca-lms-deploy -f
 # =============================================================================
 set -uo pipefail
@@ -31,7 +38,38 @@ STATE_DIR="${STATE_DIR:-/var/lib/fca-lms}"
 STATE_FILE="$STATE_DIR/deploy-state"
 LOCK_FILE="/var/lock/fca-lms-poll.lock"
 
+SELF="${SELF:-/usr/local/bin/fca-lms-poll-deploy}"
+
 log() { printf '[poll] %s\n' "$*"; }
+
+# Pull the just-deployed versions of this script and the systemd units into
+# place, so shipping a change to them takes effect on the next tick.
+#
+# The rename is what makes replacing a *running* script safe: mv swaps the
+# directory entry while this process keeps reading the inode it started with.
+# Copying over the file in place would corrupt the current run.
+refresh_installed_copies() {
+  local src="$LMS_ROOT/deploy/poll-deploy.sh"
+  if [[ -f "$src" ]] && ! cmp -s "$src" "$SELF"; then
+    local tmp="${SELF}.new.$$"
+    if cp "$src" "$tmp" && chmod 755 "$tmp" && mv -f "$tmp" "$SELF"; then
+      log "poller updated from repo — next tick uses it"
+    else
+      rm -f "$tmp"
+      log "WARNING: could not refresh installed poller"
+    fi
+  fi
+
+  local changed=0
+  for unit in fca-lms-deploy.service fca-lms-deploy.timer; do
+    if [[ -f "$LMS_ROOT/deploy/$unit" ]] && ! cmp -s "$LMS_ROOT/deploy/$unit" "/etc/systemd/system/$unit"; then
+      install -m 644 "$LMS_ROOT/deploy/$unit" "/etc/systemd/system/$unit" && changed=1
+    fi
+  done
+  if [[ "$changed" == "1" ]]; then
+    systemctl daemon-reload && log "systemd units refreshed"
+  fi
+}
 
 mkdir -p "$STATE_DIR"
 
@@ -96,6 +134,7 @@ case "$VERDICT" in
     log "checks green — deploying ${REMOTE_SHA:0:8}"
     if bash "$LMS_ROOT/deploy/deploy.sh"; then
       log "deploy OK: $(git rev-parse --short HEAD)"
+      refresh_installed_copies
     else
       # deploy.sh already logged the detail and left the previous version
       # serving; record nothing so the next tick retries.

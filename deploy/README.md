@@ -114,11 +114,19 @@ systemctl disable --now fca-lms-deploy.timer   # pause auto-deploys
 ### Installing the timer (once)
 
 ```bash
+install -m 755 /opt/fca-lms/deploy/poll-deploy.sh /usr/local/bin/fca-lms-poll-deploy
 install -m 644 /opt/fca-lms/deploy/fca-lms-deploy.service /etc/systemd/system/
 install -m 644 /opt/fca-lms/deploy/fca-lms-deploy.timer   /etc/systemd/system/
 systemctl daemon-reload
 systemctl enable --now fca-lms-deploy.timer
 ```
+
+The poller is installed to `/usr/local/bin`, **outside** the repo, and the
+service runs it from there. Running it from the working tree would mean a
+deploy moving `HEAD` swaps the script out mid-run, and bash reads scripts
+incrementally. After each successful deploy the poller refreshes that installed
+copy (and the units) from the repo via an atomic rename, so changes to the
+deploy machinery ship like any other commit.
 
 ### How the landing page stays safe
 
