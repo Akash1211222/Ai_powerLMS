@@ -8,7 +8,8 @@ on:
 
 concurrency:
   group: ci-${{ github.ref }}
-  cancel-in-progress: true
+  # Never cancel a main run: it may be mid-deploy against the live VPS.
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   NODE_VERSION: '22'
@@ -79,6 +80,69 @@ jobs:
         run: pnpm db:seed
       - name: Run API integration + e2e tests
         run: pnpm --filter @fca/api test
+
+  deploy:
+    name: Deploy LMS to VPS
+    # Only after tests are green, and only for pushes to main. A red build
+    # never reaches production.
+    needs: [quality, integration]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      # Until the three VPS secrets are configured, skip rather than fail red.
+      - name: Check deploy credentials
+        id: creds
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+        run: |
+          if [ -n "$VPS_HOST" ] && [ -n "$SSH_KEY" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::VPS secrets not configured — skipping deploy. Add VPS_HOST, VPS_SSH_KEY, VPS_KNOWN_HOSTS."
+          fi
+
+      - name: Deploy over SSH
+        if: steps.creds.outputs.ready == 'true'
+        env:
+          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          # Pin the host key rather than disabling host verification.
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 600 ~/.ssh/known_hosts
+          # This key is pinned to a forced command in authorized_keys, so it can
+          # ONLY run deploy.sh — the command sent here is ignored by the server.
+          # A leaked key therefore cannot touch nginx, the landing page, or
+          # anything else on the box.
+          ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=30 \
+              "root@${VPS_HOST}" 'deploy' 2>&1 | tee deploy.log
+          rm -f ~/.ssh/deploy_key
+
+      - name: Verify public endpoints
+        if: steps.creds.outputs.ready == 'true'
+        run: |
+          fail=0
+          check() {
+            code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$1")
+            printf '%-46s %s\n' "$1" "$code"
+            [ "$code" = "$2" ] || { echo "  expected $2"; fail=1; }
+          }
+          echo "--- LMS ---"
+          check https://lms.futurecorpacademy.in/ 200
+          check https://lms-api.futurecorpacademy.in/health 200
+          echo "--- Landing page and legacy API must be unaffected ---"
+          check https://futurecorpacademy.in/ 200
+          check https://www.futurecorpacademy.in/ 200
+          exit $fail
 
   images:
     name: Build container images
