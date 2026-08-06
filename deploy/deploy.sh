@@ -142,7 +142,16 @@ run_limited pnpm db:migrate:deploy || die "migration failed — nothing restarte
 # Restart LMS processes by explicit name. Never `all`.
 # ---------------------------------------------------------------------------
 log "Restarting LMS processes: ${LMS_PROCS[*]}"
-pm2 restart "${LMS_PROCS[@]}" --update-env || die "pm2 restart failed"
+# Restart THROUGH the ecosystem file, not by process name. `pm2 restart <name>
+# --update-env` re-reads the *invoking shell's* environment, not .env — so the
+# process silently keeps whatever env it was first started with and edits to
+# .env never take effect. Found the hard way: new SMTP settings were ignored
+# and the API kept dialling the default 127.0.0.1:587.
+#
+# The ecosystem file loads .env itself (deploy/load-env.cjs) and defines only
+# the three fca-lms-* apps, so this stays LMS-scoped and cannot touch
+# futurecorp-api.
+pm2 restart "$LMS_ROOT/deploy/ecosystem.config.cjs" --update-env || die "pm2 restart failed"
 pm2 save --force >/dev/null 2>&1 || true
 
 # ---------------------------------------------------------------------------
