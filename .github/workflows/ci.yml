@@ -80,93 +80,12 @@ jobs:
       - name: Run API integration + e2e tests
         run: pnpm --filter @fca/api test
 
-  deploy:
-    name: Deploy LMS to VPS
-    # Only after tests are green, and only for pushes to main. A red build
-    # never reaches production.
-    needs: [quality, integration]
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    concurrency:
-      group: deploy-production
-      cancel-in-progress: false
-    steps:
-      # Until the three VPS secrets are configured, skip rather than fail red.
-      - name: Check deploy credentials
-        id: creds
-        env:
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-        run: |
-          if [ -n "$VPS_HOST" ] && [ -n "$SSH_KEY" ]; then
-            echo "ready=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "ready=false" >> "$GITHUB_OUTPUT"
-            echo "::notice::VPS secrets not configured — skipping deploy. Add VPS_HOST, VPS_SSH_KEY, VPS_KNOWN_HOSTS."
-          fi
-
-      - name: Deploy over SSH
-        if: steps.creds.outputs.ready == 'true'
-        env:
-          SSH_KEY: ${{ secrets.VPS_SSH_KEY }}
-          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
-          VPS_HOST: ${{ secrets.VPS_HOST }}
-        run: |
-          # Without pipefail, `ssh ... | tee` reports tee's exit status and a
-          # failed deploy looks green. This bit us once — keep it.
-          set -o pipefail
-          install -m 700 -d ~/.ssh
-          printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
-          chmod 600 ~/.ssh/deploy_key
-          # Pin the host key rather than disabling host verification.
-          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
-          chmod 600 ~/.ssh/known_hosts
-          # This key is pinned to a forced command in authorized_keys, so it can
-          # ONLY run deploy.sh — the command sent here is ignored by the server.
-          # A leaked key therefore cannot touch nginx, the landing page, or
-          # anything else on the box.
-          #
-          # Runner -> VPS connectivity is occasionally dropped upstream (a whole
-          # runner IP gets filtered before it reaches the box, on 22 and 443
-          # alike). deploy.sh is idempotent and holds a flock, so retrying is
-          # safe: a retry either re-runs a no-op or completes the deploy.
-          rc=1
-          for attempt in 1 2 3; do
-            echo "--- SSH attempt $attempt/3 ---"
-            if ssh -i ~/.ssh/deploy_key -o BatchMode=yes -o ConnectTimeout=30 \
-                   -o ServerAliveInterval=15 -o ServerAliveCountMax=4 \
-                   "root@${VPS_HOST}" 'deploy' 2>&1 | tee deploy.log; then
-              rc=0; break
-            fi
-            echo "attempt $attempt failed; backing off"
-            sleep $((attempt * 30))
-          done
-          rm -f ~/.ssh/deploy_key
-          exit $rc
-
-      - name: Verify public endpoints
-        if: steps.creds.outputs.ready == 'true'
-        run: |
-          fail=0
-          # Retry before declaring a failure: a runner whose egress is filtered
-          # will time out (curl 28) against a perfectly healthy site, and a
-          # false alarm here is worse than a slow check.
-          check() {
-            for attempt in 1 2 3; do
-              code=$(curl -s -o /dev/null -m 20 -w '%{http_code}' "$1" || echo 000)
-              [ "$code" = "$2" ] && break
-              [ "$attempt" -lt 3 ] && sleep 10
-            done
-            printf '%-46s %s\n' "$1" "$code"
-            [ "$code" = "$2" ] || { echo "  expected $2"; fail=1; }
-          }
-          echo "--- LMS ---"
-          check https://lms.futurecorpacademy.in/ 200
-          check https://lms-api.futurecorpacademy.in/health 200
-          echo "--- Landing page and legacy API must be unaffected ---"
-          check https://futurecorpacademy.in/ 200
-          check https://www.futurecorpacademy.in/ 200
-          exit $fail
+  # Deployment is PULL-based: the VPS polls GitHub every 2 minutes and deploys
+  # commits whose checks are green (deploy/poll-deploy.sh + systemd timer).
+  # There is deliberately no deploy job here — GitHub-hosted runners are
+  # intermittently unable to reach the box at all (sshd logs no attempt, and
+  # port 443 times out too), so pushing from CI was unreliable by nature.
+  # Watch a deploy with:  journalctl -u fca-lms-deploy -f
 
   images:
     name: Build container images

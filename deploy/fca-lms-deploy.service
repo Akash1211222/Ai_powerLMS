@@ -1,0 +1,28 @@
+[Unit]
+Description=FutureCorp LMS — poll GitHub and deploy green commits
+Documentation=https://github.com/Akash1211222/Ai_powerLMS/blob/main/deploy/README.md
+After=network-online.target postgresql.service redis-server.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/bin/bash /opt/fca-lms/deploy/poll-deploy.sh
+
+# systemd gives services a minimal PATH; git/curl/node/pnpm/pm2 all live in
+# /usr/bin on this host, but be explicit so a PATH change cannot break deploys.
+Environment=PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+Environment=HOME=/root
+Environment=LMS_ROOT=/opt/fca-lms
+
+# A stuck build must never hold the lock forever — deploy.sh takes minutes on
+# this 1-vCPU box, so allow headroom but still bound it.
+TimeoutStartSec=45min
+
+# The build itself is capped inside deploy.sh via systemd-run; this is a second
+# ceiling on the unit as a whole so the landing page can never be starved by a
+# runaway deploy.
+CPUWeight=20
+IOWeight=20
+
+[Install]
+WantedBy=multi-user.target

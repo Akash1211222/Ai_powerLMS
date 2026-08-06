@@ -78,13 +78,47 @@ curl https://lms-api.futurecorpacademy.in/health
 curl -I https://lms.futurecorpacademy.in
 ```
 
-## Continuous deployment
+## Continuous deployment (pull-based)
 
-Push to `main` → CI runs → if `quality` and `integration` are green, the
-`deploy` job SSHes in and runs `deploy/deploy.sh`. A red build never reaches
-production. Nothing to run by hand.
+Push to `main` → CI runs → the VPS notices and deploys itself. Nothing to run
+by hand, and **no inbound connection is required**.
 
-Configured once, in repo secrets: `VPS_HOST`, `VPS_KNOWN_HOSTS`, `VPS_SSH_KEY`.
+```
+push main ──► GitHub Actions (quality + integration + images)
+                     │
+   VPS timer ────────┘  every 2 min:  git ls-remote → new SHA?
+                                      → GitHub API → checks green?
+                                      → deploy/deploy.sh
+```
+
+`deploy/poll-deploy.sh` runs from `fca-lms-deploy.timer`. It only makes
+**outbound** HTTPS calls, which is the whole point: GitHub-hosted runners are
+intermittently unable to reach this box at all — sshd logs no connection
+attempt and port 443 times out from the same runner — so a whole runner IP is
+being filtered upstream. Retrying from CI did not help. Polling sidesteps it.
+
+The CI gate is preserved: a commit is only deployed once the GitHub API says
+its check runs are green. Anything else (pending, failed, unreadable) means no
+deploy this tick, and a failed SHA is recorded so it is judged once rather than
+re-queried every two minutes.
+
+### Watching and controlling it
+
+```bash
+journalctl -u fca-lms-deploy -f        # live deploy log
+systemctl list-timers fca-lms-deploy   # when it next fires
+systemctl start fca-lms-deploy         # deploy right now, don't wait
+systemctl disable --now fca-lms-deploy.timer   # pause auto-deploys
+```
+
+### Installing the timer (once)
+
+```bash
+install -m 644 /opt/fca-lms/deploy/fca-lms-deploy.service /etc/systemd/system/
+install -m 644 /opt/fca-lms/deploy/fca-lms-deploy.timer   /etc/systemd/system/
+systemctl daemon-reload
+systemctl enable --now fca-lms-deploy.timer
+```
 
 ### How the landing page stays safe
 

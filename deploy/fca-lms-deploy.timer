@@ -1,0 +1,16 @@
+[Unit]
+Description=Poll GitHub for green LMS commits every 2 minutes
+Documentation=https://github.com/Akash1211222/Ai_powerLMS/blob/main/deploy/README.md
+
+[Timer]
+# First check shortly after boot, then every 2 minutes. CI takes several
+# minutes, so this picks a commit up within ~2 minutes of it going green.
+OnBootSec=2min
+OnUnitActiveSec=2min
+AccuracySec=30s
+# Don't fire every instance in lockstep after a restart storm.
+RandomizedDelaySec=15s
+Unit=fca-lms-deploy.service
+
+[Install]
+WantedBy=timers.target
