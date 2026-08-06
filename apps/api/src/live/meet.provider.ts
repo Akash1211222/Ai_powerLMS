@@ -117,7 +117,9 @@ export function parseMeetAttendanceCsv(csvText: string): MeetAttendanceRow[] {
     return cells;
   };
 
-  const header = parseLine(lines[0]).map((h) => h.toLowerCase());
+  const headerLine = lines[0];
+  if (!headerLine) return [];
+  const header = parseLine(headerLine).map((h) => h.toLowerCase());
   const emailIdx = header.findIndex((h) => h === 'email' || h.includes('email'));
   const durationIdx = header.findIndex(
     (h) =>

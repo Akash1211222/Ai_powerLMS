@@ -14,15 +14,15 @@ function asStringArray(v: unknown): string[] {
 
 function asQaItems(v: unknown): LiveQaItem[] {
   if (!Array.isArray(v)) return [];
-  return v
-    .map((x) => {
-      if (!x || typeof x !== 'object') return null;
-      const q = (x as LiveQaItem).question;
-      if (typeof q !== 'string' || !q.trim()) return null;
-      const answer = (x as LiveQaItem).answer;
-      return { question: q, answer: typeof answer === 'string' ? answer : undefined };
-    })
-    .filter((x): x is LiveQaItem => Boolean(x));
+  const out: LiveQaItem[] = [];
+  for (const x of v) {
+    if (!x || typeof x !== 'object') continue;
+    const q = (x as LiveQaItem).question;
+    if (typeof q !== 'string' || !q.trim()) continue;
+    const answer = (x as LiveQaItem).answer;
+    out.push({ question: q, answer: typeof answer === 'string' ? answer : undefined });
+  }
+  return out;
 }
 
 /** Side rail: live session summaries / homework / Q&A for a course (or batch). */

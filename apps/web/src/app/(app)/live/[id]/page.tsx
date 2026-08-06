@@ -31,15 +31,15 @@ function asStringArray(v: unknown): string[] {
 
 function asQaItems(v: unknown): LiveQaItem[] {
   if (!Array.isArray(v)) return [];
-  return v
-    .map((x) => {
-      if (!x || typeof x !== 'object') return null;
-      const q = (x as LiveQaItem).question;
-      if (typeof q !== 'string' || !q.trim()) return null;
-      const answer = (x as LiveQaItem).answer;
-      return { question: q, answer: typeof answer === 'string' ? answer : undefined };
-    })
-    .filter((x): x is LiveQaItem => Boolean(x));
+  const out: LiveQaItem[] = [];
+  for (const x of v) {
+    if (!x || typeof x !== 'object') continue;
+    const q = (x as LiveQaItem).question;
+    if (typeof q !== 'string' || !q.trim()) continue;
+    const answer = (x as LiveQaItem).answer;
+    out.push({ question: q, answer: typeof answer === 'string' ? answer : undefined });
+  }
+  return out;
 }
 
 export default function LiveClassPage({ params }: { params: Promise<{ id: string }> }) {
@@ -134,9 +134,10 @@ export default function LiveClassPage({ params }: { params: Promise<{ id: string
         .map((l) => l.trim())
         .filter(Boolean)
         .map((line) => {
-          const [question, ...rest] = line.split('|');
+          const [question = '', ...rest] = line.split('|');
           return { question: question.trim(), answer: rest.join('|').trim() || undefined };
-        });
+        })
+        .filter((item) => item.question.length > 0);
       return liveApi.updateSummary(id, {
         summary: summary.trim() || null,
         keyPoints: keyPoints.length ? keyPoints : null,

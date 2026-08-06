@@ -4,6 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { Prisma } from '@fca/database';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { PERMISSIONS } from '@fca/shared';
@@ -198,16 +199,22 @@ export class LiveService {
     await assertOrgAccess(this.userContext, actorId, schedule.batch.organizationId);
     await this.assertCanTeachBatch(actorId, schedule.batchId, schedule.batch.organizationId);
 
+    const data: Prisma.BatchScheduleUpdateInput = {
+      summaryUpdatedAt: new Date(),
+      summaryUpdatedBy: { connect: { id: actorId } },
+    };
+    if (dto.summary !== undefined) data.summary = dto.summary;
+    if (dto.homework !== undefined) data.homework = dto.homework;
+    if (dto.keyPoints !== undefined) {
+      data.keyPoints = dto.keyPoints === null ? Prisma.JsonNull : dto.keyPoints;
+    }
+    if (dto.qaItems !== undefined) {
+      data.qaItems = dto.qaItems === null ? Prisma.JsonNull : dto.qaItems;
+    }
+
     return this.prisma.batchSchedule.update({
       where: { id: scheduleId },
-      data: {
-        ...(dto.summary !== undefined ? { summary: dto.summary } : {}),
-        ...(dto.keyPoints !== undefined ? { keyPoints: dto.keyPoints } : {}),
-        ...(dto.homework !== undefined ? { homework: dto.homework } : {}),
-        ...(dto.qaItems !== undefined ? { qaItems: dto.qaItems } : {}),
-        summaryUpdatedAt: new Date(),
-        summaryUpdatedById: actorId,
-      },
+      data,
     });
   }
 
@@ -738,13 +745,19 @@ export class LiveService {
       },
       orderBy: { startsAt: 'desc' },
       take: 40,
-      include: {
-        batch: { select: { id: true, name: true, code: true } },
-        _count: { select: { presences: true } },
-        presences: { select: { watchedSec: true, attendedSec: true, attendancePct: true, studentId: true } },
+      select: {
+        id: true,
+        title: true,
+        startsAt: true,
+        endsAt: true,
+        status: true,
+        meetingUrl: true,
         summary: true,
         keyPoints: true,
         homework: true,
+        batch: { select: { id: true, name: true, code: true } },
+        _count: { select: { presences: true } },
+        presences: { select: { watchedSec: true, attendedSec: true, attendancePct: true, studentId: true } },
       },
     });
 
@@ -755,7 +768,9 @@ export class LiveService {
         const sec = p.attendedSec > 0 ? p.attendedSec : p.watchedSec;
         return Math.min(100, Math.round((sec / durationSec) * 100));
       });
-      const avgWatch = watches.length ? Math.round(watches.reduce((a, b) => a + b, 0) / watches.length) : 0;
+      const avgWatch = watches.length
+        ? Math.round(watches.reduce((a: number, b: number) => a + b, 0) / watches.length)
+        : 0;
       return {
         id: s.id,
         title: s.title,

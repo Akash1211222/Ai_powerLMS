@@ -26,11 +26,12 @@ describe('meet attendance helpers', () => {
     ].join('\n');
     const rows = parseMeetAttendanceCsv(csv);
     expect(rows).toHaveLength(2);
-    expect(rows[0].email).toBe('student@futurecorpacademy.in');
-    expect(rows[0].durationSec).toBe(3600);
+    const first = rows[0]!;
+    expect(first.email).toBe('student@futurecorpacademy.in');
+    expect(first.durationSec).toBe(3600);
 
     const classDurationSec = 2 * 3600;
-    const pct = Math.round((rows[0].durationSec / classDurationSec) * 1000) / 10;
+    const pct = Math.round((first.durationSec / classDurationSec) * 1000) / 10;
     expect(pct).toBe(50);
     expect(attendanceFromPercent(pct)).toBe('LATE');
   });
