@@ -70,10 +70,10 @@ export default function HomePage() {
               Sign in
             </Link>
             <Link
-              href="/register"
+              href="/login"
               className="rounded-panel bg-grad-brand px-4 py-2 text-sm font-semibold text-white shadow-glow transition hover:shadow-glow-pink"
             >
-              Get started
+              Sign in to LMS
             </Link>
           </div>
         </div>

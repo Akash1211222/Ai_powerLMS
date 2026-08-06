@@ -71,4 +71,24 @@ export class TokenService {
   hashOpaqueToken(raw: string): string {
     return createHash('sha256').update(raw).digest('hex');
   }
+
+  /**
+   * 6-digit numeric OTP for password reset. Uses rejection sampling rather
+   * than `% 1000000`, which would bias the low end of the range.
+   *
+   * A 6-digit code is only 10^6 possibilities, so it is guessable given
+   * unlimited attempts. It is protected by a short TTL, single use, and the
+   * tight per-IP bucket on /auth/reset-password (see auth-route.ts) — the
+   * code alone is never the only barrier.
+   */
+  createOtp(): { code: string; hash: string } {
+    const max = 1_000_000;
+    const limit = Math.floor(0xffffffff / max) * max;
+    let n: number;
+    do {
+      n = randomBytes(4).readUInt32BE(0);
+    } while (n >= limit);
+    const code = String(n % max).padStart(6, '0');
+    return { code, hash: this.hashOpaqueToken(code) };
+  }
 }

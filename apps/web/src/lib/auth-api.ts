@@ -18,8 +18,7 @@ export interface CurrentUser {
 }
 
 export const authApi = {
-  register: (input: { email: string; password: string; firstName: string; lastName: string }) =>
-    apiRequest<{ userId: string }>('/auth/register', { method: 'POST', body: input }),
+  // No register(): accounts are created by an admin via POST /admin/members.
 
   login: (input: { email: string; password: string }) =>
     apiRequest<AuthTokens>('/auth/login', { method: 'POST', body: input }),
@@ -38,9 +37,9 @@ export const authApi = {
   forgotPassword: (email: string) =>
     apiRequest<{ success: true }>('/auth/forgot-password', { method: 'POST', body: { email } }),
 
-  resetPassword: (token: string, password: string) =>
+  resetPassword: (email: string, otp: string, password: string) =>
     apiRequest<{ success: true }>('/auth/reset-password', {
       method: 'POST',
-      body: { token, password },
+      body: { email, otp, password },
     }),
 };

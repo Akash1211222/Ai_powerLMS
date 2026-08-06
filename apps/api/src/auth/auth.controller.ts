@@ -8,14 +8,12 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { AuthUser } from './auth-user';
 import {
-  registerSchema,
   loginSchema,
   verifyEmailSchema,
   refreshSchema,
   logoutSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
-  type RegisterDto,
   type LoginDto,
   type VerifyEmailDto,
   type RefreshDto,
@@ -32,15 +30,8 @@ export class AuthController {
     private readonly prisma: PrismaService,
   ) {}
 
-  @Post('register')
-  @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Register a new account (starts email verification)' })
-  register(
-    @Body(new ZodValidationPipe(registerSchema)) dto: RegisterDto,
-    @ReqContext() ctx: RequestContext,
-  ) {
-    return this.auth.register(dto, ctx);
-  }
+  // No public registration: this is a paid LMS and accounts are created by an
+  // admin via POST /admin/members. There is deliberately no self-signup route.
 
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
@@ -81,7 +72,7 @@ export class AuthController {
 
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Request a password reset link (always succeeds)' })
+  @ApiOperation({ summary: 'Request a password reset code by email (always succeeds)' })
   forgotPassword(
     @Body(new ZodValidationPipe(forgotPasswordSchema)) dto: ForgotPasswordDto,
     @ReqContext() ctx: RequestContext,
@@ -91,9 +82,9 @@ export class AuthController {
 
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Reset password using the emailed token' })
+  @ApiOperation({ summary: 'Reset password using the 6-digit code emailed to the account' })
   resetPassword(@Body(new ZodValidationPipe(resetPasswordSchema)) dto: ResetPasswordDto) {
-    return this.auth.resetPassword(dto.token, dto.password);
+    return this.auth.resetPassword(dto.email, dto.otp, dto.password);
   }
 
   @Get('me')

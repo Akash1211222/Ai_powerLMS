@@ -11,14 +11,6 @@ const password = z
 // Trim + lowercase BEFORE validating, so surrounding whitespace/case is fine.
 const email = z.string().trim().toLowerCase().email().max(254);
 
-export const registerSchema = z.object({
-  email,
-  password,
-  firstName: z.string().min(1).max(80).trim(),
-  lastName: z.string().min(1).max(80).trim(),
-});
-export type RegisterDto = z.infer<typeof registerSchema>;
-
 export const loginSchema = z.object({
   email,
   password: z.string().min(1).max(128),
@@ -41,7 +33,8 @@ export const forgotPasswordSchema = z.object({ email });
 export type ForgotPasswordDto = z.infer<typeof forgotPasswordSchema>;
 
 export const resetPasswordSchema = z.object({
-  token: z.string().min(10).max(200),
+  email,
+  otp: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email'),
   password,
 });
 export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;

@@ -1,6 +1,5 @@
 import {
   Injectable,
-  ConflictException,
   UnauthorizedException,
   BadRequestException,
   HttpException,
@@ -14,7 +13,6 @@ import { MailService } from '../mail/mail.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import type {
-  RegisterDto,
   LoginDto,
   RefreshDto,
   LogoutDto,
@@ -33,8 +31,7 @@ export interface AuthTokens {
   expiresIn: number;
 }
 
-const VERIFICATION_TTL_MS = 24 * 60 * 60 * 1000; // 24h
-const RESET_TTL_MS = 60 * 60 * 1000; // 1h
+const RESET_TTL_MS = 15 * 60 * 1000; // 15m — short, because a 6-digit OTP is weaker than an opaque token
 
 @Injectable()
 export class AuthService {
@@ -54,49 +51,9 @@ export class AuthService {
     this.lockoutMs = Number(config.get('LOGIN_LOCKOUT_MINUTES') ?? 15) * 60 * 1000;
   }
 
-  // ---- Registration ------------------------------------------------------
+  // Registration is intentionally absent: this is a paid LMS, so accounts are
+  // created by an admin (POST /admin/members), never self-served.
 
-  async register(dto: RegisterDto, ctx: RequestContext): Promise<{ userId: string }> {
-    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) {
-      // Avoid account enumeration nuance: registration legitimately conflicts.
-      throw new ConflictException('An account with this email already exists');
-    }
-
-    const passwordHash = await this.passwords.hash(dto.password);
-    const { raw, hash } = this.tokens.createOpaqueToken();
-
-    const user = await this.prisma.$transaction(async (tx) => {
-      const created = await tx.user.create({
-        data: {
-          email: dto.email,
-          passwordHash,
-          status: 'PENDING',
-          profile: { create: { firstName: dto.firstName, lastName: dto.lastName } },
-        },
-      });
-      await tx.emailVerificationToken.create({
-        data: {
-          userId: created.id,
-          tokenHash: hash,
-          expiresAt: new Date(Date.now() + VERIFICATION_TTL_MS),
-        },
-      });
-      return created;
-    });
-
-    await this.mail.sendEmailVerification(dto.email, raw);
-    await this.audit.record({
-      action: 'auth.register',
-      actorUserId: user.id,
-      targetType: 'User',
-      targetId: user.id,
-      ipAddress: ctx.ipAddress,
-      requestId: ctx.requestId,
-    });
-
-    return { userId: user.id };
-  }
 
   async verifyEmail(rawToken: string): Promise<{ verified: true }> {
     const tokenHash = this.tokens.hashOpaqueToken(rawToken);
@@ -248,11 +205,17 @@ export class AuthService {
     const user = await this.prisma.user.findUnique({ where: { email } });
     // Always respond success — never reveal whether the email exists (§39).
     if (user && user.status !== 'DEACTIVATED') {
-      const { raw, hash } = this.tokens.createOpaqueToken();
+      const { code, hash } = this.tokens.createOtp();
+      // Invalidate any outstanding codes: requesting a new one must retire the
+      // old, so only the most recent code in the user's inbox ever works.
+      await this.prisma.passwordResetToken.updateMany({
+        where: { userId: user.id, consumedAt: null },
+        data: { consumedAt: new Date() },
+      });
       await this.prisma.passwordResetToken.create({
         data: { userId: user.id, tokenHash: hash, expiresAt: new Date(Date.now() + RESET_TTL_MS) },
       });
-      await this.mail.sendPasswordReset(email, raw);
+      await this.mail.sendPasswordResetOtp(email, code, RESET_TTL_MS / 60000);
       await this.audit.record({
         action: 'auth.password.reset_requested',
         actorUserId: user.id,
@@ -263,12 +226,23 @@ export class AuthService {
     return { success: true };
   }
 
-  async resetPassword(rawToken: string, newPassword: string): Promise<{ success: true }> {
-    const tokenHash = this.tokens.hashOpaqueToken(rawToken);
-    const record = await this.prisma.passwordResetToken.findUnique({ where: { tokenHash } });
+  async resetPassword(email: string, otp: string, newPassword: string): Promise<{ success: true }> {
+    // Scope the lookup to the user rather than searching by code hash alone:
+    // 6-digit codes collide across users, so a global hash lookup could match
+    // a different account's code.
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    const tokenHash = this.tokens.hashOpaqueToken(otp);
+    const record = user
+      ? await this.prisma.passwordResetToken.findFirst({
+          where: { userId: user.id, tokenHash, consumedAt: null },
+          orderBy: { createdAt: 'desc' },
+        })
+      : null;
 
-    if (!record || record.consumedAt || record.expiresAt < new Date()) {
-      throw new BadRequestException('Invalid or expired reset token');
+    // One message for every failure mode — never reveal whether the address
+    // exists, only that this code is not usable.
+    if (!record || record.expiresAt < new Date()) {
+      throw new BadRequestException('Invalid or expired reset code');
     }
 
     const passwordHash = await this.passwords.hash(newPassword);

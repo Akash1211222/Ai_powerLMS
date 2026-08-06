@@ -66,13 +66,19 @@ export class MailService {
     );
   }
 
-  async sendPasswordReset(to: string, token: string): Promise<void> {
-    const link = `${this.webBaseUrl}/reset-password?token=${token}`;
+  /** Password reset uses a one-time code, not a link — see AuthService. */
+  async sendPasswordResetOtp(to: string, code: string, ttlMinutes: number): Promise<void> {
     await this.send(
       to,
-      'Reset your FutureCorp Academy password',
-      `<p>We received a request to reset your password.</p><p><a href="${link}">Reset password</a></p><p>If you didn't request this, ignore this email.</p>`,
-      link,
+      'Your FutureCorp Academy password reset code',
+      `<p>We received a request to reset your password.</p>` +
+        `<p>Your one-time code is:</p>` +
+        `<p style="font-size:28px;font-weight:700;letter-spacing:6px">${code}</p>` +
+        `<p>It expires in ${ttlMinutes} minutes and can only be used once.</p>` +
+        `<p>If you didn't request this, you can ignore this email — your password will not change.</p>`,
+      // Surfaced in logs when SMTP is unavailable, so a reset is still
+      // possible before mail is configured.
+      `reset code ${code}`,
     );
   }
 }

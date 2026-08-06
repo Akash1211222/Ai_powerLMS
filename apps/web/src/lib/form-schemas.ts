@@ -15,14 +15,6 @@ export const loginForm = z.object({
 });
 export type LoginForm = z.infer<typeof loginForm>;
 
-export const registerForm = z.object({
-  firstName: z.string().min(1, 'Required'),
-  lastName: z.string().min(1, 'Required'),
-  email: z.string().email('Enter a valid email'),
-  password,
-});
-export type RegisterForm = z.infer<typeof registerForm>;
-
 export const forgotForm = z.object({
   email: z.string().email('Enter a valid email'),
 });
@@ -30,6 +22,11 @@ export type ForgotForm = z.infer<typeof forgotForm>;
 
 export const resetForm = z
   .object({
+    email: z.string().email('Enter a valid email'),
+    otp: z
+      .string()
+      .trim()
+      .regex(/^\d{6}$/, 'Enter the 6-digit code from your email'),
     password,
     confirm: z.string(),
   })

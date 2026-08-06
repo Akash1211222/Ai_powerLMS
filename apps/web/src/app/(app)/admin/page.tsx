@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Badge, Spinner, Alert } from '@fca/ui';
+import { Card, Button, Badge, Spinner, Alert, Field, Input, Select } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { useActiveOrg } from '@/lib/use-active-org';
 import { adminApi } from '@/lib/lms-learning-api';
@@ -21,6 +21,17 @@ export default function AdminPage() {
   const { org } = useActiveOrg();
   const qc = useQueryClient();
   const [rolePick, setRolePick] = useState<Record<string, string>>({});
+  const emptyMember = { firstName: '', lastName: '', email: '', role: 'STUDENT' };
+  const [newMember, setNewMember] = useState(emptyMember);
+  // Issued credentials, surfaced once — the password is never retrievable
+  // afterwards, so it stays on screen until another member is added.
+  const [created, setCreated] = useState<{
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+    password: string;
+  } | null>(null);
 
   const canManage = user?.permissions.includes('user:manage');
   const canFlags = user?.permissions.includes('feature-flag:manage');
@@ -35,6 +46,16 @@ export default function AdminPage() {
     queryKey: ['admin', 'flags'],
     queryFn: () => adminApi.flags(),
     enabled: Boolean(canFlags),
+  });
+
+  const createMember = useMutation({
+    mutationFn: (input: typeof emptyMember) =>
+      adminApi.createMember({ organizationId: org!.id, ...input }),
+    onSuccess: (res) => {
+      setCreated(res);
+      setNewMember(emptyMember);
+      qc.invalidateQueries({ queryKey: ['admin', 'members', org?.id] });
+    },
   });
 
   const grant = useMutation({
@@ -66,6 +87,104 @@ export default function AdminPage() {
         <h1 className="font-display text-3xl font-extrabold tracking-tight"><span className="gradient-text">College admin</span></h1>
         <p className="mt-1 text-faint">{org.name} — members, roles, and feature flags.</p>
       </div>
+
+      {canManage && (
+        <Card>
+          <h2 className="mb-1 font-bold">Add a member</h2>
+          <p className="mb-3 text-sm text-faint">
+            There is no public sign-up. Create the account here, then pass the
+            login details on — the password is shown once and cannot be
+            retrieved later.
+          </p>
+
+          {created && (
+            <Alert tone="success">
+              <div className="font-semibold">
+                {created.firstName} {created.lastName} added as {created.role}
+              </div>
+              <div className="mt-2 grid gap-1 text-sm">
+                <div>
+                  Email: <code className="font-mono">{created.email}</code>
+                </div>
+                <div>
+                  Password: <code className="font-mono">{created.password}</code>
+                </div>
+              </div>
+              <div className="mt-2 text-xs opacity-80">
+                Share these over a private channel. The member can change the
+                password from “Forgot password”.
+              </div>
+            </Alert>
+          )}
+          {createMember.isError && (
+            <Alert tone="error">
+              {createMember.error instanceof Error
+                ? createMember.error.message
+                : 'Could not create that member.'}
+            </Alert>
+          )}
+
+          <form
+            className="mt-3 grid gap-3 sm:grid-cols-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              createMember.mutate(newMember);
+            }}
+          >
+            <Field label="First name">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  required
+                  value={newMember.firstName}
+                  onChange={(e) => setNewMember({ ...newMember, firstName: e.target.value })}
+                />
+              )}
+            </Field>
+            <Field label="Last name">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  required
+                  value={newMember.lastName}
+                  onChange={(e) => setNewMember({ ...newMember, lastName: e.target.value })}
+                />
+              )}
+            </Field>
+            <Field label="Email">
+              {({ id }) => (
+                <Input
+                  id={id}
+                  type="email"
+                  required
+                  value={newMember.email}
+                  onChange={(e) => setNewMember({ ...newMember, email: e.target.value })}
+                />
+              )}
+            </Field>
+            <Field label="Role">
+              {({ id }) => (
+                <Select
+                  id={id}
+                  value={newMember.role}
+                  onChange={(e) => setNewMember({ ...newMember, role: e.target.value })}
+                >
+                  {GRANTABLE.map((r) => (
+                    <option key={r} value={r}>
+                      {r}
+                    </option>
+                  ))}
+                </Select>
+              )}
+            </Field>
+            <div className="sm:col-span-2">
+              <Button type="submit" loading={createMember.isPending}>
+                Add member
+              </Button>
+            </div>
+          </form>
+        </Card>
+      )}
 
       {user?.permissions.includes('user:view') && (
         <Card>

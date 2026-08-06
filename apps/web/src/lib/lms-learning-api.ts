@@ -387,6 +387,26 @@ export const adminApi = {
       `/admin/members?organizationId=${encodeURIComponent(organizationId)}&pageSize=100`,
       { auth: true },
     ),
+  /**
+   * Create a member. Replaces self-signup — the response carries the issued
+   * password exactly once, so the caller must show it before discarding.
+   */
+  createMember: (input: {
+    organizationId: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+    role: string;
+  }) =>
+    apiRequest<{
+      id: string;
+      email: string;
+      firstName: string;
+      lastName: string;
+      role: string;
+      password: string;
+    }>('/admin/members', { method: 'POST', body: input, auth: true }),
+
   grantRole: (organizationId: string, userId: string, role: string) =>
     apiRequest<unknown>('/admin/roles/grant', {
       method: 'POST',

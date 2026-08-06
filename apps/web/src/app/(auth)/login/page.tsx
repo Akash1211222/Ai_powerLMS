@@ -36,10 +36,9 @@ export default function LoginPage() {
       subtitle="Sign in to your FutureCorp Academy account."
       footer={
         <>
-          New here?{' '}
-          <Link href="/register" className="font-semibold text-brand-500">
-            Create an account
-          </Link>
+          {/* No self-signup: this is a paid LMS, accounts are issued by the academy. */}
+          Need access? Contact your academy administrator to have an account
+          created for you.
         </>
       }
     >

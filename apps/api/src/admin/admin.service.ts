@@ -9,7 +9,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
 import { assertOrgAccess } from '../common/tenant';
-import type { ListMembersQuery, GrantRoleDto, RevokeRoleDto } from './dto/admin.schemas';
+import { PasswordService } from '../auth/password.service';
+import { defaultPasswordForRole } from './member-passwords';
+import type {
+  ListMembersQuery,
+  GrantRoleDto,
+  RevokeRoleDto,
+  CreateMemberDto,
+} from './dto/admin.schemas';
 
 @Injectable()
 export class AdminService {
@@ -17,7 +24,64 @@ export class AdminService {
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
+    private readonly passwords: PasswordService,
   ) {}
+
+  /**
+   * Create a member. This replaces self-registration: the account is ACTIVE
+   * and pre-verified immediately (nobody is waiting on a verification email),
+   * gets its org membership and role in one transaction, and the issued
+   * password is returned once so the admin can hand it over.
+   */
+  async createMember(actorId: string, dto: CreateMemberDto) {
+    await assertOrgAccess(this.userContext, actorId, dto.organizationId);
+    if (dto.role === 'SUPER_ADMIN') {
+      throw new BadRequestException('Cannot create a SUPER_ADMIN via this API');
+    }
+
+    const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw new ConflictException('An account with this email already exists');
+
+    const role = await this.prisma.role.findUnique({ where: { name: dto.role } });
+    if (!role) throw new NotFoundException('Role not found');
+
+    const password = defaultPasswordForRole(dto.role);
+    const passwordHash = await this.passwords.hash(password);
+
+    const user = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          email: dto.email,
+          passwordHash,
+          status: 'ACTIVE',
+          emailVerifiedAt: new Date(),
+          profile: { create: { firstName: dto.firstName, lastName: dto.lastName } },
+          orgMemberships: { create: { organizationId: dto.organizationId, isPrimary: true } },
+        },
+      });
+      await tx.userRole.create({
+        data: { userId: created.id, roleId: role.id, organizationId: dto.organizationId },
+      });
+      return created;
+    });
+
+    await this.audit.record({
+      action: 'admin.member.created',
+      actorUserId: actorId,
+      targetType: 'User',
+      targetId: user.id,
+    });
+
+    return {
+      id: user.id,
+      email: user.email,
+      firstName: dto.firstName,
+      lastName: dto.lastName,
+      role: dto.role,
+      // Shown once so the admin can pass it on; never stored in plain text.
+      password,
+    };
+  }
 
   async listMembers(userId: string, query: ListMembersQuery): Promise<Paginated<unknown>> {
     await assertOrgAccess(this.userContext, userId, query.organizationId);

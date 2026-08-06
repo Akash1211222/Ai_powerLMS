@@ -1,4 +1,15 @@
-import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Param,
+  Patch,
+  Post,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import {
   paginationQuerySchema,
@@ -16,10 +27,12 @@ import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { AdminService } from './admin.service';
 import {
   listMembersQuerySchema,
+  createMemberSchema,
   grantRoleSchema,
   revokeRoleSchema,
   updateFlagSchema,
   type ListMembersQuery,
+  type CreateMemberDto,
   type GrantRoleDto,
   type RevokeRoleDto,
   type UpdateFlagDto,
@@ -59,6 +72,21 @@ export class AdminController {
     @Query(new ZodValidationPipe(listMembersQuerySchema)) query: ListMembersQuery,
   ) {
     return this.admin.listMembers(user.userId, query);
+  }
+
+  @Post('members')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(PERMISSIONS.USER_MANAGE)
+  @ApiOperation({
+    summary:
+      'Create a member (student, trainer, mentor, …). Replaces self-signup. ' +
+      'Returns the issued password once so the admin can pass it on.',
+  })
+  createMember(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(createMemberSchema)) dto: CreateMemberDto,
+  ) {
+    return this.admin.createMember(user.userId, dto);
   }
 
   @Post('roles/grant')

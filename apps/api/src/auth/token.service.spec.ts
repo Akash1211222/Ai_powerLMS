@@ -46,4 +46,23 @@ describe('TokenService', () => {
     const token = await service.signAccessToken({ sub: 'user_1', email: 'a@b.com' });
     await expect(service.verifyAccessToken(token + 'x')).rejects.toBeTruthy();
   });
+
+  it('creates a 6-digit OTP whose hash matches re-hashing the code', () => {
+    const { code, hash } = service.createOtp();
+    expect(code).toMatch(/^\d{6}$/);
+    expect(service.hashOpaqueToken(code)).toBe(hash);
+  });
+
+  it('does not emit the same OTP repeatedly, and stays in range', () => {
+    const codes = new Set<string>();
+    for (let i = 0; i < 200; i += 1) {
+      const { code } = service.createOtp();
+      expect(Number(code)).toBeGreaterThanOrEqual(0);
+      expect(Number(code)).toBeLessThan(1_000_000);
+      codes.add(code);
+    }
+    // 200 draws from 10^6 should be almost entirely distinct; a constant or
+    // badly truncated generator would collapse this set.
+    expect(codes.size).toBeGreaterThan(190);
+  });
 });

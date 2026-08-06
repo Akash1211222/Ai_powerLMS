@@ -7,7 +7,6 @@ import type { Request } from 'express';
  * refresh token, and throttling it would strand users in a signed-in state.
  */
 const AUTH_PATHS = new Set([
-  '/api/v1/auth/register',
   '/api/v1/auth/login',
   '/api/v1/auth/refresh',
   '/api/v1/auth/verify-email',
