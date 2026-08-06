@@ -31,11 +31,13 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -y
 apt-get install -y postgresql postgresql-contrib redis-server nginx git curl build-essential openssl
 
-# Node 22 via NodeSource if needed
-if ! command -v node >/dev/null || [[ "$(node -v | cut -d. -f1 | tr -d v)" -lt 20 ]]; then
+# Node 22 via NodeSource (engines.node >=22; Node 20 is not enough)
+NODE_MAJOR="$(node -v 2>/dev/null | cut -d. -f1 | tr -d v || echo 0)"
+if ! command -v node >/dev/null || [[ "${NODE_MAJOR}" -lt 22 ]]; then
   curl -fsSL https://deb.nodesource.com/setup_22.x | bash -
   apt-get install -y nodejs
 fi
+echo "Node $(node -v) / pnpm will be activated next"
 corepack enable
 corepack prepare pnpm@9.12.0 --activate
 npm install -g pm2@latest
@@ -91,7 +93,13 @@ source ./.env
 set +a
 
 echo "==> Install + build (this takes several minutes)"
+# .env sets NODE_ENV=production, which makes pnpm skip devDependencies
+# (typescript/tsc lives there). Install with all deps, then restore production.
+SAVED_NODE_ENV="${NODE_ENV:-production}"
+unset NODE_ENV
 pnpm install --frozen-lockfile
+export NODE_ENV="$SAVED_NODE_ENV"
+
 pnpm --filter @fca/shared build
 pnpm --filter @fca/database build
 pnpm --filter @fca/ai build

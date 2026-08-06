@@ -38,15 +38,15 @@
 export BOOTSTRAP_ADMIN_EMAIL='admin@futurecorpacademy.in'
 export BOOTSTRAP_ADMIN_PASSWORD='ChooseAStrongPassword123!'
 
-curl -fsSL https://raw.githubusercontent.com/Akash1211222/Ai_powerLMS/main/deploy/setup-lms-vps.sh -o /tmp/setup-lms-vps.sh
-# Or if private: git clone first, then:
-#   bash /opt/fca-lms/deploy/setup-lms-vps.sh
-
-chmod +x /tmp/setup-lms-vps.sh
 # Prefer cloning first so the script is the version you just shipped:
+rm -rf /opt/fca-lms
 git clone --depth 1 https://github.com/Akash1211222/Ai_powerLMS.git /opt/fca-lms
 bash /opt/fca-lms/deploy/setup-lms-vps.sh
 ```
+
+The setup script installs **Node 22+** and temporarily unsets `NODE_ENV` during
+`pnpm install` so TypeScript (`tsc`) is available for the build. Do not export
+`NODE_ENV=production` in the shell before running the script.
 
 ## Verify coexistence
 
