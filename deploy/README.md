@@ -78,6 +78,50 @@ curl https://lms-api.futurecorpacademy.in/health
 curl -I https://lms.futurecorpacademy.in
 ```
 
+## Continuous deployment
+
+Push to `main` → CI runs → if `quality` and `integration` are green, the
+`deploy` job SSHes in and runs `deploy/deploy.sh`. A red build never reaches
+production. Nothing to run by hand.
+
+Configured once, in repo secrets: `VPS_HOST`, `VPS_KNOWN_HOSTS`, `VPS_SSH_KEY`.
+
+### How the landing page stays safe
+
+`deploy/deploy.sh` is the only thing CI can execute on the box, and it is
+scoped to the LMS by construction:
+
+- **Restricted key.** The deploy key is pinned to a forced command in
+  `authorized_keys`, so it can *only* run `deploy.sh` — a leaked key cannot run
+  arbitrary commands. Verified: asking it to `cat /etc/shadow` runs the deploy.
+- **No system-level commands.** Never invokes `apt-get`, `certbot`, `nginx`,
+  or `systemctl`. TLS and vhosts are set up once and left alone.
+- **Named processes only.** Never `pm2 restart all`. Only `fca-lms-api`,
+  `fca-lms-web`, `fca-lms-worker`.
+- **Capped build.** 1 vCPU / 3.8 G box, so the build runs in a systemd scope
+  with `MemoryMax=1800M`, `CPUWeight=20`, `nice -19`. A runaway build is
+  OOM-killed *inside its own cgroup* rather than letting the kernel pick
+  `futurecorp-api` as a victim.
+- **Build before restart.** Install, build and migrate all finish before any
+  process is touched, so a failed build leaves the running version serving.
+- **Proof, not assumption.** The `futurecorp-api` restart counter is sampled
+  before and after every deploy and printed. If it ever changes, the deploy
+  log says so loudly.
+- **Docs-only changes** skip install, build and restart entirely.
+
+CI then verifies `lms.`, `lms-api.`, the landing page and `www.` from outside.
+
+### Roll back a bad deploy
+
+```bash
+cd /opt/fca-lms
+git checkout -B main <last-good-sha>
+bash deploy/deploy.sh
+```
+
+Migrations are forward-only and are **not** reverted — check the diff before
+rolling back across one.
+
 ## Rollback LMS only
 
 ```bash
