@@ -272,4 +272,21 @@ export const communityApi = {
       auth: true,
     }),
   tags: () => apiRequest<Array<{ tag: string; count: number }>>('/community/tags', { auth: true }),
+
+  // Moderation — requires community:moderate. Content is hidden, not deleted.
+  removePost: (id: string) =>
+    apiRequest<{ id: string; removed: true }>(`/community/posts/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    }),
+  removeQuestion: (id: string) =>
+    apiRequest<{ id: string; removed: true }>(`/community/questions/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    }),
+  removeAnswer: (id: string) =>
+    apiRequest<{ id: string; removed: true }>(`/community/answers/${id}`, {
+      method: 'DELETE',
+      auth: true,
+    }),
 };

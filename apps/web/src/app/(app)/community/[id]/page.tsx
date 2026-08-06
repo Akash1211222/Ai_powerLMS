@@ -1,12 +1,14 @@
 'use client';
 
 import { use, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, Badge, Button, Textarea, Spinner, Alert } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { communityApi } from '@/lib/community-api';
 import { IconCheck } from '@/components/icons';
+import { ModerateButton } from '@/components/moderate-button';
 
 function ago(iso: string): string {
   const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
@@ -18,6 +20,7 @@ function ago(iso: string): string {
 export default function QuestionPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const { user } = useAuth();
+  const router = useRouter();
   const qc = useQueryClient();
   const [body, setBody] = useState('');
 
@@ -35,6 +38,18 @@ export default function QuestionPage({ params }: { params: Promise<{ id: string 
     },
   });
   const vote = useMutation({ mutationFn: communityApi.vote, onSuccess: invalidate });
+  // Removing the question hides the page you are on — go back to the list.
+  const removeQuestion = useMutation({
+    mutationFn: () => communityApi.removeQuestion(id),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ['community', 'questions'] });
+      router.replace('/community');
+    },
+  });
+  const removeAnswer = useMutation({
+    mutationFn: (answerId: string) => communityApi.removeAnswer(answerId),
+    onSuccess: invalidate,
+  });
   const accept = useMutation({
     mutationFn: (answerId: string) => communityApi.accept(id, answerId),
     onSuccess: invalidate,
@@ -56,9 +71,16 @@ export default function QuestionPage({ params }: { params: Promise<{ id: string 
       <Card className="flex flex-col gap-3">
         <div className="flex items-start justify-between gap-3">
           <h1 className="text-xl font-extrabold tracking-tight">{question.title}</h1>
-          <Badge tone={question.status === 'ANSWERED' ? 'success' : 'brand'}>
-            {question.status.toLowerCase()}
-          </Badge>
+          <div className="flex shrink-0 items-center gap-3">
+            <Badge tone={question.status === 'ANSWERED' ? 'success' : 'brand'}>
+              {question.status.toLowerCase()}
+            </Badge>
+            <ModerateButton
+              label="Remove this question and all its answers"
+              pending={removeQuestion.isPending}
+              onRemove={() => removeQuestion.mutate()}
+            />
+          </div>
         </div>
         <p className="whitespace-pre-wrap text-sm">{question.body}</p>
         <div className="flex flex-wrap items-center gap-2">
@@ -105,6 +127,11 @@ export default function QuestionPage({ params }: { params: Promise<{ id: string 
                     <span className="text-xs text-faint">
                       {name(a.author)} · {ago(a.createdAt)}
                     </span>
+                    <ModerateButton
+                      label="Remove this answer"
+                      pending={removeAnswer.isPending}
+                      onRemove={() => removeAnswer.mutate(a.id)}
+                    />
                     {isAsker && !a.isAccepted && question.status !== 'CLOSED' && (
                       <button
                         onClick={() => accept.mutate(a.id)}

@@ -24,6 +24,7 @@ import { alumniApi } from '@/lib/alumni-api';
 import { reputationApi } from '@/lib/reputation-api';
 import { DashboardHero, HeroPanel, todayLabel } from '@/components/dashboard-hero';
 import { useAuth } from '@/lib/auth-context';
+import { ModerateButton } from '@/components/moderate-button';
 
 type Tab = 'feed' | 'messages' | 'groups' | 'events';
 
@@ -145,6 +146,10 @@ function CommunityHub() {
   const clap = useMutation({
     mutationFn: (id: string) => communityApi.react(id),
     onSuccess: () => invalidateFeed(),
+  });
+  const removePost = useMutation({
+    mutationFn: (id: string) => communityApi.removePost(id),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['community', 'posts'] }),
   });
 
   const joinRoom = useMutation({
@@ -487,7 +492,7 @@ function CommunityHub() {
                     Open Q&A thread →
                   </Link>
                 )}
-                <div className="mt-3 flex gap-4 text-xs font-bold text-faint">
+                <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs font-bold text-faint">
                   <button
                     type="button"
                     className={cn('hover:text-ink', p.clappedByMe && 'text-accent-600')}
@@ -495,6 +500,12 @@ function CommunityHub() {
                   >
                     👏 {p.clapCount}
                   </button>
+                  <ModerateButton
+                    label="Remove this post"
+                    pending={removePost.isPending}
+                    onRemove={() => removePost.mutate(p.id)}
+                    className="ml-auto"
+                  />
                   <Link href={`/community/posts/${p.id}`} className="hover:text-ink">
                     <MessageCircle className="mr-1 inline h-3.5 w-3.5" aria-hidden />
                     {p.commentCount} comments
