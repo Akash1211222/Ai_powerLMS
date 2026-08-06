@@ -134,7 +134,16 @@ run = runs[0]
 if run.get("status") != "completed":
     print("pending"); sys.exit()          # queued / in_progress
 concl = run.get("conclusion")
-print("passed" if concl == "success" else "failed:" + str(concl))
+if concl == "success":
+    print("passed")
+elif concl in ("cancelled", "timed_out", "stale", "action_required", None):
+    # Transient / infrastructural, not a verdict on the code. GitHub-hosted
+    # runners here get backed up and auto-cancel queued runs, and a re-run
+    # then goes green — so these must NOT be cached as permanently rejected
+    # or the commit would be ignored forever.
+    print("transient:" + str(concl))
+else:
+    print("failed:" + str(concl))
 ' 2>/dev/null)"
 
 case "$VERDICT" in
@@ -152,6 +161,10 @@ case "$VERDICT" in
     ;;
   pending)
     log "CI not finished for ${REMOTE_SHA:0:8} — waiting"
+    ;;
+  transient:*)
+    # Not cached: re-checked next tick, and picked up if a re-run goes green.
+    log "CI ${VERDICT#transient:} for ${REMOTE_SHA:0:8} (infrastructural, not a code failure) — re-run it: gh run rerun <id>"
     ;;
   failed:*)
     log "CI FAILED for ${REMOTE_SHA:0:8} (${VERDICT#failed:}) — not deploying"
