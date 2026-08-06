@@ -6,8 +6,11 @@
  */
 import { createRequire } from 'node:module';
 import { parseArgs } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
-const require = createRequire(import.meta.url);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const requireDb = createRequire(path.join(root, 'packages/database/package.json'));
 
 async function main() {
   const { values } = parseArgs({
@@ -24,8 +27,9 @@ async function main() {
     process.exit(1);
   }
 
-  const { PrismaClient } = require('@prisma/client');
-  const argon2 = require('argon2');
+  const { PrismaClient } = requireDb('@prisma/client');
+  // argon2 is a dependency of @fca/database (dev) — resolve via that package root
+  const argon2 = requireDb('argon2');
   const prisma = new PrismaClient();
 
   const email = values.email.toLowerCase().trim();
@@ -33,7 +37,7 @@ async function main() {
 
   const role = await prisma.role.findUnique({ where: { name: 'SUPER_ADMIN' } });
   if (!role) {
-    console.error('SUPER_ADMIN role missing — run prisma migrate deploy first (and ensure RBAC seed/migration created roles).');
+    console.error('SUPER_ADMIN role missing — run seed-rbac.mjs after migrate deploy.');
     process.exit(1);
   }
 
@@ -64,7 +68,6 @@ async function main() {
     },
   });
 
-  // Ensure role + membership exist on update path
   await prisma.organizationMember.upsert({
     where: { organizationId_userId: { organizationId: org.id, userId: user.id } },
     update: { isPrimary: true },

@@ -1,22 +1,21 @@
 #!/usr/bin/env node
 /**
  * Production-safe RBAC bootstrap — roles + permissions only (no demo users).
- * Usage from repo root with DATABASE_URL set:
+ * Usage from repo root with DATABASE_URL set (or packages/database/.env linked):
  *   node deploy/seed-rbac.mjs
  */
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
+import path from 'node:path';
 
-const require = createRequire(import.meta.url);
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+// Resolve workspace packages from their package roots (pnpm layout).
+const requireDb = createRequire(path.join(root, 'packages/database/package.json'));
+const requireShared = createRequire(path.join(root, 'packages/shared/package.json'));
 
 async function main() {
-  // Prefer built shared package; fall back to source path resolution via workspace.
-  let shared;
-  try {
-    shared = require('@fca/shared');
-  } catch {
-    shared = require('../packages/shared/dist/index.js');
-  }
-  const { PrismaClient } = require('@prisma/client');
+  const { PrismaClient } = requireDb('@prisma/client');
+  const shared = requireShared('@fca/shared');
   const { ROLES, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } = shared;
   const prisma = new PrismaClient();
 
