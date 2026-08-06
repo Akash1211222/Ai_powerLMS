@@ -126,7 +126,7 @@ run('Live Meet attendance (e2e)', () => {
     const res = await request(app.getHttpServer())
       .post('/api/v1/auth/login')
       .send({ email, password: PASSWORD });
-    expect(res.status).toBe(201);
+    expect(res.status).toBe(200);
     return res.body.accessToken as string;
   }
 

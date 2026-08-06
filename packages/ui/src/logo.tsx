@@ -18,7 +18,7 @@ export function Logo({
 }: LogoProps) {
   return (
     <div className={cn('flex items-center gap-2.5', className)}>
-      {/* eslint-disable-next-line @next/next/no-img-element -- shared UI package; plain img is portable */}
+      {/* Shared UI package: plain <img> stays portable outside Next.js. */}
       <img
         src={markSrc}
         alt=""
