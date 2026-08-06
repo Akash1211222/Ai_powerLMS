@@ -87,10 +87,21 @@ if [[ ! -f .env ]]; then
   chmod 600 .env
 fi
 
-set -a
-# shellcheck disable=SC1091
-source ./.env
-set +a
+# Prisma CLI loads .env from packages/database — link monorepo root .env there.
+ln -sfn "$LMS_ROOT/.env" "$LMS_ROOT/packages/database/.env"
+
+load_env() {
+  set -a
+  # shellcheck disable=SC1091
+  source "$LMS_ROOT/.env"
+  set +a
+  if [[ -z "${DATABASE_URL:-}" ]]; then
+    echo "ERROR: DATABASE_URL missing after sourcing $LMS_ROOT/.env"
+    exit 1
+  fi
+}
+
+load_env
 
 echo "==> Install + build (this takes several minutes)"
 # .env sets NODE_ENV=production, which makes pnpm skip devDependencies
@@ -112,6 +123,8 @@ export NEXT_PUBLIC_API_BASE_URL="${NEXT_PUBLIC_API_BASE_URL:-https://lms-api.fut
 pnpm --filter @fca/web build
 
 echo "==> Migrate + RBAC (NO demo seed)"
+# Re-load after long build so Prisma always sees DATABASE_URL
+load_env
 pnpm db:migrate:deploy
 node deploy/seed-rbac.mjs
 
@@ -139,10 +152,8 @@ certbot --nginx -d lms.futurecorpacademy.in -d lms-api.futurecorpacademy.in --no
 }
 
 echo "==> PM2 LMS processes (does not touch futurecorp-api)"
-# Export env into PM2 via dotenv in shell before start
 pm2 delete fca-lms-api fca-lms-web fca-lms-worker 2>/dev/null || true
-# PM2 does not load .env automatically — use ecosystem + env-cmd style via bash
-set -a; source "$LMS_ROOT/.env"; set +a
+load_env
 pm2 start "$LMS_ROOT/deploy/ecosystem.config.cjs" --update-env
 pm2 save
 pm2 startup systemd -u root --hp /root >/dev/null || true
