@@ -13,8 +13,20 @@ import {
  * Worker entrypoint (§13, §15, §18, §43). Consumes background jobs. Processors
  * are idempotent — retries and duplicate deliveries are always safe.
  */
-const REDIS_URL = process.env.REDIS_URL ?? 'redis://localhost:6379';
+const REDIS_URL = process.env.REDIS_URL;
+if (!REDIS_URL) {
+  console.error('[worker] REDIS_URL is required');
+  process.exit(1);
+}
+if (!process.env.DATABASE_URL) {
+  console.error('[worker] DATABASE_URL is required');
+  process.exit(1);
+}
 const connection = new IORedis(REDIS_URL, { maxRetriesPerRequest: null });
+const concurrency = (name: string, fallback: number) => {
+  const n = Number(process.env[name] ?? fallback);
+  return Number.isFinite(n) && n > 0 ? Math.floor(n) : fallback;
+};
 
 const SYSTEM_QUEUE = 'system';
 const AI_EVALUATION_QUEUE = 'ai-evaluation';
@@ -29,7 +41,7 @@ export const intelligenceQueue = new Queue(INTELLIGENCE_QUEUE, { connection });
 const systemWorker = new Worker(
   SYSTEM_QUEUE,
   async (job) => (job.name === 'heartbeat' ? { ok: true } : { ok: true, skipped: job.name }),
-  { connection, concurrency: 4 },
+  { connection, concurrency: concurrency('WORKER_SYSTEM_CONCURRENCY', 1) },
 );
 
 const aiProvider = getProvider();
@@ -41,7 +53,7 @@ const evaluationWorker = new Worker<{ submissionId: string }>(
     console.log(`[worker] evaluated ${submissionId}:`, JSON.stringify(result));
     return result;
   },
-  { connection, concurrency: 2 },
+  { connection, concurrency: concurrency('WORKER_AI_CONCURRENCY', 1) },
 );
 
 /** In-app notification row (worker path — no mail service here). */
@@ -154,7 +166,7 @@ const intelligenceWorker = new Worker<{ interventionId?: string }>(
     );
     return { evaluated: students.length, flagged, interventions };
   },
-  { connection, concurrency: 1 },
+  { connection, concurrency: concurrency('WORKER_INTELLIGENCE_CONCURRENCY', 1) },
 );
 
 /** Registers the recurring risk sweep (idempotent — same jobId replaces it). */

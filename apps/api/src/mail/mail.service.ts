@@ -18,10 +18,14 @@ export class MailService {
   constructor(private readonly config: ConfigService) {
     this.from = this.config.get<string>('MAIL_FROM') ?? 'FutureCorp Academy <no-reply@localhost>';
     this.webBaseUrl = this.config.get<string>('WEB_BASE_URL') ?? 'http://localhost:3000';
+    const port = Number(this.config.get<string>('MAIL_PORT') ?? 1025);
+    const secureEnv = this.config.get<string>('MAIL_SECURE');
+    const secure =
+      secureEnv === 'true' ? true : secureEnv === 'false' ? false : port === 465;
     this.transporter = nodemailer.createTransport({
       host: this.config.get<string>('MAIL_HOST') ?? 'localhost',
-      port: Number(this.config.get<string>('MAIL_PORT') ?? 1025),
-      secure: false,
+      port,
+      secure,
       auth: this.config.get<string>('MAIL_USER')
         ? {
             user: this.config.get<string>('MAIL_USER'),

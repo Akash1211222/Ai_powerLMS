@@ -18,8 +18,12 @@ All three app images build from the **repository root**:
 docker build -f apps/api/Dockerfile    -t fca-api    .
 docker build -f apps/worker/Dockerfile -t fca-worker .
 docker build -f apps/web/Dockerfile    -t fca-web    . \
-  --build-arg NEXT_PUBLIC_API_URL=https://api.example.com/api/v1
+  --build-arg NEXT_PUBLIC_API_BASE_URL=https://lms-api.example.com/api/v1
 ```
+
+On the Hostinger VPS, landing + legacy API already use Nginx/PM2 (:80/:443/:4000).
+Deploy LMS **beside** them with [`deploy/setup-lms-vps.sh`](../../deploy/setup-lms-vps.sh)
+(LMS API **:4001**, web **:3000**). See [`deploy/README.md`](../../deploy/README.md).
 
 Run with `--init` (or an orchestrator that reaps PID 1) so `SIGTERM` reaches
 Node and Nest's shutdown hooks drain in-flight work.

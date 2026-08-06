@@ -29,8 +29,8 @@ FROM deps AS build
 COPY . .
 # NEXT_PUBLIC_* values are inlined at build time, so the API URL must be
 # supplied as a build arg rather than only at runtime.
-ARG NEXT_PUBLIC_API_URL=http://localhost:4000/api/v1
-ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
+ARG NEXT_PUBLIC_API_BASE_URL=http://localhost:4001/api/v1
+ENV NEXT_PUBLIC_API_BASE_URL=$NEXT_PUBLIC_API_BASE_URL
 ENV NEXT_TELEMETRY_DISABLED=1
 RUN pnpm --filter @fca/shared build \
     && pnpm --filter @fca/ui build \

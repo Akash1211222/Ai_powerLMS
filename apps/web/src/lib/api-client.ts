@@ -48,27 +48,6 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   const payload = isJson ? await res.json() : undefined;
 
   if (!res.ok) {
-    // #region agent log
-    fetch('http://127.0.0.1:7530/ingest/1805f349-12c4-4574-b318-85c0b7b0d469', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4b859f' },
-      body: JSON.stringify({
-        sessionId: '4b859f',
-        runId: 'health-check',
-        hypothesisId: 'B',
-        location: 'apps/web/src/lib/api-client.ts:apiRequest',
-        message: 'Web API client non-OK response',
-        data: {
-          method,
-          path,
-          status: res.status,
-          code: (payload as ApiErrorBody)?.error?.code,
-          apiBase: API_BASE_URL,
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => undefined);
-    // #endregion
     throw new ApiError(res.status, (payload as ApiErrorBody) ?? { error: { code: 'INTERNAL', message: res.statusText } });
   }
   // A successful response with an empty body means "nothing here" — e.g.

@@ -73,56 +73,6 @@ async function bootstrap(): Promise<void> {
       ? `Rate limiting on: ${config.get('RATE_LIMIT_MAX', { infer: true })}/window general, ${config.get('AUTH_RATE_LIMIT_MAX', { infer: true })}/window auth`
       : 'Rate limiting DISABLED',
   );
-
-  // #region agent log
-  try {
-    const server = app.getHttpServer();
-    const router = server._events?.request?.constructor ? undefined : undefined;
-    void router;
-    const httpAdapter = app.getHttpAdapter();
-    const instance = httpAdapter.getInstance?.();
-    const stack: Array<{ route?: { path?: string; methods?: Record<string, boolean> } }> =
-      instance?._router?.stack ?? [];
-    const paths = stack
-      .filter((l) => l.route?.path)
-      .map((l) => `${Object.keys(l.route!.methods ?? {}).join(',').toUpperCase()} ${l.route!.path}`)
-      .filter((p) => /mentor|opportunit|code|placement|booking/i.test(p));
-    fetch('http://127.0.0.1:7530/ingest/1805f349-12c4-4574-b318-85c0b7b0d469', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4b859f' },
-      body: JSON.stringify({
-        sessionId: '4b859f',
-        runId: 'health-check',
-        hypothesisId: 'A',
-        location: 'apps/api/src/main.ts:bootstrap',
-        message: 'API boot route snapshot',
-        data: {
-          pid: process.pid,
-          nodeEnv,
-          port,
-          matchedRouteCount: paths.length,
-          matchedRoutes: paths.slice(0, 40),
-          uptimeSec: process.uptime(),
-        },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => undefined);
-  } catch (e) {
-    fetch('http://127.0.0.1:7530/ingest/1805f349-12c4-4574-b318-85c0b7b0d469', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Debug-Session-Id': '4b859f' },
-      body: JSON.stringify({
-        sessionId: '4b859f',
-        runId: 'health-check',
-        hypothesisId: 'A',
-        location: 'apps/api/src/main.ts:bootstrap',
-        message: 'API boot route snapshot failed',
-        data: { error: e instanceof Error ? e.message : String(e), pid: process.pid },
-        timestamp: Date.now(),
-      }),
-    }).catch(() => undefined);
-  }
-  // #endregion
 }
 
 /**
