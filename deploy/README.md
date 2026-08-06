@@ -19,9 +19,24 @@
 
 ## Before you run
 
-1. In Hostinger DNS, create **A records**:
-   - `lms.futurecorpacademy.in` → `88.222.244.192`
-   - `lms-api.futurecorpacademy.in` → `88.222.244.192`
+1. Create the **A records — in GoDaddy, not Hostinger.** `futurecorpacademy.in`
+   delegates to `ns29.domaincontrol.com` / `ns30.domaincontrol.com`, so records
+   added in Hostinger's zone editor are ignored. GoDaddy → *My Products* →
+   `futurecorpacademy.in` → **DNS**:
+
+   | Type | Name | Value |
+   |---|---|---|
+   | A | `lms` | `88.222.244.192` |
+   | A | `lms-api` | `88.222.244.192` |
+
+   Enter the **bare subdomain** in Name (`lms`), not the FQDN — GoDaddy appends
+   the domain itself. Verify before running certbot, which fails with NXDOMAIN
+   if the records are missing:
+
+   ```bash
+   dig +short lms.futurecorpacademy.in A @1.1.1.1
+   dig +short lms-api.futurecorpacademy.in A @1.1.1.1
+   ```
 2. Add this Mac’s SSH public key to the VPS (optional, for remote deploy):
    ```bash
    # On VPS web console:
@@ -34,9 +49,12 @@
 ## One-shot from VPS web console
 
 ```bash
-# Optional: create admin during setup
+# Optional: create admin during setup. Prompt for the password rather than
+# typing it inline — a pasted placeholder becomes a real SUPER_ADMIN password,
+# and an inline one is left behind in shell history.
 export BOOTSTRAP_ADMIN_EMAIL='admin@futurecorpacademy.in'
-export BOOTSTRAP_ADMIN_PASSWORD='ChooseAStrongPassword123!'
+read -rsp 'Admin password (min 10 chars): ' BOOTSTRAP_ADMIN_PASSWORD && echo
+export BOOTSTRAP_ADMIN_PASSWORD
 
 # Prefer cloning first so the script is the version you just shipped:
 rm -rf /opt/fca-lms
