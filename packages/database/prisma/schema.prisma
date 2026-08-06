@@ -1960,6 +1960,11 @@ model CommunityQuestion {
   tags           String[]
   status         QuestionStatus @default(OPEN)
   viewCount      Int            @default(0)
+  /// Moderation (COMMUNITY_MODERATE). Soft removal: the row is kept so the
+  /// audit trail and any accepted-answer links stay intact, and reads filter
+  /// on removedAt IS NULL.
+  removedAt      DateTime?
+  removedById    String?
   createdAt      DateTime       @default(now())
   updatedAt      DateTime       @updatedAt
 
@@ -1970,6 +1975,7 @@ model CommunityQuestion {
 
   @@index([organizationId, status])
   @@index([organizationId, createdAt])
+  @@index([organizationId, removedAt])
   @@map("community_questions")
 }
 
@@ -1979,6 +1985,11 @@ model CommunityAnswer {
   authorId   String
   body       String
   isAccepted Boolean  @default(false)
+  /// Moderation (COMMUNITY_MODERATE). Soft removal: the row is kept so the
+  /// audit trail and any accepted-answer links stay intact, and reads filter
+  /// on removedAt IS NULL.
+  removedAt  DateTime?
+  removedById String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
@@ -2096,6 +2107,11 @@ model CommunityPost {
   showcaseTitle  String?
   showcaseSub    String?
   showcaseEmoji  String?
+  /// Moderation (COMMUNITY_MODERATE). Soft removal: the row is kept so the
+  /// audit trail and any accepted-answer links stay intact, and reads filter
+  /// on removedAt IS NULL.
+  removedAt      DateTime?
+  removedById    String?
   createdAt      DateTime          @default(now())
   updatedAt      DateTime          @updatedAt
 
@@ -2109,6 +2125,7 @@ model CommunityPost {
   @@index([organizationId, createdAt])
   @@index([channelId, createdAt])
   @@index([authorId])
+  @@index([organizationId, removedAt])
   @@map("community_posts")
 }
 

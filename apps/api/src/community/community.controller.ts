@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@fca/shared';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -285,6 +285,30 @@ export class CommunityController {
   @ApiOperation({ summary: 'Accept the answer that solved it (asker only)' })
   accept(@CurrentUser() user: AuthUser, @Param('id') id: string, @Param('answerId') answerId: string) {
     return this.community.accept(user.userId, id, answerId);
+  }
+
+  // ---- Moderation --------------------------------------------------------
+  // Soft removal, scoped to the moderator's own organizations by the service.
+
+  @Delete('posts/:id')
+  @RequirePermissions(PERMISSIONS.COMMUNITY_MODERATE)
+  @ApiOperation({ summary: 'Remove a post from the feed (moderator)' })
+  removePost(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.community.removePost(user.userId, id);
+  }
+
+  @Delete('questions/:id')
+  @RequirePermissions(PERMISSIONS.COMMUNITY_MODERATE)
+  @ApiOperation({ summary: 'Remove a question and hide its thread (moderator)' })
+  removeQuestion(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.community.removeQuestion(user.userId, id);
+  }
+
+  @Delete('answers/:id')
+  @RequirePermissions(PERMISSIONS.COMMUNITY_MODERATE)
+  @ApiOperation({ summary: 'Remove an answer (moderator). Reopens the question if it was the accepted one.' })
+  removeAnswer(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.community.removeAnswer(user.userId, id);
   }
 
   @Post('answers/:id/vote')

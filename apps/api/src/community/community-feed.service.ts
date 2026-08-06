@@ -70,6 +70,7 @@ export class CommunityFeedService {
       const unread = await this.prisma.communityPost.count({
         where: {
           channelId: ch.id,
+          removedAt: null,
           ...(lastRead ? { createdAt: { gt: lastRead } } : {}),
           authorId: { not: userId },
         },
@@ -136,6 +137,7 @@ export class CommunityFeedService {
     }
     const where = {
       organizationId: { in: orgIds },
+      removedAt: null,
       ...(query.channelId ? { channelId: query.channelId } : {}),
       ...(query.kind ? { kind: query.kind } : {}),
     };
@@ -167,7 +169,7 @@ export class CommunityFeedService {
   async getPost(userId: string, id: string) {
     const orgIds = await this.orgIds(userId);
     const post = await this.prisma.communityPost.findFirst({
-      where: { id, organizationId: { in: orgIds } },
+      where: { removedAt: null, id, organizationId: { in: orgIds } },
       include: {
         author: { select: authorSelect },
         channel: { select: { id: true, name: true, emoji: true, slug: true } },
@@ -253,7 +255,7 @@ export class CommunityFeedService {
   async toggleClap(userId: string, postId: string) {
     const orgIds = await this.orgIds(userId);
     const post = await this.prisma.communityPost.findFirst({
-      where: { id: postId, organizationId: { in: orgIds } },
+      where: { removedAt: null, id: postId, organizationId: { in: orgIds } },
       select: { id: true },
     });
     if (!post) throw new NotFoundException('Post not found');
@@ -275,7 +277,7 @@ export class CommunityFeedService {
   async addComment(userId: string, postId: string, dto: CommentDto) {
     const orgIds = await this.orgIds(userId);
     const post = await this.prisma.communityPost.findFirst({
-      where: { id: postId, organizationId: { in: orgIds } },
+      where: { removedAt: null, id: postId, organizationId: { in: orgIds } },
     });
     if (!post) throw new NotFoundException('Post not found');
 
@@ -374,7 +376,7 @@ export class CommunityFeedService {
     const now = new Date();
     const [postsThisWeek, openRooms, upcomingEvents, memberships] = await Promise.all([
       this.prisma.communityPost.count({
-        where: { organizationId: { in: orgIds }, createdAt: { gte: weekAgo } },
+        where: { organizationId: { in: orgIds }, removedAt: null, createdAt: { gte: weekAgo } },
       }),
       this.prisma.communityStudyRoom.count({
         where: { organizationId: { in: orgIds }, status: 'OPEN' },

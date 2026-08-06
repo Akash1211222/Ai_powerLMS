@@ -69,11 +69,17 @@ run('Community Q&A (e2e)', () => {
     const res = await request(app.getHttpServer()).post('/api/v1/auth/login').send({ email, password: 'Password123!' }).expect(200);
     return res.body.accessToken as string;
   }
-  async function api(method: 'post' | 'get', path: string, token: string, body?: unknown) {
+  async function api(method: 'post' | 'get' | 'delete', path: string, token: string, body?: unknown) {
     const r = request(app.getHttpServer())[method](path).set(auth(token));
     const res = await (body ? r.send(body) : r);
     if (res.status >= 400) throw new Error(`${method} ${path} -> ${res.status}: ${res.text}`);
     return res.body;
+  }
+
+  /** Raw call that returns the status instead of throwing, for 403 assertions. */
+  async function rawStatus(method: 'delete', path: string, token: string) {
+    const res = await request(app.getHttpServer())[method](path).set(auth(token));
+    return res.status;
   }
 
   it('asks a question and finds it by tag', async () => {
@@ -170,5 +176,61 @@ run('Community Q&A (e2e)', () => {
       status: 'GOING',
     });
     expect(rsvp).toMatchObject({ success: true, status: 'GOING' });
+  });
+
+  // ---- Moderation (COMMUNITY_MODERATE) -----------------------------------
+
+  it('refuses moderation to members without COMMUNITY_MODERATE', async () => {
+    // A student can post, but must not be able to remove other people's content.
+    const q = await api('post', '/api/v1/community/questions', studentToken, {
+      title: 'Student cannot moderate this thread away',
+      body: 'Body long enough to satisfy validation for the moderation test.',
+      tags: [TAG],
+    });
+    expect(await rawStatus('delete', `/api/v1/community/questions/${q.id}`, studentToken)).toBe(403);
+    // Still visible.
+    expect((await api('get', `/api/v1/community/questions/${q.id}`, studentToken)).id).toBe(q.id);
+  });
+
+  it('lets a moderator remove an answer, reopening the question if it was accepted', async () => {
+    const q = await api('post', '/api/v1/community/questions', studentToken, {
+      title: 'Question whose accepted answer gets removed',
+      body: 'Body long enough to satisfy validation for the moderation test.',
+      tags: [TAG],
+    });
+    const a = await api('post', `/api/v1/community/questions/${q.id}/answers`, trainerToken, {
+      body: 'An answer that will be accepted and then moderated away.',
+    });
+    await api('post', `/api/v1/community/questions/${q.id}/accept/${a.id}`, studentToken);
+    expect((await api('get', `/api/v1/community/questions/${q.id}`, studentToken)).status).toBe(
+      'ANSWERED',
+    );
+
+    await api('delete', `/api/v1/community/answers/${a.id}`, trainerToken);
+
+    const after = await api('get', `/api/v1/community/questions/${q.id}`, studentToken);
+    expect(after.answers.map((x: { id: string }) => x.id)).not.toContain(a.id);
+    // The question must not still claim to be answered by hidden content.
+    expect(after.status).toBe('OPEN');
+  });
+
+  it('hides a removed question from detail and listings, but keeps the row', async () => {
+    const q = await api('post', '/api/v1/community/questions', studentToken, {
+      title: 'Question that gets moderated away entirely',
+      body: 'Body long enough to satisfy validation for the moderation test.',
+      tags: [TAG],
+    });
+    await api('delete', `/api/v1/community/questions/${q.id}`, trainerToken);
+
+    expect(await rawStatus('delete', `/api/v1/community/questions/${q.id}`, trainerToken)).toBe(404);
+
+    const list = await api('get', `/api/v1/community/questions?tag=${TAG}`, studentToken);
+    expect(list.data.map((x: { id: string }) => x.id)).not.toContain(q.id);
+
+    // Soft removal: the audit trail needs the row to survive.
+    const row = await prisma.communityQuestion.findUnique({ where: { id: q.id } });
+    expect(row).not.toBeNull();
+    expect(row?.removedAt).toBeInstanceOf(Date);
+    expect(row?.removedById).toBe(trainerId);
   });
 });
