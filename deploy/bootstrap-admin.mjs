@@ -10,6 +10,10 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
+const { applyEnvFile } = require('./load-env.cjs');
+applyEnvFile(path.join(root, '.env'), { override: true });
+
 const requireDb = createRequire(path.join(root, 'packages/database/package.json'));
 
 async function main() {

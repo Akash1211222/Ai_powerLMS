@@ -1,6 +1,7 @@
 /**
- * Minimal .env loader for PM2 ecosystem (no dotenv dependency).
+ * Minimal .env loader (no dotenv dependency).
  * Supports KEY=value and KEY='value' / KEY="value". Skips blanks/comments.
+ * Safe for values containing & ? # (unlike bash `source`).
  */
 const fs = require('node:fs');
 const path = require('node:path');
@@ -29,4 +30,15 @@ function loadEnvFile(filePath) {
   return out;
 }
 
-module.exports = { loadEnvFile };
+/** Merge file into process.env (does not overwrite already-set keys). */
+function applyEnvFile(filePath, { override = false } = {}) {
+  const parsed = loadEnvFile(filePath);
+  for (const [key, val] of Object.entries(parsed)) {
+    if (override || process.env[key] === undefined) {
+      process.env[key] = val;
+    }
+  }
+  return parsed;
+}
+
+module.exports = { loadEnvFile, applyEnvFile };

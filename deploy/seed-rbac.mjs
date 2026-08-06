@@ -9,11 +9,18 @@ import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const require = createRequire(import.meta.url);
+const { applyEnvFile } = require('./load-env.cjs');
+applyEnvFile(path.join(root, '.env'), { override: true });
+
 // Resolve workspace packages from their package roots (pnpm layout).
 const requireDb = createRequire(path.join(root, 'packages/database/package.json'));
 const requireShared = createRequire(path.join(root, 'packages/shared/package.json'));
 
 async function main() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error('DATABASE_URL missing — check /opt/fca-lms/.env quoting');
+  }
   const { PrismaClient } = requireDb('@prisma/client');
   const shared = requireShared('@fca/shared');
   const { ROLES, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } = shared;

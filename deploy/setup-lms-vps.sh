@@ -90,13 +90,40 @@ fi
 # Prisma CLI loads .env from packages/database — link monorepo root .env there.
 ln -sfn "$LMS_ROOT/.env" "$LMS_ROOT/packages/database/.env"
 
+# Quote URL values that contain & so bash `source` does not background them.
+fix_env_quoting() {
+  python3 - <<'PY' "$LMS_ROOT/.env"
+from pathlib import Path
+import sys
+p = Path(sys.argv[1])
+lines = p.read_text().splitlines()
+out = []
+for line in lines:
+    if not line or line.lstrip().startswith("#") or "=" not in line:
+        out.append(line)
+        continue
+    key, val = line.split("=", 1)
+    key = key.strip()
+    val = val.strip()
+    if key in ("DATABASE_URL", "REDIS_URL", "MAIL_FROM") and not (
+        (val.startswith("'") and val.endswith("'")) or (val.startswith('"') and val.endswith('"'))
+    ):
+        out.append(f"{key}='{val}'")
+    else:
+        out.append(line)
+p.write_text("\n".join(out) + "\n")
+PY
+}
+
 load_env() {
+  fix_env_quoting
   set -a
   # shellcheck disable=SC1091
   source "$LMS_ROOT/.env"
   set +a
   if [[ -z "${DATABASE_URL:-}" ]]; then
     echo "ERROR: DATABASE_URL missing after sourcing $LMS_ROOT/.env"
+    echo "Ensure DATABASE_URL is single-quoted (bash treats bare & as background)."
     exit 1
   fi
 }
