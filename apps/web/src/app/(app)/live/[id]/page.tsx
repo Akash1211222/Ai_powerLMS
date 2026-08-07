@@ -50,7 +50,11 @@ export default function LiveClassPage({ params }: { params: Promise<{ id: string
   const [joined, setJoined] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [csvText, setCsvText] = useState('');
-  const [importResult, setImportResult] = useState<string | null>(null);
+  type ImportOutcome = {
+    summary: { matched: number; present: number; late: number; absent: number; avgWatchPercent: number };
+    unmatched: Array<{ email: string; durationSec: number }>;
+  };
+  const [importResult, setImportResult] = useState<ImportOutcome | null>(null);
   const [summary, setSummary] = useState('');
   const [keyPointsText, setKeyPointsText] = useState('');
   const [homework, setHomework] = useState('');
@@ -111,10 +115,7 @@ export default function LiveClassPage({ params }: { params: Promise<{ id: string
   const importAtt = useMutation({
     mutationFn: () => liveApi.importAttendance(id, csvText, true),
     onSuccess: (res) => {
-      setImportResult(
-        `Imported ${res.summary.matched} · ${res.summary.present} present · ${res.summary.late} late · ${res.summary.absent} absent · avg ${res.summary.avgWatchPercent}%` +
-          (res.unmatched.length ? ` · ${res.unmatched.length} unmatched emails` : ''),
-      );
+      setImportResult(res);
       setCsvText('');
       setError(null);
       qc.invalidateQueries({ queryKey: ['live', id] });
@@ -206,7 +207,40 @@ export default function LiveClassPage({ params }: { params: Promise<{ id: string
       </DashboardHero>
 
       {error && <Alert tone="error">{error}</Alert>}
-      {importResult && <Alert tone="success">{importResult}</Alert>}
+      {importResult && (
+        <div className="flex flex-col gap-2">
+          <Alert tone="success">
+            Imported {importResult.summary.matched} · {importResult.summary.present} present ·{' '}
+            {importResult.summary.late} late · {importResult.summary.absent} absent · avg{' '}
+            {importResult.summary.avgWatchPercent}%
+          </Alert>
+
+          {importResult.unmatched.length > 0 && (
+            <Alert tone="warning">
+              <div className="font-semibold">
+                {importResult.unmatched.length} participant
+                {importResult.unmatched.length === 1 ? '' : 's'} in the call could not be matched to
+                a student — they are NOT marked present.
+              </div>
+              <p className="mt-1 text-sm">
+                Meet reports the Google account someone signed in with. If a student joined from a
+                personal Gmail, add that address to their profile (Google email) and re-import —
+                nothing else needs redoing.
+              </p>
+              <ul className="mt-2 flex flex-col gap-1 text-sm">
+                {importResult.unmatched.map((u) => (
+                  <li key={u.email} className="flex flex-wrap items-baseline gap-x-2">
+                    <code className="font-mono">{u.email}</code>
+                    <span className="text-xs opacity-80">
+                      was in the call {Math.max(1, Math.round(u.durationSec / 60))} min
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </Alert>
+          )}
+        </div>
+      )}
 
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <Card className="relative overflow-hidden border-brand-400/20 bg-gradient-to-br from-panel via-panel to-brand-500/5">
