@@ -2,18 +2,25 @@ import { z } from 'zod';
 
 const meetUrl = z
   .string()
-  .url()
+  .trim()
+  .min(1, 'Paste the Google Meet link for this class')
   .max(500)
+  // Google Meet shows a link as "meet.google.com/abc-defg-hij" — no scheme —
+  // and that is what trainers copy. Requiring z.string().url() rejected the
+  // exact string Meet puts in front of them, with no hint as to why. Add the
+  // scheme instead of refusing the paste.
+  .transform((u) => (/^[a-z][a-z0-9+.-]*:\/\//i.test(u) ? u : `https://${u}`))
   .refine(
     (u) => {
       try {
-        const host = new URL(u).hostname;
-        return host === 'meet.google.com' || host.endsWith('.meet.google.com');
+        const { hostname, protocol } = new URL(u);
+        if (protocol !== 'https:' && protocol !== 'http:') return false;
+        return hostname === 'meet.google.com' || hostname.endsWith('.meet.google.com');
       } catch {
         return false;
       }
     },
-    { message: 'meetingUrl must be a Google Meet link (meet.google.com)' },
+    { message: 'Enter a Google Meet link, for example meet.google.com/abc-defg-hij' },
   );
 
 export const scheduleLiveClassSchema = z

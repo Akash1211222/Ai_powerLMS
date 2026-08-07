@@ -38,8 +38,20 @@ export class AllExceptionsFilter implements ExceptionFilter {
         // Zod validation pipe payload
         if (Array.isArray(r.zodIssues)) {
           code = ERROR_CODES.VALIDATION_ERROR;
-          message = 'Validation failed';
           details = r.zodIssues as ApiErrorBody['error']['details'];
+          // A bare "Validation failed" tells the user nothing about which
+          // field is wrong. The per-field reasons were already in `details`,
+          // but clients that render only `message` — most of ours — showed a
+          // dead end. Summarise them into the message too.
+          const issues = r.zodIssues as Array<{ path?: string; message?: string }>;
+          const summary = issues
+            .slice(0, 3)
+            .map((i) => (i.path ? `${i.path}: ${i.message}` : i.message))
+            .filter(Boolean)
+            .join('; ');
+          message = summary
+            ? `${summary}${issues.length > 3 ? ` (+${issues.length - 3} more)` : ''}`
+            : 'Validation failed';
         } else if (typeof r.message === 'string') {
           message = r.message;
         } else if (Array.isArray(r.message)) {
