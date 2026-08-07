@@ -18,6 +18,29 @@
 # =============================================================================
 set -euo pipefail
 
+# ---------------------------------------------------------------------------
+# Re-exec from a copy outside the working tree.
+#
+# This script checks out new code partway through, which rewrites the very file
+# bash is executing. Bash reads scripts incrementally, so the rest of the run
+# comes from the NEW file at the OLD byte offset — it can skip steps or splice
+# two versions together. That is not theoretical: the deploy that shipped
+# 771ad7f silently skipped its own newly added "Sync roles + permissions" step,
+# leaving production enforcing a stale permission matrix.
+#
+# Copying to a temp file first makes the running script immutable for the
+# duration, whatever the checkout does to the tree.
+# ---------------------------------------------------------------------------
+if [[ "${FCA_DEPLOY_REEXEC:-}" != "1" ]]; then
+  _self_copy="$(mktemp /tmp/fca-deploy.XXXXXX.sh)"
+  cat "${BASH_SOURCE[0]}" > "$_self_copy"
+  export FCA_DEPLOY_REEXEC=1
+  bash "$_self_copy" "$@"
+  _rc=$?
+  rm -f "$_self_copy"
+  exit $_rc
+fi
+
 LMS_ROOT="${LMS_ROOT:-/opt/fca-lms}"
 BRANCH="${BRANCH:-main}"
 LOCK_FILE="/var/lock/fca-lms-deploy.lock"
