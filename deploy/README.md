@@ -102,6 +102,27 @@ its check runs are green. Anything else (pending, failed, unreadable) means no
 deploy this tick, and a failed SHA is recorded so it is judged once rather than
 re-queried every two minutes.
 
+### Checking a deploy actually worked
+
+```bash
+bash /opt/fca-lms/deploy/verify.sh          # PUBLIC=0 to skip internet checks
+```
+
+Read-only, exits non-zero if anything is wrong. It checks observable state
+rather than log lines, because "the deploy reported success" and "the deploy
+was correct" are different claims — one deploy finished green while silently
+skipping its own RBAC seed, leaving production on a stale permission matrix.
+
+It compares `role_permissions` against `DEFAULT_ROLE_PERMISSIONS` in code, so
+editing `packages/shared/src/rbac.ts` without re-seeding is caught by name:
+
+```
+FAIL  BATCH_MANAGER: 3 permission(s) not seeded -> batch:create, course:view, attendance:mark
+```
+
+Permissions granted *beyond* the defaults are reported, not failed — an admin
+may legitimately grant extra.
+
 ### Watching and controlling it
 
 ```bash
