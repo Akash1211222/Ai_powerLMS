@@ -26,6 +26,7 @@ import {
   Menu,
   X,
   MoreHorizontal,
+  UserRound,
   type LucideIcon,
 } from 'lucide-react';
 import { Logo, cn } from '@fca/ui';
@@ -128,6 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       show: can('user:view') || can('feature-flag:manage'),
     },
     { href: '/calendar', label: 'Calendar', icon: CalendarDays, show: true, mobilePrimary: true },
+    { href: '/profile', label: 'Profile', icon: UserRound, show: true },
   ].filter((n) => n.show);
 
   const mobilePrimary = nav.filter((n) => n.mobilePrimary).slice(0, 4);

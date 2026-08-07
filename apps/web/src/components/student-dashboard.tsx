@@ -22,6 +22,7 @@ import { formatTime, formatDate } from '@/lib/format';
 import { StatTile, ProgressBar } from './stat-tile';
 import { BarsChart, DonutChart, AreaTrend } from './charts';
 import { DashboardHero, HeroPanel, todayLabel } from './dashboard-hero';
+import { GoogleEmailPrompt } from './google-email-prompt';
 
 function dueChip(dueAt: string | null): { label: string; cls: string } {
   if (!dueAt) return { label: 'No due date', cls: 'bg-chip text-faint' };
@@ -151,6 +152,8 @@ export function StudentDashboard({ firstName }: { firstName: string }) {
           )}
         </HeroPanel>
       </DashboardHero>
+
+      <GoogleEmailPrompt />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
         <StatTile label="Active courses" value={d.stats.activeCourses} icon={BookOpen} accent="violet" />

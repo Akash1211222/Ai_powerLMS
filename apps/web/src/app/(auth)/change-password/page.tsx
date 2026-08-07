@@ -16,6 +16,7 @@ import { changePasswordForm, type ChangePasswordForm } from '@/lib/form-schemas'
 export default function ChangePasswordPage() {
   const { status, user, changePassword } = useAuth();
   const router = useRouter();
+  const forced = Boolean(user?.mustChangePassword);
   const {
     register,
     handleSubmit,
@@ -25,11 +26,10 @@ export default function ChangePasswordPage() {
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
-    // Already sorted (or arrived here by hand) — nothing to force.
-    if (status === 'authenticated' && user && !user.mustChangePassword) {
-      router.replace('/dashboard');
-    }
-  }, [status, user, router]);
+    // Deliberately no redirect for users who are not being forced: this page
+    // is also how someone changes their password voluntarily from /profile.
+    // It asks for the current password either way, so it is safe to visit.
+  }, [status, router]);
 
   async function onSubmit(values: ChangePasswordForm) {
     try {
@@ -45,12 +45,19 @@ export default function ChangePasswordPage() {
 
   return (
     <AuthShell
-      title="Choose your own password"
-      subtitle="Your account was created with a shared starter password. Set your own before continuing — you won't be able to use the LMS until you do."
+      title={forced ? 'Choose your own password' : 'Change your password'}
+      subtitle={
+        forced
+          ? "Your account was created with a shared starter password. Set your own before continuing — you won't be able to use the LMS until you do."
+          : 'Enter your current password, then choose a new one. Other devices will be signed out.'
+      }
     >
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4" noValidate>
         {errors.root && <Alert tone="error">{errors.root.message}</Alert>}
-        <Field label="Password you were given" error={errors.currentPassword?.message}>
+        <Field
+          label={forced ? 'Password you were given' : 'Current password'}
+          error={errors.currentPassword?.message}
+        >
           {({ id, invalid }) => (
             <Input
               id={id}
@@ -84,7 +91,7 @@ export default function ChangePasswordPage() {
           )}
         </Field>
         <Button type="submit" fullWidth loading={isSubmitting}>
-          Set my password
+          {forced ? 'Set my password' : 'Update password'}
         </Button>
       </form>
     </AuthShell>
