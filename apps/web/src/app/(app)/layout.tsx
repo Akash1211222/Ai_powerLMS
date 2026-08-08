@@ -14,6 +14,7 @@ import {
   BrainCircuit,
   HeartHandshake,
   ShieldCheck,
+  Database,
   CalendarDays,
   LogOut,
   Sparkles,
@@ -128,6 +129,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
       icon: ShieldCheck,
       show: can('user:view') || can('feature-flag:manage'),
     },
+    { href: '/admin/database', label: 'Database', icon: Database, show: can('database:admin') },
     { href: '/calendar', label: 'Calendar', icon: CalendarDays, show: true, mobilePrimary: true },
     { href: '/profile', label: 'Profile', icon: UserRound, show: true },
   ].filter((n) => n.show);

@@ -42,7 +42,14 @@ describe('rbac definitions', () => {
   it('gives COLLEGE_ADMIN every permission except the platform-wide ones', () => {
     // A college admin runs their college; they must not be able to flip
     // platform switches that affect every other college.
-    const platformOnly = [PERMISSIONS.ORG_MANAGE, PERMISSIONS.FEATURE_FLAG_MANAGE];
+    // DATABASE_ADMIN is platform-only for a stronger reason than the others:
+    // the raw table browser reads and writes across every college at once, so
+    // it cannot be held by a role that is supposed to be org-scoped.
+    const platformOnly = [
+      PERMISSIONS.ORG_MANAGE,
+      PERMISSIONS.FEATURE_FLAG_MANAGE,
+      PERMISSIONS.DATABASE_ADMIN,
+    ];
     for (const perm of platformOnly) {
       expect(has('COLLEGE_ADMIN', perm), `COLLEGE_ADMIN must not hold ${perm}`).toBe(false);
     }
@@ -53,6 +60,14 @@ describe('rbac definitions', () => {
     for (const perm of expected) {
       expect(has('COLLEGE_ADMIN', perm), `COLLEGE_ADMIN should hold ${perm}`).toBe(true);
     }
+  });
+
+  it('grants database:admin to SUPER_ADMIN and nobody else', () => {
+    // The raw table browser bypasses every service-layer rule and crosses org
+    // boundaries. If a future role bundle picks it up by accident, that role
+    // silently gains read/write over the entire platform — so pin it here.
+    const holders = ROLES.filter((role) => has(role, PERMISSIONS.DATABASE_ADMIN));
+    expect(holders).toEqual(['SUPER_ADMIN']);
   });
 
   it('lets BATCH_MANAGER run batches end to end', () => {

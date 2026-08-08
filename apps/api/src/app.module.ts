@@ -11,6 +11,7 @@ import { MailModule } from './mail/mail.module';
 import { AuthModule } from './auth/auth.module';
 import { AuthzModule } from './authz/authz.module';
 import { AdminModule } from './admin/admin.module';
+import { DatabaseAdminModule } from './database/database.module';
 import { CoursesModule } from './courses/courses.module';
 import { BatchesModule } from './batches/batches.module';
 import { MeModule } from './me/me.module';
@@ -77,6 +78,7 @@ import { isAuthRoute } from './common/guards/auth-route';
     AuthModule,
     AuthzModule,
     AdminModule,
+    DatabaseAdminModule,
     CoursesModule,
     BatchesModule,
     MeModule,

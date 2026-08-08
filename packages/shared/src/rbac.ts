@@ -68,6 +68,10 @@ export const PERMISSIONS = {
   // Ops
   AUDIT_VIEW: 'audit:view',
   FEATURE_FLAG_MANAGE: 'feature-flag:manage',
+  // Raw table browser + row editor. Bypasses every service-layer rule, so it
+  // is deliberately absent from COLLEGE_ADMIN: it reaches across all orgs and
+  // is only ever granted through SUPER_ADMIN's ALL_PERMISSIONS bundle.
+  DATABASE_ADMIN: 'database:admin',
 } as const;
 
 export type Permission = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
