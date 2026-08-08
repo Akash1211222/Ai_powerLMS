@@ -700,3 +700,302 @@ body {
     animation: none !important;
   }
 }
+
+/* ===========================================================================
+ * LANDING PAGE — "HUD" system
+ *
+ * Futuristic treatment built from the existing brand, not a neon palette
+ * swapped in over it: wireframe grid, scan sweep, fine-line glow and holo
+ * borders, all driven by the blue/orange already in the shield mark.
+ *
+ * Tokens follow the three-layer pattern used across the app —
+ * primitive (--lp-c-*) -> semantic (--lp-glow-*, --lp-line-*) -> component
+ * (--lp-grid-*, --lp-halo-*) — so no component rule below carries a raw hex.
+ * ======================================================================== */
+:root {
+  /* Primitive — pulled from the brand ramp, not invented. */
+  --lp-c-brand: 37, 99, 235;
+  --lp-c-brand-lit: 96, 165, 250;
+  --lp-c-accent: 249, 115, 22;
+  --lp-c-accent-lit: 251, 146, 60;
+  /* Scrim behind captions on artwork — matches the dark surface. */
+  --lp-c-scrim: 7 14 28;
+
+  /* Semantic */
+  --lp-glow-primary: rgba(var(--lp-c-brand), 0.5);
+  --lp-glow-secondary: rgba(var(--lp-c-accent), 0.18);
+  --lp-line: rgba(var(--lp-c-brand), 0.1);
+  --lp-line-lit: rgba(var(--lp-c-brand-lit), 0.55);
+  --lp-line-accent: rgba(var(--lp-c-accent-lit), 0.45);
+
+  /* Component */
+  --lp-grid-size: 46px;
+  --lp-grid-fade: 72%;
+  --lp-halo-blur: 46px;
+  --lp-shield-shadow: 0 24px 48px rgba(15, 30, 61, 0.55);
+  --lp-scan-duration: 7s;
+  --lp-orbit-duration: 18s;
+}
+.dark {
+  --lp-line: rgba(var(--lp-c-brand-lit), 0.13);
+}
+
+/* --- Wireframe grid backdrop ------------------------------------------- */
+.lp-grid {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image:
+    linear-gradient(to right, var(--lp-line) 1px, transparent 1px),
+    linear-gradient(to bottom, var(--lp-line) 1px, transparent 1px);
+  background-size: var(--lp-grid-size) var(--lp-grid-size);
+  /* Fade the grid out toward the edges so it reads as depth, not wallpaper. */
+  mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent var(--lp-grid-fade));
+  -webkit-mask-image: radial-gradient(ellipse at 50% 0%, #000 0%, transparent var(--lp-grid-fade));
+}
+
+/* --- Scroll reveal ------------------------------------------------------
+ * The hidden state is scoped under .lp-js, which the page adds to <html> only
+ * once the observer is running. Without JS — or if the bundle fails — the
+ * class never lands and every section renders plainly visible rather than
+ * being stranded at opacity 0.
+ * ---------------------------------------------------------------------- */
+.lp-js .lp-reveal {
+  opacity: 0;
+  transform: translateY(14px);
+  transition:
+    opacity 0.5s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.5s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: opacity, transform;
+}
+.lp-js .lp-reveal.is-in {
+  opacity: 1;
+  transform: none;
+  will-change: auto;
+}
+
+/* --- Shield showpiece --------------------------------------------------- */
+.lp-shield-stage {
+  position: relative;
+  display: grid;
+  place-items: center;
+  isolation: isolate;
+}
+.lp-shield-glow {
+  position: absolute;
+  inset: 8%;
+  z-index: -2;
+  border-radius: 9999px;
+  background: radial-gradient(
+    circle,
+    var(--lp-glow-primary) 0%,
+    var(--lp-glow-secondary) 45%,
+    transparent 70%
+  );
+  filter: blur(var(--lp-halo-blur));
+  animation: lp-pulse var(--lp-scan-duration) ease-in-out infinite;
+}
+.lp-shield-ring {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: 9999px;
+  background: conic-gradient(
+    from 0deg,
+    transparent 0deg,
+    var(--lp-line-lit) 60deg,
+    transparent 140deg,
+    transparent 220deg,
+    var(--lp-line-accent) 290deg,
+    transparent 360deg
+  );
+  mask: radial-gradient(circle, transparent 61%, #000 62%, #000 65%, transparent 66%);
+  -webkit-mask: radial-gradient(circle, transparent 61%, #000 62%, #000 65%, transparent 66%);
+  animation: lp-spin var(--lp-orbit-duration) linear infinite;
+}
+.lp-shield-img {
+  position: relative;
+  width: 78%;
+  height: auto;
+  filter: drop-shadow(var(--lp-shield-shadow));
+  animation: floaty 6s ease-in-out infinite;
+}
+
+/* --- HUD corner brackets ------------------------------------------------ */
+.lp-hud {
+  position: relative;
+}
+.lp-hud::before,
+.lp-hud::after {
+  content: '';
+  position: absolute;
+  width: 18px;
+  height: 18px;
+  border-color: var(--lp-line-lit);
+  border-style: solid;
+  opacity: 0.7;
+  pointer-events: none;
+}
+.lp-hud::before {
+  top: 10px;
+  left: 10px;
+  border-width: 1px 0 0 1px;
+  border-top-left-radius: 6px;
+}
+.lp-hud::after {
+  right: 10px;
+  bottom: 10px;
+  border-width: 0 1px 1px 0;
+  border-bottom-right-radius: 6px;
+}
+
+/* --- Holographic sweep on hover ----------------------------------------- */
+.lp-holo {
+  position: relative;
+  overflow: hidden;
+}
+.lp-holo::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    115deg,
+    transparent 35%,
+    rgba(var(--lp-c-brand-lit), 0.14) 48%,
+    transparent 62%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lp-holo:hover::after {
+  transform: translateX(120%);
+}
+
+/* --- Ticker ------------------------------------------------------------- */
+.lp-ticker {
+  display: flex;
+  width: max-content;
+  animation: lp-marquee 38s linear infinite;
+}
+.lp-ticker-mask {
+  mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 12%, #000 88%, transparent);
+}
+
+@keyframes lp-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+@keyframes lp-pulse {
+  0%,
+  100% {
+    opacity: 0.75;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.06);
+  }
+}
+@keyframes lp-marquee {
+  to {
+    transform: translateX(-50%);
+  }
+}
+
+/* Smooth anchor scrolling, opt-out for reduced motion below. */
+html {
+  scroll-behavior: smooth;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto;
+  }
+  .lp-shield-glow,
+  .lp-shield-ring,
+  .lp-shield-img,
+  .lp-ticker,
+  .animate-fadeUp,
+  .animate-floaty,
+  .animate-popIn {
+    animation: none !important;
+  }
+  /* Reveal must not leave content invisible when motion is off. */
+  .lp-js .lp-reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+  .lp-holo::after {
+    display: none;
+  }
+}
+
+/* --- Artwork frames -----------------------------------------------------
+ * The 3D character renders are the page's warmth. Framing them as HUD panels
+ * (inset ring, corner accents, ambient bloom) ties cartoon art to the
+ * wireframe system so the two registers read as one design.
+ * ---------------------------------------------------------------------- */
+.lp-art {
+  position: relative;
+  overflow: hidden;
+  border-radius: 24px;
+  isolation: isolate;
+}
+.lp-art::before {
+  /* Inner hairline so art never floats edge-to-edge against the page. */
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--lp-line-lit);
+  opacity: 0.35;
+  pointer-events: none;
+}
+.lp-art::after {
+  /* Bottom scrim keeps overlaid captions legible on busy renders. */
+  content: '';
+  position: absolute;
+  inset: auto 0 0 0;
+  z-index: 1;
+  height: 55%;
+  background: linear-gradient(to top, rgb(var(--lp-c-scrim) / 0.92), transparent);
+  pointer-events: none;
+}
+.lp-art-bare::after {
+  display: none;
+}
+.lp-art img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transform: scale(1.01);
+  transition: transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.lp-art:hover img {
+  transform: scale(1.05);
+}
+.lp-art-bloom {
+  position: absolute;
+  inset: -12%;
+  z-index: -1;
+  border-radius: 9999px;
+  background: radial-gradient(circle, var(--lp-glow-primary) 0%, transparent 68%);
+  filter: blur(54px);
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .lp-art img,
+  .lp-art:hover img {
+    transform: none;
+    transition: none;
+  }
+}
