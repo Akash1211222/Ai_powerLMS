@@ -90,7 +90,9 @@ export class CommunityService {
   async get(userId: string, id: string) {
     const orgIds = await this.orgIds(userId);
     const question = await this.prisma.communityQuestion.findFirst({
-      where: { id, organizationId: { in: orgIds } },
+      // removedAt matters as much here as in the listing: without it a
+      // moderated question stays readable to anyone holding its link.
+      where: { id, removedAt: null, organizationId: { in: orgIds } },
       include: {
         author: { select: authorSelect },
         answers: {

@@ -76,8 +76,8 @@ run('Community Q&A (e2e)', () => {
     return res.body;
   }
 
-  /** Raw call that returns the status instead of throwing, for 403 assertions. */
-  async function rawStatus(method: 'delete', path: string, token: string) {
+  /** Raw call that returns the status instead of throwing, for 403/404 assertions. */
+  async function rawStatus(method: 'delete' | 'get', path: string, token: string) {
     const res = await request(app.getHttpServer())[method](path).set(auth(token));
     return res.status;
   }
@@ -223,6 +223,10 @@ run('Community Q&A (e2e)', () => {
     await api('delete', `/api/v1/community/questions/${q.id}`, trainerToken);
 
     expect(await rawStatus('delete', `/api/v1/community/questions/${q.id}`, trainerToken)).toBe(404);
+
+    // Detail must be gone too, not just the listing — otherwise anyone holding
+    // the link still reads content a moderator removed.
+    expect(await rawStatus('get', `/api/v1/community/questions/${q.id}`, studentToken)).toBe(404);
 
     const list = await api('get', `/api/v1/community/questions?tag=${TAG}`, studentToken);
     expect(list.data.map((x: { id: string }) => x.id)).not.toContain(q.id);
