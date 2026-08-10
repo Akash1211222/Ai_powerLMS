@@ -97,8 +97,68 @@ type TopicPack = {
   starterCode: string;
 };
 
+type Difficulty = 'EASY' | 'MEDIUM' | 'HARD';
+
+/**
+ * Requirements that scale with difficulty.
+ *
+ * The generic fallback used to emit the same three lines whatever was asked
+ * for — "implement a function that demonstrates X", print two examples — so a
+ * HARD assignment on binary search trees read exactly like an EASY one on
+ * string formatting, and the starter was a `solve()` stub that ignored the
+ * topic. These give the fallback real teeth: a HARD task demands a full
+ * implementation, edge cases, complexity analysis and self-checking output.
+ */
+function difficultyRequirements(topic: string, difficulty: Difficulty): string[] {
+  if (difficulty === 'EASY') {
+    return [
+      `1. Implement the core operation for "${topic}" as a named, documented function.`,
+      '2. Exercise it with at least 3 inputs, including one empty/zero case.',
+      '3. Print each input alongside its result so the output is self-explanatory.',
+    ];
+  }
+  if (difficulty === 'HARD') {
+    return [
+      `1. Implement "${topic}" in full — not a toy slice of it. Handle the general case, not one happy path.`,
+      '2. Split the work across at least two functions with single, clear responsibilities.',
+      `3. Handle the failure modes "${topic}" actually has: invalid input, empty input, and boundary values. Fail loudly rather than returning something wrong.`,
+      '4. Cover at least 5 cases, of which 2 must be edge cases you argue for in a comment.',
+      '5. State the time and space complexity of your solution in a comment, and say why it cannot be cheaper.',
+      '6. Print PASS/FAIL per case so the run self-checks instead of needing a human to eyeball it.',
+    ];
+  }
+  return [
+    `1. Implement "${topic}" as a reusable function, with input validation.`,
+    '2. Split any non-trivial step into its own helper.',
+    '3. Cover at least 4 cases including one edge case and one invalid input.',
+    '4. Print the expected value next to the actual value for each case.',
+  ];
+}
+
+/** Complexity header only where the brief actually demands the analysis. */
+function complexityHeader(comment: string, difficulty: Difficulty): string {
+  return difficulty === 'HARD'
+    ? `\n${comment} Complexity: O(?) time, O(?) space  <- replace with your analysis and why`
+    : '';
+}
+
+/** Common closing line so every generated brief states how it is judged. */
+function acceptance(runtime: string, difficulty: Difficulty): string {
+  const bar =
+    difficulty === 'HARD'
+      ? 'every case prints PASS, edge cases are justified, and the complexity note is present'
+      : difficulty === 'MEDIUM'
+        ? 'all cases run and expected/actual match'
+        : 'the program runs and the output is readable';
+  return `Acceptance: ${runtime} — ${bar}.`;
+}
+
 /** Topic-aware coding packs — used when Gemini is unavailable. */
-function topicCodingPack(language: Exclude<CodeLanguage, 'NONE'>, topic: string): TopicPack {
+function topicCodingPack(
+  language: Exclude<CodeLanguage, 'NONE'>,
+  topic: string,
+  difficulty: Difficulty = 'MEDIUM',
+): TopicPack {
   const t = topic.toLowerCase();
 
   if (language === 'JAVASCRIPT' || language === 'TYPESCRIPT') {
@@ -312,24 +372,36 @@ print(summarize(scores))
       };
     }
     return {
-      title: `Python lab — ${topic}`,
-      description: `Runnable Python assignment focused on ${topic}.`,
+      title: `Python lab — ${topic} (${difficulty.toLowerCase()})`,
+      description: `Implement and self-test ${topic} in Python.`,
       instructions: [
         `Topic focus: ${topic}`,
         '',
-        `1. Implement a function that demonstrates "${topic}".`,
-        '2. Call it with 2 examples and print results.',
-        '3. Include one edge-case print.',
+        ...difficultyRequirements(topic, difficulty),
         '',
-        'Acceptance: Run succeeds in the Python emulator with clear output.',
+        acceptance('Run succeeds in the Python emulator', difficulty),
       ].join('\n'),
-      starterCode: `# Topic: ${topic}
-def solve(data):
-    # TODO: implement for "${topic}"
-    return data
+      starterCode: `# Topic: ${topic}${complexityHeader('#', difficulty)}
 
-print(solve([1, 2, 3]))
-print(solve([]))
+def solve(data):
+    """Core implementation for: ${topic}."""
+    # TODO: implement. Raise ValueError on invalid input rather than guessing.
+    raise NotImplementedError
+
+
+CASES = [
+    # (input, expected)  -- add your own edge cases and justify them
+    ([3, 1, 2], None),
+    ([], None),
+]
+
+for data, expected in CASES:
+    try:
+        actual = solve(data)
+        ok = 'PASS' if actual == expected else 'FAIL'
+        print(f'{ok}  input={data!r}  expected={expected!r}  actual={actual!r}')
+    except Exception as exc:  # edge cases should fail loudly, not silently
+        print(f'RAISED input={data!r} -> {type(exc).__name__}: {exc}')
 `,
     };
   }
@@ -362,27 +434,39 @@ ORDER BY score DESC;
 
   if (language === 'JAVA') {
     return {
-      title: `Java lab — ${topic}`,
-      description: `Java emulator lab on ${topic}.`,
+      title: `Java lab — ${topic} (${difficulty.toLowerCase()})`,
+      description: `Implement and self-test ${topic} in Java.`,
       instructions: [
         `Topic focus: ${topic}`,
         '',
-        'In class Main:',
-        `1. Implement a method that demonstrates "${topic}".`,
-        '2. Call it from main and print results for 2 cases.',
+        ...difficultyRequirements(topic, difficulty),
         '',
-        'Acceptance: compiles and runs in the Java emulator.',
+        acceptance('Compiles and runs in the Java emulator', difficulty),
       ].join('\n'),
-      starterCode: `// Topic: ${topic}
+      starterCode: `// Topic: ${topic}${complexityHeader('//', difficulty)}
 public class Main {
-  static int solve(int n) {
-    // TODO: implement for "${topic}"
-    return n;
+
+  /** Core implementation for: ${topic}. Throw IllegalArgumentException on bad input. */
+  static Object solve(int[] data) {
+    // TODO: implement
+    throw new UnsupportedOperationException("not implemented");
+  }
+
+  static void check(int[] input, Object expected) {
+    try {
+      Object actual = solve(input);
+      boolean ok = expected == null ? actual == null : expected.equals(actual);
+      System.out.println((ok ? "PASS" : "FAIL") + "  input=" + java.util.Arrays.toString(input)
+          + "  expected=" + expected + "  actual=" + actual);
+    } catch (RuntimeException e) {
+      System.out.println("RAISED input=" + java.util.Arrays.toString(input) + " -> " + e);
+    }
   }
 
   public static void main(String[] args) {
-    System.out.println(solve(5));
-    System.out.println(solve(0));
+    // TODO: add your own edge cases and justify them in a comment
+    check(new int[] {3, 1, 2}, null);
+    check(new int[] {}, null);
   }
 }
 `,
@@ -496,7 +580,7 @@ export function generateAssignmentHeuristic(input: GenerateAssignmentInput): Gen
     };
   }
 
-  const pack = topicCodingPack(language, topic);
+  const pack = topicCodingPack(language, topic, difficulty);
   return {
     title: pack.title,
     description: `${pack.description} Course: ${input.courseTitle}${batch}.`,
@@ -528,13 +612,29 @@ export async function generateAssignment(
   }
 
   try {
-    const system =
-      'You are an expert LMS curriculum designer for a coding academy with an in-browser code emulator ' +
-      '(Python, JavaScript, TypeScript, Java, C, C++, SQL, Web HTML/CSS/JS). ' +
-      'Generate ONE practical coding assignment that is HIGHLY SPECIFIC to the given topic. ' +
-      'Do NOT invent a generic unrelated exercise. Title, description, instructions, and starterCode must all mention and practice the topic. ' +
-      'starterCode must be runnable in the emulator (incomplete TODOs OK). Prefer the suggested language. ' +
-      'Respond with ONLY valid JSON — no markdown.';
+    const system = [
+      'You are a senior engineer setting coding work for a demanding academy. Students solve it',
+      'in an in-browser emulator (Python, JavaScript, TypeScript, Java, C, C++, SQL, HTML/CSS/JS).',
+      '',
+      'Produce ONE assignment that is specific to the given topic and genuinely worth doing.',
+      'Reject your first idea if it is a toy. A student should have to think, not just fill a blank.',
+      '',
+      'Hard requirements:',
+      '- Frame a concrete scenario, not "write a function that demonstrates X".',
+      '- Require at least two collaborating functions/classes with distinct responsibilities.',
+      '- Name the edge cases and failure modes the topic actually has, and require them handled.',
+      '- Use the idioms that make this LANGUAGE distinctive for this topic — generics and',
+      '  concurrency primitives in Java, comprehensions and generators in Python, window',
+      '  functions and CTEs in SQL, pointers and memory ownership in C/C++, the event loop in JS.',
+      '  A brief that would read identically in another language has failed.',
+      '- Include self-checking output: the student prints PASS/FAIL per case, so correctness is',
+      '  visible from the run rather than needing a human to eyeball it.',
+      '- On HARD, additionally demand a stated time/space complexity and a justification of it.',
+      '',
+      'starterCode must compile/run as given (stubs raising "not implemented" are fine) and must',
+      'already contain the case table the student extends. Never emit a bare `solve(data): return data`.',
+      'Respond with ONLY valid JSON — no markdown.',
+    ].join('\n');
 
     const shape = {
       title: `string including the topic "${topic}"`,
@@ -560,6 +660,7 @@ export async function generateAssignment(
       `Compiler language (use this unless impossible): ${languageHint === 'NONE' ? 'JAVASCRIPT' : languageHint}`,
       `Difficulty: ${input.difficulty ?? 'MEDIUM'}`,
       'Students solve this in an online code emulator — include clear Run/submit acceptance criteria.',
+      `Calibrate the workload to ${input.difficulty ?? 'MEDIUM'}: EASY is one function plus cases; MEDIUM adds validation and a helper; HARD is a full implementation with edge cases, failure handling and a complexity argument.`,
       'Criteria weights must sum to 100.',
       `Return JSON of exactly this shape: ${JSON.stringify(shape)}`,
     ]
@@ -596,7 +697,7 @@ export async function generateAssignment(
     }
 
     if (!parsed.starterCode || parsed.starterCode.trim().length < 20) {
-      parsed.starterCode = topicCodingPack(lang, topic).starterCode;
+      parsed.starterCode = topicCodingPack(lang, topic, parsed.difficulty).starterCode;
     }
 
     return parsed;

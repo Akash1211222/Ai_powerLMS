@@ -435,16 +435,26 @@ function StaffAssignments({ batchId }: { batchId: string }) {
                         <span className="text-faint">{a._count?.submissions ?? 0} subs</span>
                       </div>
                       {a.status === 'DRAFT' ? (
-                        <Button
-                          size="sm"
-                          variant="secondary"
-                          onClick={(e) => {
-                            e.preventDefault();
-                            publish.mutate(a.id);
-                          }}
-                        >
-                          Publish
-                        </Button>
+                        <div className="flex items-center gap-2">
+                          {/* Reading the draft comes first — publishing unread
+                              AI output is what this flow exists to prevent. */}
+                          <Link
+                            href={`/assignments/${a.id}/review`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Button size="sm">Review &amp; edit</Button>
+                          </Link>
+                          <Button
+                            size="sm"
+                            variant="secondary"
+                            onClick={(e) => {
+                              e.preventDefault();
+                              publish.mutate(a.id);
+                            }}
+                          >
+                            Publish
+                          </Button>
+                        </div>
                       ) : (
                         <span className="text-xs font-bold text-brand-500 opacity-0 transition group-hover:opacity-100">
                           Review →

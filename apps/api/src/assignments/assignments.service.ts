@@ -124,6 +124,24 @@ export class AssignmentsService {
   }
 
   /**
+   * The full assignment as staff see it — brief, starter code and rubric.
+   *
+   * The student endpoint only serves published work, so without this a trainer
+   * had no way to read a generated draft: the list carries titles and counts,
+   * and the detail page only showed submissions to grade.
+   */
+  async getForStaff(userId: string, assignmentId: string) {
+    await this.loadStaffAssignment(userId, assignmentId);
+    return this.prisma.assignment.findUnique({
+      where: { id: assignmentId },
+      include: {
+        criteria: { orderBy: { order: 'asc' } },
+        _count: { select: { submissions: true } },
+      },
+    });
+  }
+
+  /**
    * Edits a draft assignment — the review pass over AI output.
    *
    * Refused once the assignment is live or has submissions. Rubric criteria

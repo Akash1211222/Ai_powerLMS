@@ -27,6 +27,14 @@ export interface AssignmentSummary {
   _count?: { submissions: number; criteria: number };
 }
 
+/** Staff view of one assignment — includes drafts and the full brief. */
+export interface StaffAssignment extends AssignmentSummary {
+  description: string | null;
+  instructions: string | null;
+  criteria: Array<{ id: string; title: string; description: string | null; weight: number }>;
+  _count?: { submissions: number; criteria: number };
+}
+
 export interface AssignmentMine {
   id: string;
   title: string;
@@ -170,6 +178,20 @@ export const assignmentsApi = {
       body: input,
       auth: true,
     }),
+  /** Staff read: works on drafts, unlike the student endpoint. */
+  getForStaff: (id: string) => apiRequest<StaffAssignment>(`/assignments/${id}`, { auth: true }),
+  /** Edits a DRAFT. Sending `criteria` replaces the whole rubric. */
+  update: (
+    id: string,
+    input: {
+      title?: string;
+      description?: string;
+      instructions?: string;
+      maxScore?: number;
+      starterCode?: string | null;
+      criteria?: Array<{ title: string; description?: string; weight: number }>;
+    },
+  ) => apiRequest<StaffAssignment>(`/assignments/${id}`, { method: 'PATCH', body: input, auth: true }),
   publish: (id: string) =>
     apiRequest<AssignmentSummary>(`/assignments/${id}/publish`, { method: 'POST', auth: true }),
   submissions: (id: string) =>

@@ -62,6 +62,15 @@ export class AssignmentsController {
     return this.assignments.listForBatch(user.userId, query.batchId);
   }
 
+  @Get(':id')
+  @RequirePermissions(PERMISSIONS.ASSIGNMENT_CREATE)
+  @ApiOperation({
+    summary: 'Get one assignment with brief, starter code and rubric (staff — includes drafts)',
+  })
+  getStaff(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.assignments.getForStaff(user.userId, id);
+  }
+
   @Patch(':id')
   @RequirePermissions(PERMISSIONS.ASSIGNMENT_CREATE)
   @ApiOperation({
