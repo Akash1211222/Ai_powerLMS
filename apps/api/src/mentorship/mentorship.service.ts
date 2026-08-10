@@ -17,6 +17,7 @@ import type {
   ArrangeMentorRequestDto,
 } from './dto/mentorship.schemas';
 import { createGoogleMeetLink } from '../live/meet.provider';
+import { resolvePrimaryOrgId } from '../common/tenant';
 
 const studentSelect = {
   id: true,
@@ -269,13 +270,11 @@ export class MentorshipService {
   // --- Help requests (topic / doubt when no mentor slot is free) ---------
 
   private async primaryOrgId(userId: string) {
-    const membership = await this.prisma.organizationMember.findFirst({
-      where: { userId },
-      orderBy: { createdAt: 'asc' },
-      select: { organizationId: true },
-    });
-    if (!membership) throw new BadRequestException('Join an organization first');
-    return membership.organizationId;
+    // Was ordered by createdAt alone, which ignored the isPrimary flag an
+    // admin sets when issuing the account.
+    const primary = await resolvePrimaryOrgId(this.prisma, userId);
+    if (!primary) throw new BadRequestException('Join an organization first');
+    return primary;
   }
 
   async createRequest(studentId: string, dto: CreateMentorRequestDto) {

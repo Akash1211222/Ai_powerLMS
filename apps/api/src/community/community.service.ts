@@ -3,6 +3,7 @@ import { buildPaginationMeta, type Paginated } from '@fca/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { NotificationService } from '../notifications/notification.service';
+import { resolvePrimaryOrgId } from '../common/tenant';
 import type { AskDto, AnswerDto, ListQuestionsQuery } from './dto/community.schemas';
 
 const authorSelect = {
@@ -32,9 +33,13 @@ export class CommunityService {
     return memberships.map((m) => m.organizationId);
   }
 
-  /** The org a member posts into (their primary/first membership). */
+  /**
+   * The org a member posts into. Delegates so this matches every other
+   * primary-org lookup: it previously took the first row of an unordered
+   * findMany, which Postgres is free to return in any sequence.
+   */
   private async primaryOrgId(userId: string): Promise<string> {
-    const [primary] = await this.orgIds(userId);
+    const primary = await resolvePrimaryOrgId(this.prisma, userId);
     if (!primary) throw new ForbiddenException('You are not a member of any organization');
     return primary;
   }

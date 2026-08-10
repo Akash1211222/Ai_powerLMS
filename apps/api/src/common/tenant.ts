@@ -19,6 +19,38 @@ export async function assertOrgAccess(
   }
 }
 
+/** Minimal Prisma surface needed to resolve memberships. */
+type MembershipReader = {
+  organizationMember: {
+    findFirst: (args: object) => Promise<{ organizationId: string } | null>;
+  };
+};
+
+/**
+ * The organization a member acts in when the request doesn't name one — the
+ * org a new question, post or mentor request is filed against.
+ *
+ * Ordering is the whole point. `isPrimary` is the flag the admin sets when
+ * issuing an account, and `createdAt` breaks ties for anyone who predates it.
+ * Without an explicit order Postgres may return memberships in any sequence,
+ * so a user in two colleges would file into an arbitrary one — and the choice
+ * could change between two identical requests.
+ *
+ * Returns null rather than throwing so each caller keeps the status code its
+ * endpoint already documents.
+ */
+export async function resolvePrimaryOrgId(
+  prisma: MembershipReader,
+  userId: string,
+): Promise<string | null> {
+  const membership = await prisma.organizationMember.findFirst({
+    where: { userId },
+    orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }, { id: 'asc' }],
+    select: { organizationId: true },
+  });
+  return membership?.organizationId ?? null;
+}
+
 /**
  * Verifies the actor may view a student's data: super admin, or shares an
  * organization with the student. Used by staff drill-down endpoints (§5, §39).

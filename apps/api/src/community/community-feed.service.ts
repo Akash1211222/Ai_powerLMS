@@ -7,6 +7,7 @@ import {
 import { buildPaginationMeta, type Paginated } from '@fca/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { NotificationService } from '../notifications/notification.service';
+import { resolvePrimaryOrgId } from '../common/tenant';
 import type {
   CreateChannelDto,
   CreatePostDto,
@@ -40,13 +41,9 @@ export class CommunityFeedService {
   }
 
   async primaryOrgId(userId: string): Promise<string> {
-    const membership = await this.prisma.organizationMember.findFirst({
-      where: { userId },
-      orderBy: [{ isPrimary: 'desc' }, { createdAt: 'asc' }],
-      select: { organizationId: true },
-    });
-    if (!membership) throw new ForbiddenException('You are not a member of any organization');
-    return membership.organizationId;
+    const primary = await resolvePrimaryOrgId(this.prisma, userId);
+    if (!primary) throw new ForbiddenException('You are not a member of any organization');
+    return primary;
   }
 
   // --- Channels -----------------------------------------------------------
