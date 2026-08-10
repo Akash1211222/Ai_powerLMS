@@ -4,7 +4,7 @@ import { Suspense, useState } from 'react';
 import Link from 'next/link';
 import { useSearchParams } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Card, Button, Field, Input, Badge, statusTone, Spinner, Alert } from '@fca/ui';
+import { Card, Button, Field, Input, Select, Badge, statusTone, Spinner, Alert } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { assessmentsApi } from '@/lib/lms-learning-api';
 import { ApiError } from '@/lib/api-client';
@@ -31,6 +31,8 @@ function StaffAssessments({ batchId }: { batchId: string }) {
   const qc = useQueryClient();
   const [title, setTitle] = useState('');
   const [topicHint, setTopicHint] = useState('');
+  // Matches the API's 3-15 range; the trainer decides how much to review.
+  const [questionCount, setQuestionCount] = useState(8);
   const [error, setError] = useState<string | null>(null);
 
   const listQ = useQuery({
@@ -95,7 +97,7 @@ function StaffAssessments({ batchId }: { batchId: string }) {
       assessmentsApi.aiGenerate({
         batchId,
         topicHint: topicHint.trim() || undefined,
-        questionCount: 8,
+        questionCount,
       }),
     onSuccess: () => {
       setTopicHint('');
@@ -124,14 +126,14 @@ function StaffAssessments({ batchId }: { batchId: string }) {
       <Card>
         <h2 className="font-bold">AI generate quiz</h2>
         <p className="mt-1 text-sm text-faint">
-          Gemini creates course-matched MCQ / true-false questions for this batch.
+          Gemini drafts course-matched MCQ / true-false questions for this batch. Review and edit them, then publish.
         </p>
         {error && (
           <Alert tone="error" className="mt-2">
             {error}
           </Alert>
         )}
-        <div className="mt-3">
+        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_180px]">
           <Field label="Topic hint (optional)">
             {({ id }) => (
               <Input
@@ -140,6 +142,21 @@ function StaffAssessments({ batchId }: { batchId: string }) {
                 onChange={(e) => setTopicHint(e.target.value)}
                 placeholder="e.g. async JavaScript, React hooks"
               />
+            )}
+          </Field>
+          <Field label="Questions">
+            {({ id }) => (
+              <Select
+                id={id}
+                value={String(questionCount)}
+                onChange={(e) => setQuestionCount(Number(e.target.value))}
+              >
+                {[3, 5, 8, 10, 12, 15].map((n) => (
+                  <option key={n} value={n}>
+                    {n} questions
+                  </option>
+                ))}
+              </Select>
             )}
           </Field>
         </div>
@@ -182,9 +199,16 @@ function StaffAssessments({ batchId }: { batchId: string }) {
               <div className="flex items-center gap-2">
                 <Badge tone={statusTone(a.status)}>{a.status}</Badge>
                 {a.status === 'DRAFT' && (
-                  <Button size="sm" onClick={() => publish.mutate(a.id)}>
-                    Publish
-                  </Button>
+                  <>
+                    {/* Review comes first — publishing unread AI output is the
+                        thing this flow exists to prevent. */}
+                    <Link href={`/assessments/${a.id}/review`}>
+                      <Button size="sm">Review &amp; edit</Button>
+                    </Link>
+                    <Button size="sm" variant="secondary" onClick={() => publish.mutate(a.id)}>
+                      Publish
+                    </Button>
+                  </>
                 )}
               </div>
             </div>

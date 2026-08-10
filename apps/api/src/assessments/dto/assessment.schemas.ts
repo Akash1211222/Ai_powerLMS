@@ -43,6 +43,25 @@ export const createAssessmentSchema = z.object({
 });
 export type CreateAssessmentDto = z.infer<typeof createAssessmentSchema>;
 
+/**
+ * Edits to a draft quiz. Everything is optional so a trainer can fix one
+ * prompt without resending the paper.
+ *
+ * `questions`, when present, replaces the whole set rather than patching
+ * individual rows. A trainer reviewing AI output reorders, deletes and rewrites
+ * in one pass, and a wholesale replace is far easier to reason about than a
+ * diff — safe here because the service refuses to edit anything that has been
+ * published or attempted.
+ */
+export const updateAssessmentSchema = createAssessmentSchema
+  .omit({ batchId: true, courseId: true, questions: true })
+  .partial()
+  .extend({
+    questions: createAssessmentSchema.shape.questions.optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
+export type UpdateAssessmentDto = z.infer<typeof updateAssessmentSchema>;
+
 export const aiGenerateAssessmentSchema = z.object({
   batchId: z.string().min(1),
   topicHint: z.string().max(200).optional(),

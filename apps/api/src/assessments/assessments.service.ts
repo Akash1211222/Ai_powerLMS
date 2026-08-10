@@ -18,6 +18,7 @@ import type {
   AiGenerateAssessmentDto,
   CreateAssessmentDto,
   SubmitAttemptDto,
+  UpdateAssessmentDto,
 } from './dto/assessment.schemas';
 
 const OBJECTIVE = new Set(['MCQ', 'MULTI_SELECT', 'TRUE_FALSE']);
@@ -89,11 +90,9 @@ export class AssessmentsService {
 
   // --- Authoring --------------------------------------------------------
 
-  async create(userId: string, dto: CreateAssessmentDto) {
-    const batch = await this.loadOwnedBatch(userId, dto.batchId);
-
-    // Validate objective questions have options with at least one correct.
-    for (const q of dto.questions) {
+  /** A multiple-choice question is only gradable with options and an answer. */
+  private assertGradable(questions: CreateAssessmentDto['questions']) {
+    for (const q of questions) {
       if (OBJECTIVE.has(q.type)) {
         const opts = q.options ?? [];
         if (opts.length < 2) throw new BadRequestException(`"${q.prompt}" needs at least 2 options`);
@@ -102,6 +101,11 @@ export class AssessmentsService {
         }
       }
     }
+  }
+
+  async create(userId: string, dto: CreateAssessmentDto) {
+    const batch = await this.loadOwnedBatch(userId, dto.batchId);
+    this.assertGradable(dto.questions);
 
     const assessment = await this.prisma.assessment.create({
       data: {
@@ -146,6 +150,84 @@ export class AssessmentsService {
       targetId: assessment.id,
     });
     return assessment;
+  }
+
+  /**
+   * Edits a draft quiz — the review pass over AI-generated questions.
+   *
+   * Refused once the quiz is published or has been attempted. Answers are
+   * stored as AttemptAnswer rows pointing at question ids, and topic scores are
+   * derived from them, so swapping the paper underneath a sat attempt would
+   * silently rewrite what a student was marked on.
+   */
+  async update(userId: string, id: string, dto: UpdateAssessmentDto) {
+    const assessment = await this.loadOwnedAssessment(userId, id);
+    if (assessment.status !== 'DRAFT') {
+      throw new BadRequestException(
+        'Only a draft can be edited. Unpublish it first, or create a new version.',
+      );
+    }
+    const attempts = await this.prisma.assessmentAttempt.count({ where: { assessmentId: id } });
+    if (attempts > 0) {
+      throw new BadRequestException('Students have already attempted this quiz; it cannot be edited');
+    }
+    if (dto.questions) this.assertGradable(dto.questions);
+
+    const meta = {
+      ...(dto.title !== undefined ? { title: dto.title } : {}),
+      ...(dto.description !== undefined ? { description: dto.description ?? null } : {}),
+      ...(dto.timeLimitMin !== undefined ? { timeLimitMin: dto.timeLimitMin ?? null } : {}),
+      ...(dto.maxAttempts !== undefined ? { maxAttempts: dto.maxAttempts } : {}),
+      ...(dto.shuffleQuestions !== undefined ? { shuffleQuestions: dto.shuffleQuestions } : {}),
+      ...(dto.passingScore !== undefined ? { passingScore: dto.passingScore ?? null } : {}),
+      ...(dto.dueAt !== undefined ? { dueAt: dto.dueAt ?? null } : {}),
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(meta).length > 0) {
+        await tx.assessment.update({ where: { id }, data: meta });
+      }
+      if (dto.questions) {
+        // Options cascade from the question, so removing the questions clears
+        // the whole paper before the replacement is written.
+        await tx.question.deleteMany({ where: { assessmentId: id } });
+        for (const [i, q] of dto.questions.entries()) {
+          await tx.question.create({
+            data: {
+              assessmentId: id,
+              type: q.type,
+              prompt: q.prompt,
+              topic: q.topic ?? null,
+              skillTag: q.skillTag ?? null,
+              difficulty: q.difficulty ?? 'MEDIUM',
+              points: q.points ?? 1,
+              order: i,
+              correctText: q.correctText ?? null,
+              explanation: q.explanation ?? null,
+              options: {
+                create: (q.options ?? []).map((o, j) => ({
+                  text: o.text,
+                  isCorrect: o.isCorrect ?? false,
+                  order: j,
+                })),
+              },
+            },
+          });
+        }
+      }
+    });
+
+    await this.audit.record({
+      action: 'assessment.update',
+      actorUserId: userId,
+      targetType: 'Assessment',
+      targetId: id,
+      metadata: {
+        fields: Object.keys(meta),
+        questionsReplaced: dto.questions ? dto.questions.length : 0,
+      },
+    });
+    return this.getForStaff(userId, id);
   }
 
   async publish(userId: string, id: string) {

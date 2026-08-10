@@ -17,6 +17,7 @@ import type {
   SubmitDto,
   ReviewEvaluationDto,
   AiGenerateAssignmentDto,
+  UpdateAssignmentDto,
 } from './dto/assignment.schemas';
 
 @Injectable()
@@ -120,6 +121,77 @@ export class AssignmentsService {
       });
     }
     return assignment;
+  }
+
+  /**
+   * Edits a draft assignment — the review pass over AI output.
+   *
+   * Refused once the assignment is live or has submissions. Rubric criteria
+   * cascade to EvaluationCriterionScore, so replacing the rubric on marked work
+   * would delete the per-criterion scores a trainer had already awarded.
+   */
+  async update(userId: string, assignmentId: string, dto: UpdateAssignmentDto) {
+    const assignment = await this.loadStaffAssignment(userId, assignmentId);
+    if (assignment.status !== 'DRAFT') {
+      throw new BadRequestException(
+        'Only a draft can be edited. Unpublish it first, or create a new version.',
+      );
+    }
+    const submissions = await this.prisma.assignmentSubmission.count({ where: { assignmentId } });
+    if (submissions > 0) {
+      throw new BadRequestException('Students have already submitted; this assignment cannot be edited');
+    }
+
+    const data = {
+      ...(dto.title !== undefined ? { title: dto.title } : {}),
+      ...(dto.description !== undefined ? { description: dto.description ?? null } : {}),
+      ...(dto.instructions !== undefined ? { instructions: dto.instructions ?? null } : {}),
+      ...(dto.difficulty !== undefined ? { difficulty: dto.difficulty } : {}),
+      ...(dto.maxScore !== undefined ? { maxScore: dto.maxScore } : {}),
+      ...(dto.dueAt !== undefined ? { dueAt: dto.dueAt ?? null } : {}),
+      ...(dto.allowLate !== undefined ? { allowLate: dto.allowLate } : {}),
+      ...(dto.maxAttempts !== undefined ? { maxAttempts: dto.maxAttempts } : {}),
+      ...(dto.aiEvaluationEnabled !== undefined
+        ? { aiEvaluationEnabled: dto.aiEvaluationEnabled }
+        : {}),
+      ...(dto.language !== undefined ? { language: dto.language } : {}),
+      ...(dto.starterCode !== undefined ? { starterCode: dto.starterCode ?? null } : {}),
+      ...(dto.moduleId !== undefined ? { moduleId: dto.moduleId ?? null } : {}),
+    };
+
+    await this.prisma.$transaction(async (tx) => {
+      if (Object.keys(data).length > 0) {
+        await tx.assignment.update({ where: { id: assignmentId }, data });
+      }
+      if (dto.criteria) {
+        await tx.rubricCriterion.deleteMany({ where: { assignmentId } });
+        await tx.rubricCriterion.createMany({
+          data: dto.criteria.map((c, i) => ({
+            assignmentId,
+            title: c.title,
+            description: c.description ?? null,
+            weight: c.weight,
+            order: i,
+          })),
+        });
+      }
+    });
+
+    await this.audit.record({
+      action: 'assignment.update',
+      actorUserId: userId,
+      organizationId: assignment.batch.organizationId,
+      targetType: 'Assignment',
+      targetId: assignmentId,
+      metadata: {
+        fields: Object.keys(data),
+        criteriaReplaced: dto.criteria ? dto.criteria.length : 0,
+      },
+    });
+    return this.prisma.assignment.findUnique({
+      where: { id: assignmentId },
+      include: { criteria: { orderBy: { order: 'asc' } } },
+    });
   }
 
   /**

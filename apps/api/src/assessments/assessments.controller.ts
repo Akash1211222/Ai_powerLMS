@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@fca/shared';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -13,10 +13,12 @@ import {
   createAssessmentSchema,
   listAssessmentsQuerySchema,
   submitAttemptSchema,
+  updateAssessmentSchema,
   type AiGenerateAssessmentDto,
   type CreateAssessmentDto,
   type ListAssessmentsQuery,
   type SubmitAttemptDto,
+  type UpdateAssessmentDto,
 } from './dto/assessment.schemas';
 
 @ApiTags('assessments')
@@ -61,6 +63,21 @@ export class AssessmentsController {
   @ApiOperation({ summary: 'Get an assessment with questions + answer key (staff)' })
   getStaff(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.assessments.getForStaff(user.userId, id);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.ASSESSMENT_CREATE)
+  @ApiOperation({
+    summary:
+      'Edit a DRAFT quiz — metadata, and optionally replace the whole question ' +
+      'set. Refused once published or attempted.',
+  })
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateAssessmentSchema)) dto: UpdateAssessmentDto,
+  ) {
+    return this.assessments.update(user.userId, id, dto);
   }
 
   @Post(':id/publish')

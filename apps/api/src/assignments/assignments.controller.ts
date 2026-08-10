@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PERMISSIONS } from '@fca/shared';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
@@ -10,11 +10,13 @@ import type { AuthUser } from '../auth/auth-user';
 import { AssignmentsService } from './assignments.service';
 import {
   createAssignmentSchema,
+  updateAssignmentSchema,
   aiGenerateAssignmentSchema,
   listAssignmentsQuerySchema,
   submitSchema,
   reviewEvaluationSchema,
   type CreateAssignmentDto,
+  type UpdateAssignmentDto,
   type AiGenerateAssignmentDto,
   type ListAssignmentsQuery,
   type SubmitDto,
@@ -58,6 +60,21 @@ export class AssignmentsController {
     @Query(new ZodValidationPipe(listAssignmentsQuerySchema)) query: ListAssignmentsQuery,
   ) {
     return this.assignments.listForBatch(user.userId, query.batchId);
+  }
+
+  @Patch(':id')
+  @RequirePermissions(PERMISSIONS.ASSIGNMENT_CREATE)
+  @ApiOperation({
+    summary:
+      'Edit a DRAFT assignment (title, instructions, starter code, rubric). ' +
+      'Refused once published or submitted to.',
+  })
+  update(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateAssignmentSchema)) dto: UpdateAssignmentDto,
+  ) {
+    return this.assignments.update(user.userId, id, dto);
   }
 
   @Post(':id/publish')

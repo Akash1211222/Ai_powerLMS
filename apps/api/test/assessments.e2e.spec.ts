@@ -83,11 +83,23 @@ run('Assessments (e2e)', () => {
       .expect(200);
     return res.body.accessToken as string;
   }
-  async function api(method: 'post' | 'get', path: string, token: string, body?: unknown) {
+  async function api(method: 'post' | 'get' | 'patch', path: string, token: string, body?: unknown) {
     const r = request(app.getHttpServer())[method](path).set(auth(token));
     const res = await (body ? r.send(body) : r);
     if (res.status >= 400) throw new Error(`${method} ${path} -> ${res.status}: ${res.text}`);
     return res.body;
+  }
+
+  /** Returns the status instead of throwing, for the refusal assertions. */
+  async function rawStatus(
+    method: 'patch',
+    path: string,
+    token: string,
+    body?: unknown,
+  ): Promise<number> {
+    const r = request(app.getHttpServer())[method](path).set(auth(token));
+    const res = await (body ? r.send(body) : r);
+    return res.status;
   }
 
   const mcq = (topic: string) => ({
@@ -119,6 +131,74 @@ run('Assessments (e2e)', () => {
     await api('post', `/api/v1/assessments/${generated.id}/publish`, adminToken);
     const after = await api('get', '/api/v1/me/assessments', studentToken);
     expect((after as Array<{ id: string }>).map((a) => a.id)).toContain(generated.id);
+  });
+
+  it('lets a trainer rewrite a draft quiz — prompts, answers and the marked option', async () => {
+    const draft = await api('post', '/api/v1/assessments', adminToken, {
+      batchId,
+      title: `Editable ${Date.now()}`,
+      questions: [mcq('Pandas'), mcq('Python')],
+    });
+
+    const edited = await api('patch', `/api/v1/assessments/${draft.id}`, adminToken, {
+      title: 'Reviewed by the trainer',
+      passingScore: 70,
+      questions: [
+        {
+          type: 'MCQ',
+          prompt: 'Rewritten prompt — which keyword defines a function?',
+          topic: 'Python',
+          explanation: 'def introduces a function definition.',
+          options: [
+            { text: 'def', isCorrect: true },
+            { text: 'func', isCorrect: false },
+            { text: 'lambda', isCorrect: false },
+          ],
+        },
+      ],
+    });
+
+    expect(edited.title).toBe('Reviewed by the trainer');
+    expect(edited.passingScore).toBe(70);
+    // The whole paper is replaced, so the old questions are gone.
+    expect(edited.questions).toHaveLength(1);
+    expect(edited.questions[0].prompt).toContain('Rewritten prompt');
+    expect(edited.questions[0].explanation).toContain('def introduces');
+    const correct = edited.questions[0].options.filter((o: { isCorrect: boolean }) => o.isCorrect);
+    expect(correct).toHaveLength(1);
+    expect(correct[0].text).toBe('def');
+  });
+
+  it('refuses an unanswerable edit, and refuses to edit a published quiz', async () => {
+    const draft = await api('post', '/api/v1/assessments', adminToken, {
+      batchId,
+      title: `Guarded ${Date.now()}`,
+      questions: [mcq('Pandas')],
+    });
+
+    // An MCQ with no correct option could never be marked.
+    expect(
+      await rawStatus('patch', `/api/v1/assessments/${draft.id}`, adminToken, {
+        questions: [
+          {
+            type: 'MCQ',
+            prompt: 'No right answer here',
+            options: [
+              { text: 'a', isCorrect: false },
+              { text: 'b', isCorrect: false },
+            ],
+          },
+        ],
+      }),
+    ).toBe(400);
+
+    // Once it is live, the paper is frozen — students may already be sitting it.
+    await api('post', `/api/v1/assessments/${draft.id}/publish`, adminToken);
+    expect(
+      await rawStatus('patch', `/api/v1/assessments/${draft.id}`, adminToken, {
+        title: 'too late',
+      }),
+    ).toBe(400);
   });
 
   it('authors + publishes an assessment; student starts an attempt with answers hidden', async () => {

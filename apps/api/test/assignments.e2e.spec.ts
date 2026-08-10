@@ -84,11 +84,23 @@ run('Assignments + AI evaluation (e2e)', () => {
       .expect(200);
     return res.body.accessToken as string;
   }
-  async function api(method: 'post' | 'get', path: string, token: string, body?: unknown) {
+  async function api(method: 'post' | 'get' | 'patch', path: string, token: string, body?: unknown) {
     const r = request(app.getHttpServer())[method](path).set(auth(token));
     const res = await (body ? r.send(body) : r);
     if (res.status >= 400) throw new Error(`${method} ${path} -> ${res.status}: ${res.text}`);
     return res.body;
+  }
+
+  /** Returns the status instead of throwing, for the refusal assertions. */
+  async function rawStatus(
+    method: 'patch',
+    path: string,
+    token: string,
+    body?: unknown,
+  ): Promise<number> {
+    const r = request(app.getHttpServer())[method](path).set(auth(token));
+    const res = await (body ? r.send(body) : r);
+    return res.status;
   }
 
   it('AI-generated work is drafted for review, never published to students by the generate call', async () => {
@@ -138,6 +150,40 @@ run('Assignments + AI evaluation (e2e)', () => {
     await prisma.assignment.deleteMany({ where: { batchId: batch.id } }).catch(() => undefined);
     await prisma.enrollment.deleteMany({ where: { batchId: batch.id } }).catch(() => undefined);
     await prisma.batch.delete({ where: { id: batch.id } }).catch(() => undefined);
+  });
+
+  it('lets a trainer edit a draft assignment and its rubric, then refuses once it is live', async () => {
+    const draft = await api('post', '/api/v1/assignments', adminToken, {
+      batchId,
+      title: `Editable ${Date.now()}`,
+      instructions: 'First draft of the brief.',
+      criteria: [{ title: 'Correctness', weight: 100 }],
+    });
+    expect(draft.status).toBe('DRAFT');
+
+    const edited = await api('patch', `/api/v1/assignments/${draft.id}`, adminToken, {
+      title: 'Reviewed brief',
+      instructions: 'Rewritten by the trainer after reading the AI draft.',
+      maxScore: 50,
+      criteria: [
+        { title: 'Correctness', weight: 60 },
+        { title: 'Readability', weight: 40 },
+      ],
+    });
+    expect(edited.title).toBe('Reviewed brief');
+    expect(edited.maxScore).toBe(50);
+    expect(edited.instructions).toContain('Rewritten by the trainer');
+    expect(edited.criteria).toHaveLength(2);
+    expect(edited.criteria.map((c: { title: string }) => c.title)).toEqual([
+      'Correctness',
+      'Readability',
+    ]);
+
+    // Published work is frozen: the rubric backs scores that already exist.
+    await api('post', `/api/v1/assignments/${draft.id}/publish`, adminToken);
+    expect(
+      await rawStatus('patch', `/api/v1/assignments/${draft.id}`, adminToken, { title: 'too late' }),
+    ).toBe(400);
   });
 
   it('admin creates + publishes an assignment; student submits', async () => {

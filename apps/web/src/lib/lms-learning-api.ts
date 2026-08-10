@@ -207,6 +207,20 @@ export interface AssessmentSummary {
   _count?: { questions: number; attempts: number };
 }
 
+/** Staff-only view of a quiz: prompts, options and which option is correct. */
+export interface StaffAssessment extends AssessmentSummary {
+  description: string | null;
+  questions: Array<{
+    id: string;
+    type: string;
+    prompt: string;
+    topic: string | null;
+    explanation: string | null;
+    points: number;
+    options: Array<{ id: string; text: string; isCorrect: boolean }>;
+  }>;
+}
+
 export interface AssessmentMine {
   id: string;
   title: string;
@@ -278,6 +292,32 @@ export const assessmentsApi = {
   }) =>
     apiRequest<AssessmentSummary>('/assessments/ai-generate', {
       method: 'POST',
+      body: input,
+      auth: true,
+    }),
+  /** Staff view: questions WITH the answer key, for review before publishing. */
+  getForStaff: (id: string) =>
+    apiRequest<StaffAssessment>(`/assessments/${id}`, { auth: true }),
+  /** Edits a DRAFT. Sending `questions` replaces the whole paper. */
+  update: (
+    id: string,
+    input: {
+      title?: string;
+      description?: string;
+      timeLimitMin?: number;
+      passingScore?: number;
+      questions?: Array<{
+        type: string;
+        prompt: string;
+        topic?: string;
+        explanation?: string;
+        points?: number;
+        options?: Array<{ text: string; isCorrect?: boolean }>;
+      }>;
+    },
+  ) =>
+    apiRequest<StaffAssessment>(`/assessments/${id}`, {
+      method: 'PATCH',
       body: input,
       auth: true,
     }),

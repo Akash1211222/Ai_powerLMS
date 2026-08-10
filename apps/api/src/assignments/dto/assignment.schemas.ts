@@ -42,6 +42,20 @@ export const createAssignmentSchema = z.object({
 });
 export type CreateAssignmentDto = z.infer<typeof createAssignmentSchema>;
 
+/**
+ * Edits to a draft assignment — the review pass over AI output, or a fix to
+ * hand-written work before it goes out. `criteria`, when present, replaces the
+ * whole rubric; the service refuses edits once the assignment is live.
+ */
+export const updateAssignmentSchema = createAssignmentSchema
+  .omit({ batchId: true, courseId: true, aiGenerated: true, publish: true, criteria: true })
+  .partial()
+  .extend({
+    criteria: createAssignmentSchema.shape.criteria.optional(),
+  })
+  .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
+export type UpdateAssignmentDto = z.infer<typeof updateAssignmentSchema>;
+
 export const aiGenerateAssignmentSchema = z.object({
   batchId: z.string().min(1),
   topicHint: z.string().min(2).max(200).trim(),
