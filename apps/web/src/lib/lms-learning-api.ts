@@ -158,12 +158,12 @@ export const assignmentsApi = {
     publish?: boolean;
     criteria: Array<{ title: string; description?: string; weight: number }>;
   }) => apiRequest<AssignmentSummary>('/assignments', { method: 'POST', body: input, auth: true }),
+  /** Always returns a DRAFT — the trainer reviews, then publishes. */
   aiGenerate: (input: {
     batchId: string;
     topicHint: string;
     difficulty?: string;
     languageHint?: CodeLanguage;
-    publish?: boolean;
   }) =>
     apiRequest<AssignmentSummary>('/assignments/ai-generate', {
       method: 'POST',
@@ -269,12 +269,12 @@ export const assessmentsApi = {
       correctText?: string;
     }>;
   }) => apiRequest<AssessmentSummary>('/assessments', { method: 'POST', body: input, auth: true }),
+  /** Always returns a DRAFT — the trainer reviews, then publishes. */
   aiGenerate: (input: {
     batchId: string;
     topicHint?: string;
     difficulty?: string;
     questionCount?: number;
-    publish?: boolean;
   }) =>
     apiRequest<AssessmentSummary>('/assessments/ai-generate', {
       method: 'POST',

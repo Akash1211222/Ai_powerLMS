@@ -183,7 +183,6 @@ function StaffAssignments({ batchId }: { batchId: string }) {
         topicHint: topicHint.trim(),
         languageHint: aiLanguage === 'NONE' ? undefined : aiLanguage,
         difficulty: aiDifficulty,
-        publish: true,
       }),
     onSuccess: () => {
       setTopicHint('');
@@ -316,7 +315,7 @@ function StaffAssignments({ batchId }: { batchId: string }) {
                   className="w-fit"
                 >
                   <Sparkles className="mr-1.5 h-4 w-4" aria-hidden />
-                  {aiGen.isPending ? 'Generating…' : 'Generate & publish with AI'}
+                  {aiGen.isPending ? 'Generating…' : 'Generate draft with AI'}
                 </Button>
               </>
             ) : (
@@ -517,7 +516,7 @@ function StudentAssignments() {
               <ClipboardList className="h-7 w-7" aria-hidden />
             </span>
             <p className="max-w-md text-sm text-faint">
-              No published assignments yet. When you enroll in a course, AI creates matching work for your batch.
+              No published assignments yet. AI drafts matching work for your batch — your trainer reviews it before it appears here.
             </p>
           </div>
         </Card>

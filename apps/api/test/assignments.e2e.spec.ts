@@ -91,6 +91,55 @@ run('Assignments + AI evaluation (e2e)', () => {
     return res.body;
   }
 
+  it('AI-generated work is drafted for review, never published to students by the generate call', async () => {
+    const generated = await api('post', '/api/v1/assignments/ai-generate', adminToken, {
+      batchId,
+      topicHint: 'loops and conditionals practice',
+    });
+    expect(generated.aiGenerated).toBe(true);
+    expect(generated.status).toBe('DRAFT');
+
+    // A draft is invisible to the class until someone reads it.
+    const beforeReview = await api('get', '/api/v1/me/assignments', studentToken);
+    expect((beforeReview as Array<{ id: string }>).map((a) => a.id)).not.toContain(generated.id);
+
+    // The trainer can still ask for it to go out.
+    const published = await api('post', `/api/v1/assignments/${generated.id}/publish`, adminToken);
+    expect(published.status).toBe('PUBLISHED');
+    const afterReview = await api('get', '/api/v1/me/assignments', studentToken);
+    expect((afterReview as Array<{ id: string }>).map((a) => a.id)).toContain(generated.id);
+  });
+
+  it('enrolling a student does not push unreviewed AI work to the batch', async () => {
+    // A fresh batch with no assignments — enrolment triggers the auto-draft.
+    const batch = await api('post', '/api/v1/batches', adminToken, {
+      organizationId: orgId,
+      courseId,
+      name: `Asg Autodraft Batch ${Date.now()}`,
+    });
+    await api('post', `/api/v1/batches/${batch.id}/students`, adminToken, {
+      email: 'student@futurecorpacademy.in',
+    });
+
+    const seeded = await api('get', `/api/v1/assignments?batchId=${batch.id}`, adminToken);
+    const rows = seeded as Array<{ id: string; status: string; aiGenerated: boolean }>;
+    expect(rows.length).toBeGreaterThan(0);
+    // Everything the enrolment created is waiting on a trainer.
+    expect(rows.every((a) => a.status === 'DRAFT')).toBe(true);
+
+    // Enrolling again must not stack up another generated draft: the
+    // existing-work check counts drafts, not just published work.
+    await api('post', `/api/v1/batches/${batch.id}/students`, adminToken, {
+      email: 'trainer@futurecorpacademy.in',
+    }).catch(() => undefined);
+    const after = await api('get', `/api/v1/assignments?batchId=${batch.id}`, adminToken);
+    expect((after as unknown[]).length).toBe(rows.length);
+
+    await prisma.assignment.deleteMany({ where: { batchId: batch.id } }).catch(() => undefined);
+    await prisma.enrollment.deleteMany({ where: { batchId: batch.id } }).catch(() => undefined);
+    await prisma.batch.delete({ where: { id: batch.id } }).catch(() => undefined);
+  });
+
   it('admin creates + publishes an assignment; student submits', async () => {
     const assignment = await api('post', '/api/v1/assignments', adminToken, {
       batchId,

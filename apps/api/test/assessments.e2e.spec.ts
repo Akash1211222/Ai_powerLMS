@@ -100,6 +100,27 @@ run('Assessments (e2e)', () => {
     ],
   });
 
+  it('AI-generated quizzes are drafted for review, with the question count the trainer asked for', async () => {
+    const generated = await api('post', '/api/v1/assessments/ai-generate', adminToken, {
+      batchId,
+      topicHint: 'python basics',
+      questionCount: 5,
+    });
+    expect(generated.status).toBe('DRAFT');
+
+    // The trainer's count is honoured, so review is a known quantity.
+    const detail = await api('get', `/api/v1/assessments/${generated.id}`, adminToken);
+    expect(detail.questions).toHaveLength(5);
+
+    // Nothing reaches the class until it is published.
+    const before = await api('get', '/api/v1/me/assessments', studentToken);
+    expect((before as Array<{ id: string }>).map((a) => a.id)).not.toContain(generated.id);
+
+    await api('post', `/api/v1/assessments/${generated.id}/publish`, adminToken);
+    const after = await api('get', '/api/v1/me/assessments', studentToken);
+    expect((after as Array<{ id: string }>).map((a) => a.id)).toContain(generated.id);
+  });
+
   it('authors + publishes an assessment; student starts an attempt with answers hidden', async () => {
     const assessment = await api('post', '/api/v1/assessments', adminToken, {
       batchId,

@@ -67,9 +67,7 @@ export class AssessmentsService {
       questions: generated.questions,
     });
 
-    if (dto.publish) {
-      return this.publish(userId, assessment.id);
-    }
+    // Returned as a draft — publishing is a separate, deliberate step.
     return assessment;
   }
 

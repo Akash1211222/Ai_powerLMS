@@ -48,7 +48,8 @@ export const aiGenerateAssessmentSchema = z.object({
   topicHint: z.string().max(200).optional(),
   difficulty: z.enum(['EASY', 'MEDIUM', 'HARD']).optional(),
   questionCount: z.number().int().min(3).max(15).optional(),
-  publish: z.boolean().optional(),
+  // No `publish`. A generated quiz is always a draft until a trainer has read
+  // the questions and the marked answers.
 });
 export type AiGenerateAssessmentDto = z.infer<typeof aiGenerateAssessmentSchema>;
 

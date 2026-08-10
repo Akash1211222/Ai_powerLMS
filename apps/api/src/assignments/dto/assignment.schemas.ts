@@ -49,7 +49,9 @@ export const aiGenerateAssignmentSchema = z.object({
   languageHint: z
     .enum(['NONE', 'PYTHON', 'JAVASCRIPT', 'TYPESCRIPT', 'JAVA', 'C', 'CPP', 'SQL', 'WEB'])
     .optional(),
-  publish: z.boolean().optional().default(true),
+  // No `publish` here on purpose. AI drafts the work; a trainer reads it and
+  // publishes it. Leaving the flag in place — even defaulting to false — would
+  // keep a one-parameter route from model output straight to every student.
 });
 export type AiGenerateAssignmentDto = z.infer<typeof aiGenerateAssignmentSchema>;
 

@@ -96,7 +96,6 @@ function StaffAssessments({ batchId }: { batchId: string }) {
         batchId,
         topicHint: topicHint.trim() || undefined,
         questionCount: 8,
-        publish: false,
       }),
     onSuccess: () => {
       setTopicHint('');

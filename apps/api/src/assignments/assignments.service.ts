@@ -148,27 +148,35 @@ export class AssignmentsService {
       starterCode: generated.starterCode,
       aiGenerated: true,
       aiEvaluationEnabled: true,
-      publish: dto.publish ?? true,
+      // Always a draft. The trainer reviews the task, the rubric and the
+      // starter code, then publishes — model output does not reach students
+      // unread.
+      publish: false,
       criteria: generated.criteria,
     });
   }
 
   /**
-   * Called when a student is enrolled. If the batch has no published work yet,
-   * auto-create an AI assignment matched to the course language so the student
-   * immediately gets something to do in the right compiler.
+   * Called when a student is enrolled: if the batch has no work at all, draft
+   * an AI assignment matched to the course language so the trainer has
+   * something to review rather than a blank batch.
+   *
+   * It no longer publishes. Enrolling a student used to generate and release
+   * an assignment in one step, which put unread model output in front of the
+   * class as a side effect of adding someone to a batch.
+   *
+   * The existing-work check counts every status, not just PUBLISHED. Counting
+   * only published work would never be satisfied by a draft, so each new
+   * enrolment would generate another one.
    */
   async ensureCourseAssignments(actorUserId: string, batchId: string) {
-    const published = await this.prisma.assignment.count({
-      where: { batchId, status: 'PUBLISHED' },
-    });
-    if (published > 0) return { created: false, reason: 'already_has_assignments' as const };
+    const existing = await this.prisma.assignment.count({ where: { batchId } });
+    if (existing > 0) return { created: false, reason: 'already_has_assignments' as const };
     const created = await this.aiGenerate(actorUserId, {
       batchId,
       topicHint: 'course fundamentals coding lab',
-      publish: true,
     });
-    return { created: true, assignmentId: created.id };
+    return { created: true, assignmentId: created.id, status: created.status };
   }
 
   async publish(userId: string, assignmentId: string) {
