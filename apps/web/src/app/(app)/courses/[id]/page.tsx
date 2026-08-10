@@ -69,6 +69,41 @@ export default function CourseDetailPage({ params }: { params: Promise<{ id: str
   const course = courseQuery.data;
   if (!course) return <Alert tone="error">Course not found.</Alert>;
 
+  // The server withholds modules and lessons until the student is enrolled.
+  // Render the catalogue card and say who can grant access, rather than an
+  // empty syllabus that reads like the course has no content.
+  if (course.locked) {
+    return (
+      <div className="flex flex-col gap-6">
+        <Link href="/courses" className="text-sm font-semibold text-brand-500">
+          ← Courses
+        </Link>
+        <Card>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div className="min-w-0">
+              <h1 className="font-display text-2xl font-bold tracking-tight">{course.title}</h1>
+              <p className="mt-1 text-sm text-faint">
+                {course.contentCounts?.modules ?? 0} modules · {course.contentCounts?.lessons ?? 0} lessons
+              </p>
+            </div>
+            <Badge tone={statusTone(course.status)}>{course.status.toLowerCase()}</Badge>
+          </div>
+
+          {course.summary && <p className="mt-4 text-faint">{course.summary}</p>}
+          {course.description && <p className="mt-2 text-sm text-faint">{course.description}</p>}
+
+          <Alert tone="warning" className="mt-5">
+            <div className="text-sm">
+              <span className="font-semibold">You are not enrolled in this course.</span> The
+              lessons stay locked until your course manager adds you to a batch — ask them for
+              access and it will appear here.
+            </div>
+          </Alert>
+        </Card>
+      </div>
+    );
+  }
+
   const lessonCount = course.modules.reduce((n, m) => n + m.lessons.length, 0);
   const videoCount = course.modules.reduce(
     (n, m) => n + m.lessons.filter((l) => l.type === 'VIDEO').length,

@@ -56,7 +56,13 @@ export interface CourseModule {
 }
 export interface CourseDetail extends CourseSummary {
   description: string | null;
+  /** Empty when `locked` — the server withholds content from non-enrolled students. */
   modules: CourseModule[];
+  /** True when the caller may see the catalogue card but not the contents. */
+  locked?: boolean;
+  enrolled?: boolean;
+  /** Advertises the size of a locked course without revealing its titles. */
+  contentCounts?: { modules: number; lessons: number };
 }
 
 export interface BatchSummary {

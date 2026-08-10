@@ -4,10 +4,11 @@ import {
   ConflictException,
   BadRequestException,
 } from '@nestjs/common';
-import { buildPaginationMeta, type Paginated } from '@fca/shared';
+import { buildPaginationMeta, PERMISSIONS, type Paginated } from '@fca/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
+import { hasPermission } from '../authz/principal';
 import { assertOrgAccess } from '../common/tenant';
 import { slugify } from '../common/slug';
 import type {
@@ -58,11 +59,29 @@ export class CoursesService {
     return course;
   }
 
+  /**
+   * Whether the caller runs courses rather than takes them.
+   *
+   * `course:view` is deliberately a weak signal — students hold it so they can
+   * browse the catalogue — so anything that decides "may see the inside of a
+   * course" keys off `course:update` instead.
+   */
+  private async canManageCourses(userId: string, organizationId: string): Promise<boolean> {
+    const principal = await this.userContext.getPrincipal(userId);
+    return hasPermission(principal, PERMISSIONS.COURSE_UPDATE, organizationId);
+  }
+
   async list(userId: string, query: ListCoursesQuery): Promise<Paginated<unknown>> {
     await assertOrgAccess(this.userContext, userId, query.organizationId);
+    // A student browsing the catalogue sees what is running, not a trainer's
+    // half-built drafts. Staff keep the unfiltered list they work from.
+    // The override is applied last on purpose: honouring ?status=DRAFT for a
+    // student would hand back exactly what this is meant to withhold.
+    const staff = await this.canManageCourses(userId, query.organizationId);
     const where = {
       organizationId: query.organizationId,
       ...(query.status ? { status: query.status } : {}),
+      ...(staff ? {} : { status: 'PUBLISHED' as const }),
     };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.course.findMany({
@@ -85,9 +104,51 @@ export class CoursesService {
     return course;
   }
 
+  /**
+   * One course. What comes back depends on whether the caller is entitled to
+   * the content:
+   *
+   *   staff, or an enrolled student  -> modules and lessons
+   *   anyone else in the college     -> catalogue card only, `locked: true`
+   *
+   * Belonging to the college is not the same as being on the course. Before
+   * this split, `course:view` plus shared tenancy returned every module and
+   * lesson title of every course to any student who knew an id — enrolment was
+   * checked on progress but never on content.
+   *
+   * A locked course still answers 200 rather than 404: the catalogue is meant
+   * to advertise what is running, and a student needs to see the course exists
+   * in order to ask to be put on it.
+   */
   async getById(userId: string, courseId: string) {
     const course = await this.loadOwnedCourse(userId, courseId);
-    return this.prisma.course.findUnique({
+
+    const staff = await this.canManageCourses(userId, course.organizationId);
+    const enrolled = staff
+      ? true
+      : (await this.prisma.enrollment.count({
+          where: { userId, courseId: course.id, status: { not: 'DROPPED' } },
+        })) > 0;
+
+    if (!enrolled) {
+      const [moduleCount, lessonCount] = await this.prisma.$transaction([
+        this.prisma.courseModule.count({ where: { courseId: course.id } }),
+        this.prisma.lesson.count({ where: { module: { courseId: course.id } } }),
+      ]);
+      // Shape stays compatible with the unlocked response — `modules` is
+      // present and empty rather than absent, so clients need no null guard.
+      // Counts live under their own key rather than `_count`, which already
+      // means `{ modules, enrollments }` on the catalogue summary.
+      return {
+        ...course,
+        locked: true,
+        enrolled: false,
+        modules: [],
+        contentCounts: { modules: moduleCount, lessons: lessonCount },
+      };
+    }
+
+    const full = await this.prisma.course.findUnique({
       where: { id: course.id },
       include: {
         modules: {
@@ -96,6 +157,7 @@ export class CoursesService {
         },
       },
     });
+    return { ...full, locked: false, enrolled: true };
   }
 
   async update(userId: string, courseId: string, dto: UpdateCourseDto) {
