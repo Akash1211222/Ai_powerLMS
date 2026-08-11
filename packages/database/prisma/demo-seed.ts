@@ -343,6 +343,11 @@ async function main() {
 
   // distribute students across batches
   const demoQueue = [...demoStudents];
+  // Collected so later sections (community channels) can reference a real
+  // batch. Previously nothing kept the created rows, and the channel setup
+  // reached for `demoBatches` — a local inside cleanup() — which crashed the
+  // whole seed after every record had already been written.
+  const createdBatches: Array<{ id: string; code: string }> = [];
   let demoBatchesCount = 0;
   let studentsEnrolled = 0;
   let sessionsCreated = 0;
@@ -381,6 +386,7 @@ async function main() {
         },
       },
     });
+    createdBatches.push({ id: batch.id, code: batch.code });
 
     // Enroll a full cohort (~25) per batch.
     const queue = demoQueue;
@@ -918,7 +924,7 @@ async function main() {
   console.log(`   • ${questionsCreated} community questions · ${answersCreated} answers`);
 
   // --- Community social hub ------------------------------------------------
-  const batchForChannel = demoBatches[0];
+  const batchForChannel = createdBatches[0];
   const channelDefs = [
     {
       name: batchForChannel ? `Batch ${batchForChannel.code}` : 'General',
