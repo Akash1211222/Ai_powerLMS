@@ -23,6 +23,10 @@ import { ApiError } from '@/lib/api-client';
  */
 
 type DraftCriterion = { title: string; description: string; weight: number };
+type DraftTestCase = { name: string; stdin: string; expectedOutput: string; isHidden: boolean };
+
+/** Languages whose stdout the runner can compare against an expected value. */
+const RUNNABLE = new Set(['PYTHON', 'JAVASCRIPT', 'TYPESCRIPT', 'JAVA', 'C', 'CPP']);
 
 export default function AssignmentReviewPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -42,6 +46,7 @@ export default function AssignmentReviewPage({ params }: { params: Promise<{ id:
   const [starterCode, setStarterCode] = useState('');
   const [maxScore, setMaxScore] = useState('100');
   const [criteria, setCriteria] = useState<DraftCriterion[]>([]);
+  const [testCases, setTestCases] = useState<DraftTestCase[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
@@ -58,6 +63,14 @@ export default function AssignmentReviewPage({ params }: { params: Promise<{ id:
         title: c.title,
         description: c.description ?? '',
         weight: c.weight,
+      })),
+    );
+    setTestCases(
+      (a.testCases ?? []).map((t) => ({
+        name: t.name ?? '',
+        stdin: t.stdin,
+        expectedOutput: t.expectedOutput,
+        isHidden: t.isHidden,
       })),
     );
   }, [q.data]);
@@ -77,6 +90,14 @@ export default function AssignmentReviewPage({ params }: { params: Promise<{ id:
           description: c.description.trim() || undefined,
           weight: Number(c.weight),
         })),
+        testCases: testCases
+          .filter((t) => t.expectedOutput.trim())
+          .map((t) => ({
+            name: t.name.trim() || undefined,
+            stdin: t.stdin,
+            expectedOutput: t.expectedOutput,
+            isHidden: t.isHidden,
+          })),
       }),
     onSuccess: () => {
       setError(null);
@@ -101,6 +122,10 @@ export default function AssignmentReviewPage({ params }: { params: Promise<{ id:
 
   function patchCriterion(i: number, patch: Partial<DraftCriterion>) {
     setCriteria((prev) => prev.map((c, idx) => (idx === i ? { ...c, ...patch } : c)));
+    setSaved(false);
+  }
+  function patchTestCase(i: number, patch: Partial<DraftTestCase>) {
+    setTestCases((prev) => prev.map((t, idx) => (idx === i ? { ...t, ...patch } : t)));
     setSaved(false);
   }
 
@@ -306,6 +331,110 @@ export default function AssignmentReviewPage({ params }: { params: Promise<{ id:
           </Button>
         )}
       </Card>
+
+      {RUNNABLE.has(a.language ?? 'NONE') && (
+        <Card>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <h2 className="font-bold">Test cases</h2>
+            <span className="text-sm text-faint">
+              {testCases.length === 0
+                ? 'No cases — correctness will be judged by AI alone'
+                : `${testCases.length} case(s), ${testCases.filter((t) => t.isHidden).length} hidden`}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-faint">
+            The submitted code is run with each input and its output compared to the expected
+            value. Hidden cases are withheld from the student, so a solution has to generalise
+            instead of matching the examples it can see.
+          </p>
+
+          <ul className="mt-3 grid gap-3">
+            {testCases.map((t, i) => (
+              <li key={i} className="rounded-card border border-hair p-3">
+                <div className="grid gap-2 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                  <Field label="Name (optional)">
+                    {({ id: fid }) => (
+                      <Input
+                        id={fid}
+                        value={t.name}
+                        disabled={locked}
+                        placeholder="e.g. empty input"
+                        onChange={(e) => patchTestCase(i, { name: e.target.value })}
+                      />
+                    )}
+                  </Field>
+                  <label className="flex items-center gap-2 pb-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={t.isHidden}
+                      disabled={locked}
+                      onChange={(e) => patchTestCase(i, { isHidden: e.target.checked })}
+                    />
+                    Hidden
+                  </label>
+                  {!locked && (
+                    <Button
+                      variant="ghost"
+                      type="button"
+                      aria-label="Remove test case"
+                      className="mb-1"
+                      onClick={() => {
+                        setTestCases((prev) => prev.filter((_, idx) => idx !== i));
+                        setSaved(false);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  )}
+                </div>
+                <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                  <Field label="Input (stdin)">
+                    {({ id: fid }) => (
+                      <Textarea
+                        id={fid}
+                        rows={3}
+                        value={t.stdin}
+                        disabled={locked}
+                        className="font-mono text-xs"
+                        onChange={(e) => patchTestCase(i, { stdin: e.target.value })}
+                      />
+                    )}
+                  </Field>
+                  <Field label="Expected output">
+                    {({ id: fid }) => (
+                      <Textarea
+                        id={fid}
+                        rows={3}
+                        value={t.expectedOutput}
+                        disabled={locked}
+                        className="font-mono text-xs"
+                        onChange={(e) => patchTestCase(i, { expectedOutput: e.target.value })}
+                      />
+                    )}
+                  </Field>
+                </div>
+              </li>
+            ))}
+          </ul>
+
+          {!locked && testCases.length < 30 && (
+            <Button
+              variant="ghost"
+              type="button"
+              className="mt-3"
+              onClick={() => {
+                setTestCases((prev) => [
+                  ...prev,
+                  { name: '', stdin: '', expectedOutput: '', isHidden: false },
+                ]);
+                setSaved(false);
+              }}
+            >
+              <Plus className="mr-1 h-4 w-4" /> Add test case
+            </Button>
+          )}
+        </Card>
+      )}
 
       {!locked && (
         <div className="flex flex-wrap items-center gap-3">

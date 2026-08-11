@@ -289,6 +289,13 @@ function StudentSubmit({ id }: { id: string }) {
     queryFn: () => assignmentsApi.getMine(id),
   });
 
+  // Asked for explicitly: a hint nobody requested is a hint nobody reads,
+  // and generating one per submission would spend a model call on the
+  // many that pass.
+  const hintQ = useMutation({
+    mutationFn: () => assignmentsApi.hint(id),
+  });
+
   const [code, setCode] = useState<string | null>(null);
   const [text, setText] = useState('');
   const [lastOutput, setLastOutput] = useState('');
@@ -525,6 +532,87 @@ function StudentSubmit({ id }: { id: string }) {
                   </span>
                 )}
               </div>
+
+              {/* Test results: correctness measured by running the code, shown
+                  case by case. Hidden cases report pass/fail only — their
+                  inputs stay withheld so they cannot be special-cased. */}
+              {detailQ.data.submission.testSummary && (
+                <div className="mt-3 border-t border-hair pt-3">
+                  <div className="flex items-center justify-between text-xs font-semibold">
+                    <span className="text-faint">Test cases</span>
+                    <span
+                      className={
+                        detailQ.data.submission.testSummary.passed ===
+                        detailQ.data.submission.testSummary.total
+                          ? 'text-success'
+                          : 'text-danger'
+                      }
+                    >
+                      {detailQ.data.submission.testSummary.passed}/
+                      {detailQ.data.submission.testSummary.total} passed
+                    </span>
+                  </div>
+                  <ul className="mt-2 grid gap-1.5">
+                    {(detailQ.data.submission.testResults ?? []).map((t, i) => (
+                      <li key={t.id} className="text-xs">
+                        <div className="flex items-center gap-2">
+                          <span className={t.passed ? 'text-success' : 'text-danger'}>
+                            {t.passed ? '✓' : '✗'}
+                          </span>
+                          <span className="truncate">
+                            {t.name || `Case ${i + 1}`}
+                            {t.isHidden && <span className="ml-1 text-faint">(hidden)</span>}
+                            {t.timedOut && <span className="ml-1 text-danger">timed out</span>}
+                          </span>
+                        </div>
+                        {!t.passed && !t.isHidden && t.expectedOutput != null && (
+                          <div className="ml-5 mt-1 grid gap-0.5 font-mono text-[11px] text-faint">
+                            <div>expected: {t.expectedOutput.trim() || '(empty)'}</div>
+                            <div>actual: {(t.actualOutput ?? '').trim() || '(empty)'}</div>
+                          </div>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+
+                  {/* Offered only when something actually failed. */}
+                  {detailQ.data.submission.testSummary.passed <
+                    detailQ.data.submission.testSummary.total && (
+                    <div className="mt-3">
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        onClick={() => hintQ.mutate()}
+                        disabled={hintQ.isPending}
+                      >
+                        {hintQ.isPending ? 'Thinking…' : 'Why did this fail?'}
+                      </Button>
+                      {hintQ.data && (
+                        <div className="mt-2 rounded-card border border-hair bg-chip p-3 text-xs">
+                          <div className="font-semibold">
+                            {hintQ.data.diagnosis}
+                            {hintQ.data.line != null && (
+                              <span className="ml-1 font-normal text-faint">
+                                (line {hintQ.data.line})
+                              </span>
+                            )}
+                          </div>
+                          <p className="mt-1.5 leading-relaxed text-faint">
+                            {hintQ.data.explanation}
+                          </p>
+                          <p className="mt-2 leading-relaxed">
+                            <span className="font-semibold">Try this: </span>
+                            {hintQ.data.hint}
+                          </p>
+                        </div>
+                      )}
+                      {hintQ.isError && (
+                        <p className="mt-2 text-xs text-danger">Could not produce a hint.</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </Card>
           )}
         </aside>

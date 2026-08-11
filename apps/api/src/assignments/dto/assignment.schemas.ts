@@ -47,11 +47,21 @@ export type CreateAssignmentDto = z.infer<typeof createAssignmentSchema>;
  * hand-written work before it goes out. `criteria`, when present, replaces the
  * whole rubric; the service refuses edits once the assignment is live.
  */
+export const testCaseSchema = z.object({
+  name: z.string().max(120).optional(),
+  stdin: z.string().max(10_000).default(''),
+  expectedOutput: z.string().max(10_000),
+  /** Withheld while the student iterates, so a solution has to generalise. */
+  isHidden: z.boolean().optional(),
+});
+
 export const updateAssignmentSchema = createAssignmentSchema
   .omit({ batchId: true, courseId: true, aiGenerated: true, publish: true, criteria: true })
   .partial()
   .extend({
     criteria: createAssignmentSchema.shape.criteria.optional(),
+    /** Replaces the whole set, like criteria. */
+    testCases: z.array(testCaseSchema).max(30).optional(),
   })
   .refine((v) => Object.keys(v).length > 0, { message: 'Nothing to update' });
 export type UpdateAssignmentDto = z.infer<typeof updateAssignmentSchema>;

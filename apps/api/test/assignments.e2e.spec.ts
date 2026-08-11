@@ -93,7 +93,7 @@ run('Assignments + AI evaluation (e2e)', () => {
 
   /** Returns the status instead of throwing, for the refusal assertions. */
   async function rawStatus(
-    method: 'patch',
+    method: 'patch' | 'get',
     path: string,
     token: string,
     body?: unknown,
@@ -184,6 +184,132 @@ run('Assignments + AI evaluation (e2e)', () => {
     expect(
       await rawStatus('patch', `/api/v1/assignments/${draft.id}`, adminToken, { title: 'too late' }),
     ).toBe(400);
+  });
+
+  it('runs a coding submission against the trainer\'s test cases and hides the hidden ones', async () => {
+    const draft = await api('post', '/api/v1/assignments', adminToken, {
+      batchId,
+      title: `Doubler ${Date.now()}`,
+      instructions: 'Read an integer from stdin and print double it.',
+      language: 'PYTHON',
+      criteria: [{ title: 'Correctness', weight: 100 }],
+    });
+
+    await api('patch', `/api/v1/assignments/${draft.id}`, adminToken, {
+      testCases: [
+        { name: 'sample', stdin: '2\n', expectedOutput: '4', isHidden: false },
+        { name: 'zero', stdin: '0\n', expectedOutput: '0', isHidden: false },
+        // Withheld so a solution has to generalise rather than hardcode.
+        { name: 'large', stdin: '1000\n', expectedOutput: '2000', isHidden: true },
+      ],
+    });
+    await api('post', `/api/v1/assignments/${draft.id}/publish`, adminToken);
+
+    // A correct solution: reads stdin, doubles it.
+    await api('post', `/api/v1/assignments/${draft.id}/submit`, studentToken, {
+      contentText: 'n = int(input())\nprint(n * 2)\n',
+    });
+
+    const mine = await api('get', `/api/v1/me/assignments/${draft.id}`, studentToken);
+    const results = mine.submission.testResults as Array<{
+      name: string;
+      passed: boolean;
+      isHidden: boolean;
+      stdin: string | null;
+      expectedOutput: string | null;
+    }>;
+
+    expect(mine.submission.testSummary).toEqual({ passed: 3, total: 3 });
+    expect(results).toHaveLength(3);
+    expect(results.every((r) => r.passed)).toBe(true);
+
+    // Pass/fail is feedback; the hidden case's data is not.
+    const hidden = results.find((r) => r.isHidden)!;
+    expect(hidden.passed).toBe(true);
+    expect(hidden.stdin).toBeNull();
+    expect(hidden.expectedOutput).toBeNull();
+    const visible = results.find((r) => !r.isHidden)!;
+    expect(visible.expectedOutput).not.toBeNull();
+  });
+
+  it('marks a wrong solution as failing, from executed code rather than the claimed output', async () => {
+    const draft = await api('post', '/api/v1/assignments', adminToken, {
+      batchId,
+      title: `Doubler wrong ${Date.now()}`,
+      language: 'PYTHON',
+      criteria: [{ title: 'Correctness', weight: 100 }],
+    });
+    await api('patch', `/api/v1/assignments/${draft.id}`, adminToken, {
+      testCases: [
+        { name: 'two', stdin: '2\n', expectedOutput: '4' },
+        { name: 'three', stdin: '3\n', expectedOutput: '6' },
+      ],
+    });
+    await api('post', `/api/v1/assignments/${draft.id}/publish`, adminToken);
+
+    // Adds instead of doubling, and claims a passing output in codeOutput —
+    // which the server must ignore in favour of running the source.
+    await api('post', `/api/v1/assignments/${draft.id}/submit`, studentToken, {
+      contentText: 'n = int(input())\nprint(n + 1)\n',
+      codeOutput: '4\n6\n',
+    });
+
+    const mine = await api('get', `/api/v1/me/assignments/${draft.id}`, studentToken);
+    expect(mine.submission.testSummary).toEqual({ passed: 0, total: 2 });
+    const first = mine.submission.testResults[0];
+    expect(first.passed).toBe(false);
+    // The student can see what their code actually printed for a visible case.
+    expect(first.actualOutput.trim()).toBe('3');
+  });
+
+  it('gives a student a hint that points at the failure without handing over the fix', async () => {
+    const draft = await api('post', '/api/v1/assignments', adminToken, {
+      batchId,
+      title: `Hint me ${Date.now()}`,
+      instructions: 'Read an integer and print its double.',
+      language: 'PYTHON',
+      criteria: [{ title: 'Correctness', weight: 100 }],
+    });
+    await api('patch', `/api/v1/assignments/${draft.id}`, adminToken, {
+      testCases: [
+        { name: 'two', stdin: '2\n', expectedOutput: '4' },
+        { name: 'ten', stdin: '10\n', expectedOutput: '20' },
+      ],
+    });
+    await api('post', `/api/v1/assignments/${draft.id}/publish`, adminToken);
+
+    // Crashes on a name that was never defined — a diagnosable runtime error.
+    await api('post', `/api/v1/assignments/${draft.id}/submit`, studentToken, {
+      contentText: 'n = int(input())\nprint(undefined_name * 2)\n',
+    });
+
+    const hint = await api('get', `/api/v1/assignments/${draft.id}/hint`, studentToken);
+    expect(hint.diagnosis).toBeTruthy();
+    expect(hint.explanation).toBeTruthy();
+    expect(hint.hint).toBeTruthy();
+    // The traceback names line 2, and that is where the mistake is.
+    expect(hint.line).toBe(2);
+    // A hint containing the fix turns the attempt into a copy-paste.
+    expect(hint.hint).not.toContain('```');
+    expect(hint.hint).not.toContain('n * 2');
+  });
+
+  it('refuses a hint when there is nothing wrong to explain', async () => {
+    const draft = await api('post', '/api/v1/assignments', adminToken, {
+      batchId,
+      title: `All good ${Date.now()}`,
+      language: 'PYTHON',
+      criteria: [{ title: 'Correctness', weight: 100 }],
+    });
+    await api('patch', `/api/v1/assignments/${draft.id}`, adminToken, {
+      testCases: [{ name: 'two', stdin: '2\n', expectedOutput: '4' }],
+    });
+    await api('post', `/api/v1/assignments/${draft.id}/publish`, adminToken);
+    await api('post', `/api/v1/assignments/${draft.id}/submit`, studentToken, {
+      contentText: 'n = int(input())\nprint(n * 2)\n',
+    });
+
+    expect(await rawStatus('get', `/api/v1/assignments/${draft.id}/hint`, studentToken)).toBe(400);
   });
 
   it('admin creates + publishes an assignment; student submits', async () => {

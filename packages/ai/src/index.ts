@@ -60,3 +60,12 @@ export {
   type GenerateAssessmentInput,
   type GeneratedAssessment,
 } from './generate-assessment';
+export {
+  generateCodeHint,
+  codeHintHeuristic,
+  classifyFailure,
+  parseErrorLine,
+  type CodeHint,
+  type CodeHintInput,
+  type FailedCase,
+} from './code-hint';

@@ -922,9 +922,56 @@ model Assignment {
   createdBy   User                   @relation("AssignmentCreator", fields: [createdById], references: [id])
   criteria    RubricCriterion[]
   submissions AssignmentSubmission[]
+  testCases   AssignmentTestCase[]
 
   @@index([batchId, status])
   @@map("assignments")
+}
+
+/**
+ * An input/expected-output pair a coding submission is run against.
+ *
+ * Correctness stops being a matter of opinion: the program is executed with
+ * `stdin` and its stdout is compared to `expectedOutput`. AI then judges the
+ * things a diff cannot — structure, naming, whether the approach is sound.
+ *
+ * Hidden cases are withheld from the student while they iterate, so a solution
+ * has to generalise rather than special-case the examples it can see.
+ */
+model AssignmentTestCase {
+  id             String   @id @default(cuid())
+  assignmentId   String
+  order          Int      @default(0)
+  name           String?
+  stdin          String   @default("")
+  expectedOutput String
+  isHidden       Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  assignment Assignment                 @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  results    SubmissionTestResult[]
+
+  @@index([assignmentId])
+  @@map("assignment_test_cases")
+}
+
+/** How one submission fared against one test case, recorded server-side. */
+model SubmissionTestResult {
+  id           String   @id @default(cuid())
+  submissionId String
+  testCaseId   String
+  passed       Boolean
+  actualOutput String
+  stderr       String?
+  timedOut     Boolean  @default(false)
+  createdAt    DateTime @default(now())
+
+  submission AssignmentSubmission @relation(fields: [submissionId], references: [id], onDelete: Cascade)
+  testCase   AssignmentTestCase   @relation(fields: [testCaseId], references: [id], onDelete: Cascade)
+
+  @@unique([submissionId, testCaseId])
+  @@index([submissionId])
+  @@map("submission_test_results")
 }
 
 model RubricCriterion {
@@ -959,6 +1006,7 @@ model AssignmentSubmission {
   student     User                   @relation("SubmissionStudent", fields: [studentId], references: [id], onDelete: Cascade)
   evaluation  AssignmentEvaluation?
   attachments SubmissionAttachment[]
+  testResults SubmissionTestResult[]
 
   @@unique([assignmentId, studentId, attemptNumber])
   @@index([studentId])

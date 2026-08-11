@@ -111,6 +111,17 @@ export class AssignmentsController {
     return this.assignments.submit(user.userId, id, dto);
   }
 
+  @Get(':id/hint')
+  @RequirePermissions(PERMISSIONS.ASSIGNMENT_SUBMIT)
+  @ApiOperation({
+    summary:
+      'Explain why your latest submission fails its test cases, with a hint. ' +
+      'Never returns the corrected code.',
+  })
+  hint(@CurrentUser() user: AuthUser, @Param('id') id: string) {
+    return this.assignments.hintForMySubmission(user.userId, id);
+  }
+
   @Post('submissions/:id/evaluate')
   @RequirePermissions(PERMISSIONS.ASSIGNMENT_EVALUATE)
   @ApiOperation({ summary: 'Trigger (re)evaluation of a submission' })

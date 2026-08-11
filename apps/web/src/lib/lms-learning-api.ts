@@ -32,7 +32,40 @@ export interface StaffAssignment extends AssignmentSummary {
   description: string | null;
   instructions: string | null;
   criteria: Array<{ id: string; title: string; description: string | null; weight: number }>;
+  testCases?: Array<{
+    id: string;
+    name: string | null;
+    stdin: string;
+    expectedOutput: string;
+    isHidden: boolean;
+  }>;
   _count?: { submissions: number; criteria: number };
+}
+
+/**
+ * One case a submission was run against. Inputs and expected values are null
+ * for hidden cases — the server withholds them so a solution cannot be
+ * special-cased to the examples.
+ */
+/** Diagnosis of a failing submission. Never contains the corrected code. */
+export interface CodeHint {
+  diagnosis: string;
+  line: number | null;
+  explanation: string;
+  hint: string;
+  provider: 'heuristic' | 'llm';
+}
+
+export interface SubmissionTestResult {
+  id: string;
+  name: string | null;
+  passed: boolean;
+  timedOut: boolean;
+  isHidden: boolean;
+  stdin: string | null;
+  expectedOutput: string | null;
+  actualOutput: string | null;
+  stderr: string | null;
 }
 
 export interface AssignmentMine {
@@ -83,6 +116,8 @@ export interface AssignmentDetailMine {
     codeOutput?: string | null;
     repoUrl: string | null;
     submittedAt: string | null;
+    testResults?: SubmissionTestResult[];
+    testSummary?: { passed: number; total: number } | null;
     evaluation: {
       status: string;
       aiScore: number | null;
@@ -190,6 +225,12 @@ export const assignmentsApi = {
       maxScore?: number;
       starterCode?: string | null;
       criteria?: Array<{ title: string; description?: string; weight: number }>;
+      testCases?: Array<{
+        name?: string;
+        stdin: string;
+        expectedOutput: string;
+        isHidden?: boolean;
+      }>;
     },
   ) => apiRequest<StaffAssignment>(`/assignments/${id}`, { method: 'PATCH', body: input, auth: true }),
   publish: (id: string) =>
@@ -213,6 +254,8 @@ export const assignmentsApi = {
       body: { trainerScore, release: true, reason },
       auth: true,
     }),
+  /** Why the latest attempt fails, with a nudge — not the answer. */
+  hint: (id: string) => apiRequest<CodeHint>(`/assignments/${id}/hint`, { auth: true }),
   mine: () => apiRequest<AssignmentMine[]>('/me/assignments', { auth: true }),
   getMine: (id: string) =>
     apiRequest<AssignmentDetailMine>(`/me/assignments/${id}`, { auth: true }),

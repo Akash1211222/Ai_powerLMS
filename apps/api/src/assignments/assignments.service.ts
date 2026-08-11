@@ -1,10 +1,16 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
 } from '@nestjs/common';
-import { generateAssignment, runSubmissionEvaluation, getProvider } from '@fca/ai';
+import {
+  generateAssignment,
+  generateCodeHint,
+  runSubmissionEvaluation,
+  getProvider,
+} from '@fca/ai';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
@@ -12,6 +18,7 @@ import { QueueService } from '../queue/queue.service';
 import { NotificationService } from '../notifications/notification.service';
 import { ScoresService } from '../skills/scores.service';
 import { assertOrgAccess } from '../common/tenant';
+import { isRunnable, runTestCases } from './test-runner';
 import type {
   CreateAssignmentDto,
   SubmitDto,
@@ -22,6 +29,8 @@ import type {
 
 @Injectable()
 export class AssignmentsService {
+  private readonly logger = new Logger(AssignmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -124,6 +133,44 @@ export class AssignmentsService {
   }
 
   /**
+   * Executes a submission against the assignment's test cases and records the
+   * outcome. Never throws: a runner problem must not cost a student their
+   * submission, so failures are stored as failed cases and the AI pass still
+   * happens.
+   */
+  private async gradeAgainstTestCases(
+    assignment: { id: string; language: string },
+    submissionId: string,
+    source: string,
+  ): Promise<void> {
+    if (!isRunnable(assignment.language) || !source.trim()) return;
+
+    const cases = await this.prisma.assignmentTestCase.findMany({
+      where: { assignmentId: assignment.id },
+      orderBy: { order: 'asc' },
+      select: { id: true, name: true, stdin: true, expectedOutput: true, isHidden: true },
+    });
+    if (cases.length === 0) return;
+
+    try {
+      const outcomes = await runTestCases(assignment.language, source, cases);
+      await this.prisma.submissionTestResult.createMany({
+        data: outcomes.map((o) => ({
+          submissionId,
+          testCaseId: o.testCaseId,
+          passed: o.passed,
+          actualOutput: o.actualOutput.slice(0, 10_000),
+          stderr: o.stderr?.slice(0, 4_000) ?? null,
+          timedOut: o.timedOut,
+        })),
+        skipDuplicates: true,
+      });
+    } catch (err) {
+      this.logger.warn(`Test run failed for submission ${submissionId}: ${(err as Error).message}`);
+    }
+  }
+
+  /**
    * The full assignment as staff see it — brief, starter code and rubric.
    *
    * The student endpoint only serves published work, so without this a trainer
@@ -136,6 +183,7 @@ export class AssignmentsService {
       where: { id: assignmentId },
       include: {
         criteria: { orderBy: { order: 'asc' } },
+        testCases: { orderBy: { order: 'asc' } },
         _count: { select: { submissions: true } },
       },
     });
@@ -193,6 +241,19 @@ export class AssignmentsService {
           })),
         });
       }
+      if (dto.testCases) {
+        await tx.assignmentTestCase.deleteMany({ where: { assignmentId } });
+        await tx.assignmentTestCase.createMany({
+          data: dto.testCases.map((c, i) => ({
+            assignmentId,
+            order: i,
+            name: c.name ?? null,
+            stdin: c.stdin,
+            expectedOutput: c.expectedOutput,
+            isHidden: c.isHidden ?? false,
+          })),
+        });
+      }
     });
 
     await this.audit.record({
@@ -204,11 +265,15 @@ export class AssignmentsService {
       metadata: {
         fields: Object.keys(data),
         criteriaReplaced: dto.criteria ? dto.criteria.length : 0,
+        testCasesReplaced: dto.testCases ? dto.testCases.length : 0,
       },
     });
     return this.prisma.assignment.findUnique({
       where: { id: assignmentId },
-      include: { criteria: { orderBy: { order: 'asc' } } },
+      include: {
+        criteria: { orderBy: { order: 'asc' } },
+        testCases: { orderBy: { order: 'asc' } },
+      },
     });
   }
 
@@ -340,6 +405,11 @@ export class AssignmentsService {
       },
     });
 
+    // Correctness is established by running the submitted source here, not by
+    // trusting `codeOutput` — that field comes from the browser and a student
+    // can put anything in it.
+    await this.gradeAgainstTestCases(assignment, submission.id, dto.contentText ?? '');
+
     let evaluation = null;
     if (assignment.aiEvaluationEnabled) {
       await this.prisma.assignmentEvaluation.create({
@@ -409,7 +479,10 @@ export class AssignmentsService {
     const submission = await this.prisma.assignmentSubmission.findFirst({
       where: { assignmentId, studentId: userId },
       orderBy: { attemptNumber: 'desc' },
-      include: { evaluation: { include: { criterionScores: true } } },
+      include: {
+        evaluation: { include: { criterionScores: true } },
+        testResults: { include: { testCase: true } },
+      },
     });
 
     // Students see feedback once RELEASED (auto-released by high-confidence AI)
@@ -422,7 +495,97 @@ export class AssignmentsService {
     ) {
       evaluation = null;
     }
-    return { assignment, submission: submission ? { ...submission, evaluation } : null };
+
+    /**
+     * Pass/fail is always shown — knowing a case failed is the feedback loop.
+     * The inputs and expected values of HIDDEN cases are not: a student who
+     * can read them can special-case them instead of solving the problem.
+     */
+    const testResults = (submission?.testResults ?? []).map((r) => ({
+      id: r.id,
+      passed: r.passed,
+      timedOut: r.timedOut,
+      name: r.testCase.name,
+      isHidden: r.testCase.isHidden,
+      stdin: r.testCase.isHidden ? null : r.testCase.stdin,
+      expectedOutput: r.testCase.isHidden ? null : r.testCase.expectedOutput,
+      actualOutput: r.testCase.isHidden ? null : r.actualOutput,
+      stderr: r.testCase.isHidden ? null : r.stderr,
+    }));
+    const passedCount = testResults.filter((r) => r.passed).length;
+
+    return {
+      assignment,
+      submission: submission
+        ? {
+            ...submission,
+            evaluation,
+            testResults,
+            testSummary:
+              testResults.length > 0
+                ? { passed: passedCount, total: testResults.length }
+                : null,
+          }
+        : null,
+    };
+  }
+
+  /**
+   * A hint for the student's own latest failing submission.
+   *
+   * On demand rather than on submit: generating one for every submission would
+   * spend a model call on the many that pass, and a hint nobody asked for is
+   * one nobody reads.
+   *
+   * Hidden cases are used as evidence but never quoted back — the hint may say
+   * a hidden case fails, not what it contains.
+   */
+  async hintForMySubmission(userId: string, assignmentId: string) {
+    const assignment = await this.prisma.assignment.findUnique({ where: { id: assignmentId } });
+    if (!assignment) throw new NotFoundException('Assignment not found');
+    await this.assertEnrolled(userId, assignment.batchId);
+
+    const submission = await this.prisma.assignmentSubmission.findFirst({
+      where: { assignmentId, studentId: userId },
+      orderBy: { attemptNumber: 'desc' },
+      include: { testResults: { include: { testCase: true } } },
+    });
+    if (!submission) throw new BadRequestException('Submit an attempt first');
+
+    const results = submission.testResults;
+    if (results.length === 0) {
+      throw new BadRequestException('This assignment has no test cases to diagnose');
+    }
+    const failed = results.filter((r) => !r.passed);
+    if (failed.length === 0) {
+      throw new BadRequestException('Every test case passed — there is nothing to fix');
+    }
+
+    const hint = await generateCodeHint({
+      language: assignment.language,
+      instructions: assignment.instructions,
+      source: submission.contentText ?? '',
+      passedCount: results.length - failed.length,
+      totalCount: results.length,
+      failures: failed.map((r) => ({
+        name: r.testCase.name,
+        // A hidden case contributes the fact that it failed, not its data.
+        stdin: r.testCase.isHidden ? '' : r.testCase.stdin,
+        expectedOutput: r.testCase.isHidden ? '' : r.testCase.expectedOutput,
+        actualOutput: r.testCase.isHidden ? '' : r.actualOutput,
+        stderr: r.stderr,
+        timedOut: r.timedOut,
+      })),
+    });
+
+    await this.audit.record({
+      action: 'assignment.hint',
+      actorUserId: userId,
+      targetType: 'AssignmentSubmission',
+      targetId: submission.id,
+      metadata: { provider: hint.provider, failed: failed.length, total: results.length },
+    });
+    return hint;
   }
 
   // --- Evaluation (staff) ----------------------------------------------
