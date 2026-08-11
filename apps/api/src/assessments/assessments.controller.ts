@@ -14,11 +14,13 @@ import {
   listAssessmentsQuerySchema,
   submitAttemptSchema,
   updateAssessmentSchema,
+  attemptIntegritySchema,
   type AiGenerateAssessmentDto,
   type CreateAssessmentDto,
   type ListAssessmentsQuery,
   type SubmitAttemptDto,
   type UpdateAssessmentDto,
+  type AttemptIntegrityDto,
 } from './dto/assessment.schemas';
 
 @ApiTags('assessments')
@@ -100,6 +102,21 @@ export class AssessmentsController {
   @ApiOperation({ summary: 'Start an attempt (returns questions without answers)' })
   start(@CurrentUser() user: AuthUser, @Param('id') id: string) {
     return this.assessments.startAttempt(user.userId, id);
+  }
+
+  @Post('attempts/:id/integrity')
+  @RequirePermissions(PERMISSIONS.ASSIGNMENT_SUBMIT)
+  @ApiOperation({
+    summary:
+      'Report tab-switches and pastes during an attempt. Browser-reported, so ' +
+      'evidence for the trainer rather than proof.',
+  })
+  integrity(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(attemptIntegritySchema)) dto: AttemptIntegrityDto,
+  ) {
+    return this.assessments.recordIntegrity(user.userId, id, dto);
   }
 
   @Post('attempts/:id/submit')

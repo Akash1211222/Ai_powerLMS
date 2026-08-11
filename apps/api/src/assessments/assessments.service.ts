@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   ForbiddenException,
   BadRequestException,
@@ -19,12 +20,15 @@ import type {
   CreateAssessmentDto,
   SubmitAttemptDto,
   UpdateAssessmentDto,
+  AttemptIntegrityDto,
 } from './dto/assessment.schemas';
 
 const OBJECTIVE = new Set(['MCQ', 'MULTI_SELECT', 'TRUE_FALSE']);
 
 @Injectable()
 export class AssessmentsService {
+  private readonly logger = new Logger(AssessmentsService.name);
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly audit: AuditService,
@@ -275,6 +279,8 @@ export class AssessmentsService {
         student: { include: { profile: true } },
         topicPerformance: true,
       },
+      // blurCount / pasteCount / awayMs / autoSubmitted come through by
+      // default — the trainer needs them to judge an attempt.
     });
   }
 
@@ -324,6 +330,32 @@ export class AssessmentsService {
     };
   }
 
+  /**
+   * Records integrity signals against an in-progress attempt.
+   *
+   * Reported by the browser, so treat it as evidence rather than proof — a
+   * student who opens devtools can stop it reporting. It reliably catches
+   * casual tab-switching and pasted answers, which is most of what happens.
+   *
+   * Only accepted while the attempt is open; a graded attempt is history.
+   */
+  async recordIntegrity(userId: string, attemptId: string, dto: AttemptIntegrityDto) {
+    const attempt = await this.prisma.assessmentAttempt.findUnique({ where: { id: attemptId } });
+    if (!attempt) throw new NotFoundException('Attempt not found');
+    if (attempt.studentId !== userId) throw new ForbiddenException('Not your attempt');
+    if (attempt.status !== 'IN_PROGRESS') return { recorded: false as const };
+
+    await this.prisma.assessmentAttempt.update({
+      where: { id: attemptId },
+      data: {
+        blurCount: { increment: dto.blur ?? 0 },
+        pasteCount: { increment: dto.paste ?? 0 },
+        awayMs: { increment: dto.awayMs ?? 0 },
+      },
+    });
+    return { recorded: true as const };
+  }
+
   async submitAttempt(userId: string, attemptId: string, dto: SubmitAttemptDto) {
     const attempt = await this.prisma.assessmentAttempt.findUnique({
       where: { id: attemptId },
@@ -332,6 +364,26 @@ export class AssessmentsService {
     if (!attempt) throw new NotFoundException('Attempt not found');
     if (attempt.studentId !== userId) throw new ForbiddenException('Not your attempt');
     if (attempt.status !== 'IN_PROGRESS') throw new BadRequestException('Attempt already submitted');
+
+    /**
+     * The time limit is enforced here, not in the countdown the student sees.
+     *
+     * It was previously advisory: startedAt was recorded and timeLimitMin was
+     * sent to the browser, but nothing compared them, so a ten-minute paper
+     * could be submitted an hour later. A clock only the client keeps is not a
+     * limit.
+     *
+     * Overrunning still grades — refusing the submission would punish a slow
+     * connection as harshly as a cheat — but it is marked so the trainer sees
+     * it. A grace period absorbs the round trip of a submit fired as the timer
+     * hits zero.
+     */
+    const GRACE_MS = 30_000;
+    let overran = false;
+    if (attempt.assessment.timeLimitMin) {
+      const allowedMs = attempt.assessment.timeLimitMin * 60_000 + GRACE_MS;
+      overran = Date.now() - attempt.startedAt.getTime() > allowedMs;
+    }
 
     const questions: GradableQuestion[] = attempt.assessment.questions.map((q) => ({
       id: q.id,
@@ -375,10 +427,16 @@ export class AssessmentsService {
           percent: result.percent,
           submittedAt: new Date(),
           gradedAt: new Date(),
+          autoSubmitted: overran,
         },
       });
     });
 
+    if (overran) {
+      this.logger.warn(
+        `Attempt ${attemptId} submitted past its ${attempt.assessment.timeLimitMin}min limit`,
+      );
+    }
     await this.audit.record({
       action: 'assessment.attempt.submit',
       actorUserId: userId,

@@ -6,6 +6,7 @@ import { useMutation, useQuery } from '@tanstack/react-query';
 import { Card, Button, Spinner, Alert } from '@fca/ui';
 import { assessmentsApi, type AttemptResult } from '@/lib/lms-learning-api';
 import { ApiError } from '@/lib/api-client';
+import { useExamIntegrity, useCopyDeterrent } from '@/lib/use-exam-integrity';
 
 export default function AssessmentAttemptPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -13,6 +14,11 @@ export default function AssessmentAttemptPage({ params }: { params: Promise<{ id
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const [result, setResult] = useState<AttemptResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  // Active only while a paper is open and unsubmitted.
+  const sitting = Boolean(attemptId) && !result;
+  useExamIntegrity(attemptId, sitting);
+  useCopyDeterrent(sitting);
 
   const start = useMutation({
     mutationFn: () => assessmentsApi.start(id),
@@ -104,6 +110,12 @@ export default function AssessmentAttemptPage({ params }: { params: Promise<{ id
         <h1 className="font-display text-3xl font-extrabold tracking-tight">
           {assessment?.title ?? 'Assessment'}
         </h1>
+        {sitting && (
+          <Alert tone="warning">
+            This paper is monitored: leaving the tab and pasting into answers are
+            recorded for your trainer, and the time limit is enforced by the server.
+          </Alert>
+        )}
         {error && <Alert tone="error">{error}</Alert>}
         <Card>
           <p className="text-sm text-faint">

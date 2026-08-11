@@ -87,3 +87,18 @@ export const submitAttemptSchema = z.object({
     .max(500),
 });
 export type SubmitAttemptDto = z.infer<typeof submitAttemptSchema>;
+
+/**
+ * Integrity signals reported by the student's browser during an attempt.
+ *
+ * Counts are cumulative deltas, applied with an increment so a dropped or
+ * duplicated report degrades gracefully rather than resetting the total.
+ */
+export const attemptIntegritySchema = z
+  .object({
+    blur: z.number().int().min(0).max(500).optional(),
+    paste: z.number().int().min(0).max(500).optional(),
+    awayMs: z.number().int().min(0).max(86_400_000).optional(),
+  })
+  .refine((v) => v.blur || v.paste || v.awayMs, { message: 'Nothing to report' });
+export type AttemptIntegrityDto = z.infer<typeof attemptIntegritySchema>;

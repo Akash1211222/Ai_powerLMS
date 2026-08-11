@@ -57,6 +57,14 @@ export default function AssessmentReviewPage({ params }: { params: Promise<{ id:
     enabled: Boolean(canEdit),
   });
 
+  // Attempts only exist once the paper is live; this is where a trainer reads
+  // the integrity signals for it.
+  const attemptsQ = useQuery({
+    queryKey: ['assessment', id, 'attempts'],
+    queryFn: () => assessmentsApi.attempts(id),
+    enabled: Boolean(canEdit) && q.data?.status !== 'DRAFT',
+  });
+
   const [title, setTitle] = useState('');
   const [passingScore, setPassingScore] = useState<string>('');
   const [questions, setQuestions] = useState<DraftQuestion[]>([]);
@@ -168,6 +176,61 @@ export default function AssessmentReviewPage({ params }: { params: Promise<{ id:
       )}
       {error && <Alert tone="error">{error}</Alert>}
       {saved && !save.isPending && <Alert tone="success">Changes saved.</Alert>}
+
+      {locked && (attemptsQ.data?.length ?? 0) > 0 && (
+        <Card>
+          <h2 className="font-bold">Attempts</h2>
+          <p className="mt-1 text-sm text-faint">
+            Tab-switches and pastes are reported by the student&apos;s browser, so treat them as
+            a prompt to look closer rather than proof. The overrun flag is set by the server and
+            is reliable.
+          </p>
+          <div className="mt-3 overflow-x-auto">
+            <table className="w-full min-w-max text-left text-sm">
+              <thead className="border-b border-hair text-xs uppercase text-faint">
+                <tr>
+                  <th className="px-2 py-2">Student</th>
+                  <th className="px-2 py-2">Score</th>
+                  <th className="px-2 py-2">Left tab</th>
+                  <th className="px-2 py-2">Pasted</th>
+                  <th className="px-2 py-2">Away</th>
+                  <th className="px-2 py-2">Flags</th>
+                </tr>
+              </thead>
+              <tbody>
+                {attemptsQ.data!.map((at) => {
+                  const name = at.student.profile
+                    ? `${at.student.profile.firstName} ${at.student.profile.lastName}`
+                    : at.student.email;
+                  const noteworthy = at.blurCount >= 3 || at.pasteCount > 0 || at.autoSubmitted;
+                  return (
+                    <tr key={at.id} className="border-b border-hair">
+                      <td className="px-2 py-1.5">{name}</td>
+                      <td className="px-2 py-1.5">
+                        {at.percent != null ? `${at.percent}%` : '—'}
+                      </td>
+                      <td className="px-2 py-1.5">{at.blurCount}</td>
+                      <td className="px-2 py-1.5">{at.pasteCount}</td>
+                      <td className="px-2 py-1.5">
+                        {at.awayMs > 0 ? `${Math.round(at.awayMs / 1000)}s` : '—'}
+                      </td>
+                      <td className="px-2 py-1.5">
+                        {at.autoSubmitted && (
+                          <Badge tone="danger" className="mr-1">
+                            over time
+                          </Badge>
+                        )}
+                        {!at.autoSubmitted && noteworthy && <Badge tone="warning">review</Badge>}
+                        {!noteworthy && <span className="text-faint">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
 
       <Card>
         <div className="grid gap-3 sm:grid-cols-[1fr_160px]">

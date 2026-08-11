@@ -201,6 +201,100 @@ run('Assessments (e2e)', () => {
     ).toBe(400);
   });
 
+  it('flags an attempt submitted past its time limit, and records integrity signals', async () => {
+    const quiz = await api('post', '/api/v1/assessments', adminToken, {
+      batchId,
+      title: `Timed ${Date.now()}`,
+      timeLimitMin: 10,
+      questions: [mcq('Pandas')],
+    });
+    await api('post', `/api/v1/assessments/${quiz.id}/publish`, adminToken);
+    const started = await api('post', `/api/v1/assessments/${quiz.id}/attempts`, studentToken);
+
+    // The browser reports leaving the tab twice and pasting once.
+    await api('post', `/api/v1/assessments/attempts/${started.attemptId}/integrity`, studentToken, {
+      blur: 2,
+      paste: 1,
+      awayMs: 45_000,
+    });
+
+    // Backdate the start so the submission lands well past the limit; the
+    // clock the server trusts is startedAt, not anything the client sends.
+    await prisma.assessmentAttempt.update({
+      where: { id: started.attemptId },
+      data: { startedAt: new Date(Date.now() - 40 * 60_000) },
+    });
+
+    await api('post', `/api/v1/assessments/attempts/${started.attemptId}/submit`, studentToken, {
+      answers: [],
+    });
+
+    const row = await prisma.assessmentAttempt.findUniqueOrThrow({
+      where: { id: started.attemptId },
+    });
+    // Overrunning still grades — a slow connection must not be punished like a
+    // cheat — but the trainer can see it happened.
+    expect(row.status).toBe('GRADED');
+    expect(row.autoSubmitted).toBe(true);
+    expect(row.blurCount).toBe(2);
+    expect(row.pasteCount).toBe(1);
+    expect(row.awayMs).toBe(45_000);
+
+    // The trainer's attempt list carries the signals.
+    const attempts = await api('get', `/api/v1/assessments/${quiz.id}/attempts`, adminToken);
+    const mine = (attempts as Array<{ id: string; autoSubmitted: boolean; blurCount: number }>).find(
+      (a) => a.id === started.attemptId,
+    );
+    expect(mine?.autoSubmitted).toBe(true);
+    expect(mine?.blurCount).toBe(2);
+  });
+
+  it('leaves an attempt inside its time limit unflagged', async () => {
+    const quiz = await api('post', '/api/v1/assessments', adminToken, {
+      batchId,
+      title: `In time ${Date.now()}`,
+      timeLimitMin: 30,
+      questions: [mcq('Pandas')],
+    });
+    await api('post', `/api/v1/assessments/${quiz.id}/publish`, adminToken);
+    const started = await api('post', `/api/v1/assessments/${quiz.id}/attempts`, studentToken);
+    await api('post', `/api/v1/assessments/attempts/${started.attemptId}/submit`, studentToken, {
+      answers: [],
+    });
+
+    const row = await prisma.assessmentAttempt.findUniqueOrThrow({
+      where: { id: started.attemptId },
+    });
+    expect(row.autoSubmitted).toBe(false);
+    expect(row.blurCount).toBe(0);
+  });
+
+  it('stops accepting integrity reports once the attempt is graded', async () => {
+    const quiz = await api('post', '/api/v1/assessments', adminToken, {
+      batchId,
+      title: `Closed ${Date.now()}`,
+      questions: [mcq('Pandas')],
+    });
+    await api('post', `/api/v1/assessments/${quiz.id}/publish`, adminToken);
+    const started = await api('post', `/api/v1/assessments/${quiz.id}/attempts`, studentToken);
+    await api('post', `/api/v1/assessments/attempts/${started.attemptId}/submit`, studentToken, {
+      answers: [],
+    });
+
+    const res = await api(
+      'post',
+      `/api/v1/assessments/attempts/${started.attemptId}/integrity`,
+      studentToken,
+      { blur: 5 },
+    );
+    expect(res.recorded).toBe(false);
+    const row = await prisma.assessmentAttempt.findUniqueOrThrow({
+      where: { id: started.attemptId },
+    });
+    // A graded attempt is history — late reports cannot rewrite it.
+    expect(row.blurCount).toBe(0);
+  });
+
   it('authors + publishes an assessment; student starts an attempt with answers hidden', async () => {
     const assessment = await api('post', '/api/v1/assessments', adminToken, {
       batchId,

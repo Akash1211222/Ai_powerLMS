@@ -1205,6 +1205,21 @@ model AssessmentAttempt {
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
+  /**
+   * Integrity signals for the trainer.
+   *
+   * These are reported by the student's browser, so they are evidence, not
+   * proof: anyone willing to open devtools can suppress them. They catch
+   * casual tab-switching and pasted answers, which is what most of it is —
+   * a determined cheat needs invigilation, not JavaScript.
+   *
+   * `autoSubmitted` is different: the server decides it, so it is reliable.
+   */
+  blurCount     Int           @default(0)
+  pasteCount    Int           @default(0)
+  awayMs        Int           @default(0)
+  autoSubmitted Boolean       @default(false)
+
   assessment       Assessment         @relation(fields: [assessmentId], references: [id], onDelete: Cascade)
   student          User               @relation("AttemptStudent", fields: [studentId], references: [id], onDelete: Cascade)
   answers          AttemptAnswer[]

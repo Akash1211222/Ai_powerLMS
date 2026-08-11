@@ -303,6 +303,21 @@ export interface AssessmentMine {
   }>;
 }
 
+/** A graded attempt as the trainer sees it, including integrity signals. */
+export interface StaffAttempt {
+  id: string;
+  score: number | null;
+  maxScore: number | null;
+  percent: number | null;
+  submittedAt: string | null;
+  startedAt: string;
+  autoSubmitted: boolean;
+  blurCount: number;
+  pasteCount: number;
+  awayMs: number;
+  student: { id: string; email: string; profile: { firstName: string; lastName: string } | null };
+}
+
 export interface AttemptStart {
   attemptId: string;
   assessmentId: string;
@@ -390,6 +405,18 @@ export const assessmentsApi = {
     apiRequest<AssessmentSummary>(`/assessments/${id}/publish`, { method: 'POST', auth: true }),
   start: (id: string) =>
     apiRequest<AttemptStart>(`/assessments/${id}/attempts`, { method: 'POST', auth: true }),
+  /** Graded attempts for a quiz, with integrity signals (staff). */
+  attempts: (id: string) => apiRequest<StaffAttempt[]>(`/assessments/${id}/attempts`, { auth: true }),
+  /** Browser-reported integrity signals for an in-progress attempt. */
+  reportIntegrity: (
+    attemptId: string,
+    input: { blur?: number; paste?: number; awayMs?: number },
+  ) =>
+    apiRequest<{ recorded: boolean }>(`/assessments/attempts/${attemptId}/integrity`, {
+      method: 'POST',
+      body: input,
+      auth: true,
+    }),
   submit: (
     attemptId: string,
     answers: Array<{ questionId: string; selectedOptionIds?: string[]; textAnswer?: string }>,
