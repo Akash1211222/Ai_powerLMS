@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { outputMatches, correctnessRatio, isRunnable, type TestOutcome } from './test-runner';
 
@@ -67,5 +69,24 @@ describe('isRunnable', () => {
     expect(isRunnable('SQL')).toBe(false);
     expect(isRunnable('WEB')).toBe(false);
     expect(isRunnable('NONE')).toBe(false);
+  });
+});
+
+describe('the CODE_RUN_ENABLED gate', () => {
+  it('is checked in the service, not only the controller', () => {
+    // CODE_RUN_ENABLED means "do not spawn compilers on this host" and is off
+    // on the shared VPS. The gate used to live only on /code/run, so grading
+    // a submission from the service executed student code regardless. If this
+    // assertion ever fails, that bypass is back.
+    const service = readFileSync(
+      join(__dirname, 'assignments.service.ts'),
+      'utf8',
+    );
+    const grading = service.slice(service.indexOf('gradeAgainstTestCases'));
+    const guardAt = grading.indexOf("CODE_RUN_ENABLED");
+    const runAt = grading.indexOf('runTestCases(');
+    expect(guardAt).toBeGreaterThan(-1);
+    // ...and it must be checked before anything is executed.
+    expect(guardAt).toBeLessThan(runAt);
   });
 });

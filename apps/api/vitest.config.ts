@@ -11,7 +11,15 @@ export default defineConfig({
     // (low-confidence scores routed to NEEDS_REVIEW, inline recovery-plan
     // generation). A real key in the developer's .env would otherwise select a
     // live provider, making the suite bill an API and fail nondeterministically.
-    env: { NODE_ENV: 'test', RATE_LIMIT_ENABLED: 'false', AI_PROVIDER: 'heuristic' },
+    // CODE_RUN_ENABLED is off by default (it spawns compilers, and must stay
+    // off on the shared VPS). The test-case grading specs exist to exercise
+    // exactly that runner, so it is switched on here where it is safe.
+    env: {
+      NODE_ENV: 'test',
+      RATE_LIMIT_ENABLED: 'false',
+      AI_PROVIDER: 'heuristic',
+      CODE_RUN_ENABLED: 'true',
+    },
     include: ['src/**/*.spec.ts', 'src/**/*.test.ts', 'test/**/*.spec.ts'],
     root: '.',
     // Process isolation (forks) avoids a worker-thread module-corruption bug

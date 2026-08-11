@@ -11,6 +11,7 @@ import {
   runSubmissionEvaluation,
   getProvider,
 } from '@fca/ai';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
@@ -18,6 +19,7 @@ import { QueueService } from '../queue/queue.service';
 import { NotificationService } from '../notifications/notification.service';
 import { ScoresService } from '../skills/scores.service';
 import { assertOrgAccess } from '../common/tenant';
+import type { Env } from '../config/env';
 import { isRunnable, runTestCases } from './test-runner';
 import type {
   CreateAssignmentDto,
@@ -38,6 +40,7 @@ export class AssignmentsService {
     private readonly queue: QueueService,
     private readonly notifications: NotificationService,
     private readonly scores: ScoresService,
+    private readonly config: ConfigService<Env, true>,
   ) {}
 
   private async batchStudentIds(batchId: string): Promise<string[]> {
@@ -143,6 +146,22 @@ export class AssignmentsService {
     submissionId: string,
     source: string,
   ): Promise<void> {
+    /**
+     * CODE_RUN_ENABLED is an operator switch meaning "do not spawn compilers
+     * on this host", and it is off on the shared VPS by design. The /code/run
+     * endpoint honours it; this path must too.
+     *
+     * It previously called executeCode() straight from the service, below the
+     * controller where the check lives, so every submission would have run
+     * untrusted student code on a box configured to forbid exactly that.
+     * With the runner off, submissions are graded by AI alone.
+     */
+    if (!this.config.get('CODE_RUN_ENABLED', { infer: true })) {
+      this.logger.debug(
+        `Skipping test cases for ${submissionId}: CODE_RUN_ENABLED is off on this host`,
+      );
+      return;
+    }
     if (!isRunnable(assignment.language) || !source.trim()) return;
 
     const cases = await this.prisma.assignmentTestCase.findMany({
