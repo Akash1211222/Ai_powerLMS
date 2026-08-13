@@ -62,9 +62,19 @@ async function bootstrap(): Promise<void> {
     SwaggerModule.setup('api/docs', app, document);
   }
 
+  /**
+   * Bind address. Defaults to every interface because that is what a container
+   * needs to be reachable at all, but on a host where nginx is the only thing
+   * that should reach us, API_HOST=127.0.0.1 keeps the API off the public
+   * interface entirely — so a firewall rule is no longer the only thing
+   * standing between the internet and an unencrypted, unrate-limited port.
+   */
   const port = config.get('API_PORT', { infer: true });
-  await app.listen(port);
-  logger.log(`API listening on ${config.get('API_BASE_URL', { infer: true })} [${nodeEnv}]`);
+  const host = config.get('API_HOST', { infer: true });
+  await app.listen(port, host);
+  logger.log(
+    `API listening on ${config.get('API_BASE_URL', { infer: true })} (bound to ${host}) [${nodeEnv}]`,
+  );
   logger.log(
     swaggerEnabled ? 'OpenAPI docs at /api/docs' : 'OpenAPI docs disabled (set SWAGGER_ENABLED=true to serve)',
   );

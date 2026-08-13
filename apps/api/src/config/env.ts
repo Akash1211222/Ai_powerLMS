@@ -42,6 +42,12 @@ export const envSchema = z.object({
 
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error']).default('info'),
 
+  /**
+   * Interface the API binds to. 0.0.0.0 so containers stay reachable; set to
+   * 127.0.0.1 on a host where nginx is the only legitimate caller.
+   */
+  API_HOST: z.string().default('0.0.0.0'),
+
   /** Host code runner (spawns compilers). Must stay off on shared VPS. */
   CODE_RUN_ENABLED: z
     .enum(['true', 'false'])
