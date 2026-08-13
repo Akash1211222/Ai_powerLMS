@@ -172,6 +172,32 @@ log "Syncing roles + permissions"
 run_limited node deploy/seed-rbac.mjs || die "RBAC seed failed — nothing restarted"
 
 # ---------------------------------------------------------------------------
+# Hand the tree to the unprivileged user the processes run as.
+#
+# Everything above this line runs as root, so whatever the build just wrote is
+# root-owned. Most of it is only ever read, so this is not load-bearing today —
+# but ownership that depends on which step last touched a file is a trap: the
+# first build that creates a directory the app has to write to would fail at
+# runtime, long after the deploy reported success.
+#
+# .env is put back deliberately. pm2 runs as root, reads it and injects it into
+# each process, so the app never needs the secrets on disk — and a file the app
+# user cannot read is one an app-level file-read bug cannot leak.
+# ---------------------------------------------------------------------------
+if [[ -n "${APP_USER:-}" ]]; then
+  # Fail here rather than after the restart: pm2 cannot start a process as a
+  # user that does not exist, and this check keeps that an aborted deploy
+  # (old build still serving) instead of an outage.
+  id "$APP_USER" >/dev/null 2>&1 ||
+    die "APP_USER=$APP_USER does not exist — create it before restarting into it"
+
+  log "Handing the tree to $APP_USER"
+  chown -R "$APP_USER:${APP_GROUP:-$APP_USER}" "$LMS_ROOT" ||
+    die "could not give $LMS_ROOT to $APP_USER — nothing restarted"
+  chown root:root "$LMS_ROOT/.env" && chmod 600 "$LMS_ROOT/.env"
+fi
+
+# ---------------------------------------------------------------------------
 # Restart LMS processes by explicit name. Never `all`.
 # ---------------------------------------------------------------------------
 log "Restarting LMS processes: ${LMS_PROCS[*]}"
