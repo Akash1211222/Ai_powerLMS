@@ -14,7 +14,13 @@
 #   * Builds BEFORE stopping anything. A failed build aborts with the currently
 #     running version still serving.
 #
+# Deploys the tree as it is currently checked out; moving HEAD is the caller's
+# job (poll-deploy.sh does it after CI goes green). That ordering is what lets
+# a change to THIS script take effect on the deploy that ships it.
+#
 # Manual run:  bash /opt/fca-lms/deploy/deploy.sh
+#   Rebuilds and restarts whatever is checked out, so it doubles as the second
+#   half of a rollback: git checkout -B main <good-sha> && bash deploy/deploy.sh
 # =============================================================================
 set -euo pipefail
 
@@ -104,31 +110,42 @@ cd "$LMS_ROOT" || die "$LMS_ROOT not found"
 # Snapshot the protected process so we can prove we did not disturb it.
 PROTECTED_BEFORE="$(protected_restarts)"
 
-PREV_SHA="$(git rev-parse HEAD)"
-log "Current: $PREV_SHA"
-
-log "Fetching origin/$BRANCH"
-git fetch --depth 50 origin "$BRANCH"
-NEW_SHA="$(git rev-parse "origin/$BRANCH")"
-
-if [[ "$PREV_SHA" == "$NEW_SHA" ]]; then
-  log "Already at $NEW_SHA — nothing to deploy"
-  exit 0
-fi
-
-CHANGED="$(git diff --name-only "$PREV_SHA" "$NEW_SHA")"
-log "Deploying $PREV_SHA -> $NEW_SHA"
-echo "$CHANGED" | sed 's/^/    /'
-
-git checkout -B "$BRANCH" "origin/$BRANCH"
-
 # ---------------------------------------------------------------------------
-# Docs-only changes need no install, build, migrate, or restart.
+# Deploy whatever is checked out. The caller moves HEAD, not this script.
+#
+# It used to fetch and check out here, which meant the snapshot taken above was
+# always the PREVIOUS version of this file — so a change to this script only
+# took effect on the deploy *after* the one that shipped it. The re-exec keeps
+# a run internally consistent, but it cannot make a script that does not exist
+# yet run. Doing the checkout in the poller, before this is invoked, means the
+# snapshot is the shipped version.
+#
+# It also makes this re-runnable: a manual `bash deploy/deploy.sh` now rebuilds
+# and restarts the current tree instead of exiting "nothing to deploy", which
+# is exactly what the rollback instructions below need.
 # ---------------------------------------------------------------------------
-if ! echo "$CHANGED" | grep -qvE '^(docs/|README\.md|\.github/|deploy/README\.md|.*\.md$)'; then
-  log "Docs-only change — skipping build and restart"
-  assert_protected_untouched "$PROTECTED_BEFORE"
-  exit 0
+NEW_SHA="$(git rev-parse HEAD)"
+# Set by the poller to whatever was deployed before it moved HEAD. Absent on a
+# manual run, and then nothing is skipped — deploying too much is recoverable,
+# skipping a build because the diff was misread is not.
+PREV_SHA="${DEPLOY_PREV_SHA:-}"
+
+if [[ -n "$PREV_SHA" && "$PREV_SHA" != "$NEW_SHA" ]]; then
+  CHANGED="$(git diff --name-only "$PREV_SHA" "$NEW_SHA")"
+  log "Deploying $PREV_SHA -> $NEW_SHA"
+  echo "$CHANGED" | sed 's/^/    /'
+
+  # -------------------------------------------------------------------------
+  # Docs-only changes need no install, build, migrate, or restart.
+  # -------------------------------------------------------------------------
+  if ! echo "$CHANGED" | grep -qvE '^(docs/|README\.md|\.github/|deploy/README\.md|.*\.md$)'; then
+    log "Docs-only change — skipping build and restart"
+    assert_protected_untouched "$PROTECTED_BEFORE"
+    exit 0
+  fi
+else
+  PREV_SHA="$NEW_SHA"
+  log "Deploying the working tree at $NEW_SHA (full build — no previous SHA given)"
 fi
 
 # ---------------------------------------------------------------------------
@@ -232,7 +249,13 @@ if [[ "$ok" != "1" ]]; then
   pm2 logs fca-lms-api --lines 40 --nostream 2>/dev/null || true
   echo
   warn "Landing page and legacy API are unaffected. To roll the LMS back:"
-  warn "  cd $LMS_ROOT && git checkout -B $BRANCH $PREV_SHA && bash deploy/deploy.sh"
+  if [[ "$PREV_SHA" != "$NEW_SHA" ]]; then
+    warn "  cd $LMS_ROOT && git checkout -B $BRANCH $PREV_SHA && bash deploy/deploy.sh"
+  else
+    # A manual run deploys the tree in place, so there is no earlier SHA to
+    # name here — say so rather than printing a rollback to the same commit.
+    warn "  cd $LMS_ROOT && git checkout -B $BRANCH <last-good-sha> && bash deploy/deploy.sh"
+  fi
   die "health check failed"
 fi
 

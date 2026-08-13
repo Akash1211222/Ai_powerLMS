@@ -149,7 +149,32 @@ else:
 case "$VERDICT" in
   passed)
     log "checks green — deploying ${REMOTE_SHA:0:8}"
-    if bash "$LMS_ROOT/deploy/deploy.sh"; then
+    # -----------------------------------------------------------------------
+    # Move HEAD here, before deploy.sh is invoked.
+    #
+    # deploy.sh used to do this itself, partway through its own run. It copies
+    # itself to /tmp first so a mid-run checkout cannot splice two versions
+    # together — but that snapshot is taken before the checkout, so it is
+    # always the PREVIOUS version of the script. A change to deploy.sh only
+    # took effect on the deploy after the one that shipped it, which is how a
+    # newly added step can look like it silently did nothing.
+    #
+    # Checking out first means the script deploy.sh snapshots is the one being
+    # shipped. This is the same reason this poller runs from /usr/local/bin
+    # rather than from the tree it checks out.
+    # -----------------------------------------------------------------------
+    if ! git fetch --depth 50 origin "$BRANCH"; then
+      log "fetch failed — will retry next tick"
+      exit 0
+    fi
+    if ! git checkout -B "$BRANCH" "origin/$BRANCH"; then
+      log "checkout of ${REMOTE_SHA:0:8} failed — will retry next tick"
+      exit 1
+    fi
+
+    # deploy.sh no longer knows what was deployed before; it needs this to work
+    # out the changed files (and so skip a docs-only build).
+    if DEPLOY_PREV_SHA="$LOCAL_SHA" bash "$LMS_ROOT/deploy/deploy.sh"; then
       log "deploy OK: $(git rev-parse --short HEAD)"
       refresh_installed_copies
     else
