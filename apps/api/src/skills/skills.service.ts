@@ -1,8 +1,12 @@
 import { Injectable, ForbiddenException, type OnModuleInit, Logger } from '@nestjs/common';
-import { ensureSkillTaxonomy, recomputeStudentSkills, computeAndStoreStudentScore } from '@fca/analytics';
+import {
+  ensureSkillTaxonomy,
+  recomputeStudentSkills,
+  computeAndStoreStudentScore,
+} from '@fca/analytics';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../authz/user-context.service';
-import { isMemberOf } from '../authz/principal';
+import { assertStudentAccess } from '../common/tenant';
 
 @Injectable()
 export class SkillsService implements OnModuleInit {
@@ -25,7 +29,9 @@ export class SkillsService implements OnModuleInit {
   async getTaxonomy() {
     const categories = await this.prisma.skillCategory.findMany({
       orderBy: { order: 'asc' },
-      include: { skills: { orderBy: { name: 'asc' }, select: { id: true, name: true, slug: true } } },
+      include: {
+        skills: { orderBy: { name: 'asc' }, select: { id: true, name: true, slug: true } },
+      },
     });
     return categories;
   }
@@ -49,22 +55,9 @@ export class SkillsService implements OnModuleInit {
     }));
   }
 
-  /** Verify the actor may view this student (shared org, or super admin). */
-  private async assertCanViewStudent(actorId: string, studentId: string) {
-    const principal = await this.userContext.getPrincipal(actorId);
-    if (principal.isSuperAdmin) return;
-    const memberships = await this.prisma.organizationMember.findMany({
-      where: { userId: studentId },
-      select: { organizationId: true },
-    });
-    if (!memberships.some((m) => isMemberOf(principal, m.organizationId))) {
-      throw new ForbiddenException('You do not have access to this student');
-    }
-  }
-
   /** Staff view of a student's skills, including evidence (§9 drill-down). */
   async getStudentSkills(actorId: string, studentId: string) {
-    await this.assertCanViewStudent(actorId, studentId);
+    await assertStudentAccess(this.userContext, this.prisma, actorId, studentId);
     const skills = await this.prisma.studentSkill.findMany({
       where: { userId: studentId },
       orderBy: { score: 'asc' }, // weakest first — the trainer's priority
@@ -86,7 +79,7 @@ export class SkillsService implements OnModuleInit {
   }
 
   async recompute(actorId: string, studentId: string) {
-    await this.assertCanViewStudent(actorId, studentId);
+    await assertStudentAccess(this.userContext, this.prisma, actorId, studentId);
     return recomputeStudentSkills(this.prisma, studentId);
   }
 

@@ -1,8 +1,8 @@
-import { Injectable, ForbiddenException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { computeAndStoreStudentScore } from '@fca/analytics';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../authz/user-context.service';
-import { isMemberOf } from '../authz/principal';
+import { assertStudentAccess } from '../common/tenant';
 
 /**
  * Student performance scores (§17). Deterministic composite scores computed by
@@ -21,25 +21,13 @@ export class ScoresService {
     return this.prisma.studentScore.findUnique({ where: { userId } });
   }
 
-  private async assertCanViewStudent(actorId: string, studentId: string) {
-    const principal = await this.userContext.getPrincipal(actorId);
-    if (principal.isSuperAdmin) return;
-    const memberships = await this.prisma.organizationMember.findMany({
-      where: { userId: studentId },
-      select: { organizationId: true },
-    });
-    if (!memberships.some((m) => isMemberOf(principal, m.organizationId))) {
-      throw new ForbiddenException('You do not have access to this student');
-    }
-  }
-
   async getStudentScore(actorId: string, studentId: string) {
-    await this.assertCanViewStudent(actorId, studentId);
+    await assertStudentAccess(this.userContext, this.prisma, actorId, studentId);
     return this.prisma.studentScore.findUnique({ where: { userId: studentId } });
   }
 
   async recompute(actorId: string, studentId: string) {
-    await this.assertCanViewStudent(actorId, studentId);
+    await assertStudentAccess(this.userContext, this.prisma, actorId, studentId);
     return computeAndStoreStudentScore(this.prisma, studentId);
   }
 

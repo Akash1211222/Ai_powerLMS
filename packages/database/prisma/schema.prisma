@@ -215,6 +215,9 @@ model Session {
   ipAddress        String?
   expiresAt        DateTime
   revokedAt        DateTime?
+  /// Why the session ended. Only ROTATED may be briefly replayed by the same
+  /// client (two tabs racing); a security revocation takes effect at once.
+  revokedReason    String?
   createdAt        DateTime  @default(now())
   lastUsedAt       DateTime  @default(now())
 

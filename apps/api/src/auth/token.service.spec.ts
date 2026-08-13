@@ -66,3 +66,28 @@ describe('TokenService', () => {
     expect(codes.size).toBeGreaterThan(190);
   });
 });
+
+describe('access token algorithm', () => {
+  /**
+   * The verifier must accept exactly the algorithm it issues. Left open, a
+   * token is trusted on the strength of whatever `alg` header it arrives
+   * carrying, which is the attacker's field to fill in — the whole family of
+   * algorithm-confusion attacks starts there.
+   */
+  it('refuses a token signed with a different algorithm, even on the right secret', async () => {
+    const service = makeService();
+    const secret = 'x'.repeat(48);
+    const forged = await new JwtService({}).signAsync(
+      { sub: 'u1', email: 'a@b.c' },
+      { secret, algorithm: 'HS512', expiresIn: 900 },
+    );
+
+    await expect(service.verifyAccessToken(forged)).rejects.toThrow();
+  });
+
+  it('still accepts the tokens it issues itself', async () => {
+    const service = makeService();
+    const token = await service.signAccessToken({ sub: 'u1', email: 'a@b.c' });
+    await expect(service.verifyAccessToken(token)).resolves.toMatchObject({ sub: 'u1' });
+  });
+});

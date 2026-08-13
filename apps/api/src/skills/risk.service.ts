@@ -5,8 +5,7 @@ import { UserContextService } from '../authz/user-context.service';
 import { NotificationService } from '../notifications/notification.service';
 import { AuditService } from '../audit/audit.service';
 import { InterventionsService } from '../interventions/interventions.service';
-import { isMemberOf } from '../authz/principal';
-import { assertOrgAccess } from '../common/tenant';
+import { assertOrgAccess, assertStudentAccess } from '../common/tenant';
 
 /**
  * At-risk detection (§18). Deterministic rules live in @fca/analytics; this
@@ -25,21 +24,9 @@ export class RiskService {
     private readonly interventions: InterventionsService,
   ) {}
 
-  private async assertCanViewStudent(actorId: string, studentId: string) {
-    const principal = await this.userContext.getPrincipal(actorId);
-    if (principal.isSuperAdmin) return;
-    const memberships = await this.prisma.organizationMember.findMany({
-      where: { userId: studentId },
-      select: { organizationId: true },
-    });
-    if (!memberships.some((m) => isMemberOf(principal, m.organizationId))) {
-      throw new ForbiddenException('You do not have access to this student');
-    }
-  }
-
   /** Latest snapshot + recent history for a student (staff drill-down). */
   async getStudentRisk(actorId: string, studentId: string) {
-    await this.assertCanViewStudent(actorId, studentId);
+    await assertStudentAccess(this.userContext, this.prisma, actorId, studentId);
     const [latest, history] = await Promise.all([
       this.prisma.studentRiskSnapshot.findFirst({
         where: { userId: studentId },
@@ -56,7 +43,7 @@ export class RiskService {
   }
 
   async evaluate(actorId: string, studentId: string) {
-    await this.assertCanViewStudent(actorId, studentId);
+    await assertStudentAccess(this.userContext, this.prisma, actorId, studentId);
     const result = await evaluateStudentRisk(this.prisma, studentId);
     await this.alertIfEscalated(result);
     return result;
@@ -89,13 +76,19 @@ export class RiskService {
 
     if (!result.batchId) return;
     const [trainers, student] = await Promise.all([
-      this.prisma.batchTrainer.findMany({ where: { batchId: result.batchId }, select: { userId: true } }),
+      this.prisma.batchTrainer.findMany({
+        where: { batchId: result.batchId },
+        select: { userId: true },
+      }),
       this.prisma.user.findUnique({ where: { id: result.userId }, include: { profile: true } }),
     ]);
     const name = student?.profile
       ? `${student.profile.firstName} ${student.profile.lastName}`
       : (student?.email ?? 'A student');
-    const topFactors = result.factors.slice(0, 2).map((f) => f.label).join(', ');
+    const topFactors = result.factors
+      .slice(0, 2)
+      .map((f) => f.label)
+      .join(', ');
 
     await this.notifications.notifyMany(
       trainers.map((t) => t.userId),
@@ -177,7 +170,9 @@ export class RiskService {
       .sort((a, b) => b.score - a.score)
       .map((s) => ({
         userId: s.userId,
-        name: s.user.profile ? `${s.user.profile.firstName} ${s.user.profile.lastName}` : s.user.email,
+        name: s.user.profile
+          ? `${s.user.profile.firstName} ${s.user.profile.lastName}`
+          : s.user.email,
         batchName: batchNameById.get(batchByUser.get(s.userId) ?? '') ?? null,
         level: s.level,
         score: s.score,

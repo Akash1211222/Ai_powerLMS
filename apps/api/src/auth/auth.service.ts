@@ -12,11 +12,7 @@ import { AuditService } from '../audit/audit.service';
 import { MailService } from '../mail/mail.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
-import type {
-  LoginDto,
-  RefreshDto,
-  LogoutDto,
-} from './dto/auth.schemas';
+import type { LoginDto, RefreshDto, LogoutDto } from './dto/auth.schemas';
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -32,6 +28,13 @@ export interface AuthTokens {
 }
 
 const RESET_TTL_MS = 15 * 60 * 1000; // 15m — short, because a 6-digit OTP is weaker than an opaque token
+
+/**
+ * How long after rotation a repeat of the same refresh token can still be a
+ * race between two tabs rather than a stolen token. Seconds, not minutes: it
+ * only has to cover concurrent page loads.
+ */
+const REPLAY_GRACE_MS = 15_000;
 
 @Injectable()
 export class AuthService {
@@ -53,7 +56,6 @@ export class AuthService {
 
   // Registration is intentionally absent: this is a paid LMS, so accounts are
   // created by an admin (POST /admin/members), never self-served.
-
 
   async verifyEmail(rawToken: string): Promise<{ verified: true }> {
     const tokenHash = this.tokens.hashOpaqueToken(rawToken);
@@ -130,7 +132,63 @@ export class AuthService {
       include: { user: true },
     });
 
-    if (!session || session.revokedAt || session.expiresAt < new Date()) {
+    /**
+     * A refresh token presented twice is proof that a copy of it exists.
+     *
+     * Rotation on its own does not survive theft: whoever redeems the token
+     * first gets the live session, and the loser sees a single failed refresh
+     * and simply logs in again. If that loser is the real user, the thief
+     * keeps rotating a valid session indefinitely and nothing ever says so.
+     *
+     * So a replay burns the whole family — including the token that replaced
+     * this one — and the user has to sign in again. Whichever side was the
+     * thief, they are left holding nothing.
+     *
+     * Except that one honest client also replays: the token lives in
+     * localStorage and every tab exchanges it on load, so two tabs restored
+     * together both present the same one. That is a race, not a burglary, and
+     * treating it as theft would log real users out for opening a second tab.
+     * A replay is therefore only benign when it arrives within seconds, from
+     * the same address and the same browser as the session it is replaying —
+     * anything else is treated as stolen.
+     *
+     * The grace is limited to sessions that ended by *rotation*. One ended by
+     * logout, a password change or reuse detection must stop working at once:
+     * those are what a user reaches for when they think they are compromised,
+     * and a session that outlived them by even a few seconds would make them
+     * a lie.
+     */
+    if (session?.revokedAt) {
+      const sinceRevoked = Date.now() - session.revokedAt.getTime();
+      const sameClient =
+        session.ipAddress === (ctx.ipAddress ?? null) &&
+        session.userAgent === (ctx.userAgent ?? null);
+      const concurrentRetry =
+        session.revokedReason === 'ROTATED' && sinceRevoked <= REPLAY_GRACE_MS && sameClient;
+
+      if (!concurrentRetry) {
+        await this.prisma.session.updateMany({
+          where: { userId: session.userId, revokedAt: null },
+          data: { revokedAt: new Date(), revokedReason: 'REUSE_DETECTED' },
+        });
+        this.logger.warn(
+          `Refresh token replay for user ${session.userId} — every live session revoked`,
+        );
+        await this.audit.record({
+          action: 'auth.refresh.reuse_detected',
+          actorUserId: session.userId,
+          targetType: 'User',
+          targetId: session.userId,
+          ipAddress: ctx.ipAddress,
+          requestId: ctx.requestId,
+        });
+        throw new UnauthorizedException('Invalid or expired refresh token');
+      }
+    }
+
+    // Deliberately one message for every failure: telling a caller that a
+    // token was *revoked* rather than unknown confirms it was once real.
+    if (!session || session.expiresAt < new Date()) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
     if (session.user.status !== 'ACTIVE') {
@@ -148,7 +206,7 @@ export class AuthService {
     await this.prisma.$transaction([
       this.prisma.session.update({
         where: { id: session.id },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: new Date(), revokedReason: 'ROTATED' },
       }),
       this.prisma.session.create({
         data: {
@@ -179,12 +237,12 @@ export class AuthService {
       if (dto.allDevices) {
         await this.prisma.session.updateMany({
           where: { userId: session.userId, revokedAt: null },
-          data: { revokedAt: new Date() },
+          data: { revokedAt: new Date(), revokedReason: 'LOGOUT' },
         });
       } else {
         await this.prisma.session.update({
           where: { id: session.id },
-          data: { revokedAt: new Date() },
+          data: { revokedAt: new Date(), revokedReason: 'LOGOUT' },
         });
       }
       await this.audit.record({
@@ -233,7 +291,7 @@ export class AuthService {
       // Any other session was established with the old password — drop them.
       this.prisma.session.updateMany({
         where: { userId: user.id, revokedAt: null },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: new Date(), revokedReason: 'PASSWORD_CHANGE' },
       }),
     ]);
 
@@ -309,7 +367,7 @@ export class AuthService {
       // Revoke all sessions — a reset invalidates existing logins (§6, §39).
       this.prisma.session.updateMany({
         where: { userId: record.userId, revokedAt: null },
-        data: { revokedAt: new Date() },
+        data: { revokedAt: new Date(), revokedReason: 'PASSWORD_RESET' },
       }),
     ]);
 

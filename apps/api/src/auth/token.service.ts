@@ -4,6 +4,9 @@ import { JwtService } from '@nestjs/jwt';
 import { createHash, randomBytes } from 'node:crypto';
 import type { Env } from '../config/env';
 
+/** The only algorithm access tokens are signed with, and the only one accepted. */
+const ACCESS_TOKEN_ALGORITHM = 'HS256' as const;
+
 export interface AccessTokenClaims {
   sub: string; // user id
   email: string;
@@ -48,11 +51,20 @@ export class TokenService {
     return this.jwt.signAsync(claims, {
       secret: this.accessSecret,
       expiresIn: this.accessTtl,
+      algorithm: ACCESS_TOKEN_ALGORITHM,
     });
   }
 
+  /**
+   * Pinned to the one algorithm we issue. A verifier that accepts whatever the
+   * `alg` header asks for is trusting a field the caller controls, which is
+   * where algorithm-confusion attacks begin.
+   */
   verifyAccessToken(token: string): Promise<AccessTokenClaims> {
-    return this.jwt.verifyAsync<AccessTokenClaims>(token, { secret: this.accessSecret });
+    return this.jwt.verifyAsync<AccessTokenClaims>(token, {
+      secret: this.accessSecret,
+      algorithms: [ACCESS_TOKEN_ALGORITHM],
+    });
   }
 
   /** Generates a raw refresh token (returned to client) + its stored hash. */
