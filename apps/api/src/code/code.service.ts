@@ -149,6 +149,21 @@ async function executeLocal(dto: RunCodeDto): Promise<RunCodeResult> {
 }
 
 /**
+ * Whether running this language starts a process on the host.
+ *
+ * This is what CODE_RUN_ENABLED actually guards. WEB hands the source straight
+ * back for the browser to render in a sandboxed iframe, and SQL is a regex
+ * syntax check — neither touches a compiler, so neither needs the host runner
+ * to be switched on.
+ *
+ * Single source of truth: the assignment test-runner keys off the same
+ * predicate, so the two cannot drift apart.
+ */
+export function spawnsHostProcess(language: RunCodeDto['language']): boolean {
+  return language !== 'WEB' && language !== 'SQL';
+}
+
+/**
  * Execute student code. WEB = HTML preview. SQL = lightweight syntax check.
  * All other languages run in a short-lived local sandbox (Node / python3 / javac / gcc).
  */

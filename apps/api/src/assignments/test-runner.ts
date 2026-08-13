@@ -1,4 +1,9 @@
-import { executeCode, type RunCodeDto } from '../code/code.service';
+import {
+  executeCode,
+  runCodeSchema,
+  spawnsHostProcess,
+  type RunCodeDto,
+} from '../code/code.service';
 
 /**
  * Runs a coding submission against its assignment's test cases.
@@ -49,9 +54,20 @@ export function outputMatches(actual: string, expected: string): boolean {
   return normalise(actual) === normalise(expected);
 }
 
-/** Languages the runner can actually execute against cases. */
+/**
+ * Languages the runner can actually execute against cases.
+ *
+ * Derived rather than listed, from the two facts that already decide it: the
+ * language must be one the API accepts, and it must be one that runs as a
+ * process. WEB renders in the browser and SQL is a syntax check, so neither
+ * produces stdout to compare against an expected value.
+ *
+ * Keeping this in terms of `spawnsHostProcess` means the grader and the
+ * CODE_RUN_ENABLED gate cannot come to disagree about which languages spawn.
+ */
 export function isRunnable(language: string): language is RunCodeDto['language'] {
-  return ['PYTHON', 'JAVASCRIPT', 'TYPESCRIPT', 'JAVA', 'C', 'CPP'].includes(language);
+  const parsed = runCodeSchema.shape.language.safeParse(language);
+  return parsed.success && spawnsHostProcess(parsed.data);
 }
 
 /**
