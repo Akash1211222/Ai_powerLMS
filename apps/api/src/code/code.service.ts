@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { z } from 'zod';
+import { executeRemote } from './remote-runner';
 
 export const runCodeSchema = z.object({
   language: z.enum(['PYTHON', 'JAVASCRIPT', 'TYPESCRIPT', 'JAVA', 'C', 'CPP', 'SQL', 'WEB']),
@@ -149,25 +150,60 @@ async function executeLocal(dto: RunCodeDto): Promise<RunCodeResult> {
 }
 
 /**
- * Whether running this language starts a process on the host.
+ * Whether this language needs a real runtime to produce its output.
  *
- * This is what CODE_RUN_ENABLED actually guards. WEB hands the source straight
+ * This is what the runner gate actually turns on. WEB hands the source straight
  * back for the browser to render in a sandboxed iframe, and SQL is a regex
- * syntax check — neither touches a compiler, so neither needs the host runner
- * to be switched on.
+ * syntax check — the API answers both by itself, so no runner has to exist for
+ * those labs to work.
  *
  * Single source of truth: the assignment test-runner keys off the same
  * predicate, so the two cannot drift apart.
  */
-export function spawnsHostProcess(language: RunCodeDto['language']): boolean {
+export function needsRuntime(language: RunCodeDto['language']): boolean {
   return language !== 'WEB' && language !== 'SQL';
+}
+
+/** Where the languages that need a runtime actually execute. */
+export type RunnerTarget =
+  | { kind: 'none' }
+  | { kind: 'host' }
+  | { kind: 'remote'; url: string; token?: string; timeoutMs: number };
+
+/**
+ * Picks the runner from configuration.
+ *
+ * The off-box runner wins when both are available: it is the only one that is
+ * safe on a host that also serves the database, so a box that has been given a
+ * runner URL should never fall back to spawning compilers beside it.
+ *
+ * One place decides this, because two places deciding it is precisely the bug
+ * that let grading spawn compilers on a host configured to forbid them.
+ */
+export function runnerFor(env: {
+  CODE_RUN_ENABLED: boolean;
+  CODE_RUNNER_URL?: string;
+  CODE_RUNNER_TOKEN?: string;
+  CODE_RUNNER_TIMEOUT_MS: number;
+}): RunnerTarget {
+  if (env.CODE_RUNNER_URL) {
+    return {
+      kind: 'remote',
+      url: env.CODE_RUNNER_URL,
+      token: env.CODE_RUNNER_TOKEN,
+      timeoutMs: env.CODE_RUNNER_TIMEOUT_MS,
+    };
+  }
+  if (env.CODE_RUN_ENABLED) return { kind: 'host' };
+  return { kind: 'none' };
 }
 
 /**
  * Execute student code. WEB = HTML preview. SQL = lightweight syntax check.
- * All other languages run in a short-lived local sandbox (Node / python3 / javac / gcc).
+ * Everything else needs a real runtime, and `target` says where it runs —
+ * off-box, on this host, or nowhere.
  */
-export async function executeCode(dto: RunCodeDto): Promise<RunCodeResult> {
+export async function executeCode(dto: RunCodeDto, target: RunnerTarget): Promise<RunCodeResult> {
   if (dto.language === 'WEB') {
     return {
       language: 'WEB',
@@ -193,5 +229,11 @@ export async function executeCode(dto: RunCodeDto): Promise<RunCodeResult> {
     };
   }
 
-  return executeLocal(dto);
+  if (target.kind === 'remote') return executeRemote(dto, target);
+  if (target.kind === 'host') return executeLocal(dto);
+
+  // Defensive: callers gate on this before reaching here, so arriving with no
+  // runner means the gate was skipped rather than that the student did
+  // anything unusual.
+  throw new Error(`No code runner is configured for ${dto.language}`);
 }

@@ -1,8 +1,9 @@
 import {
   executeCode,
   runCodeSchema,
-  spawnsHostProcess,
+  needsRuntime,
   type RunCodeDto,
+  type RunnerTarget,
 } from '../code/code.service';
 
 /**
@@ -58,34 +59,36 @@ export function outputMatches(actual: string, expected: string): boolean {
  * Languages the runner can actually execute against cases.
  *
  * Derived rather than listed, from the two facts that already decide it: the
- * language must be one the API accepts, and it must be one that runs as a
- * process. WEB renders in the browser and SQL is a syntax check, so neither
+ * language must be one the API accepts, and it must be one that needs a real
+ * runtime. WEB renders in the browser and SQL is a syntax check, so neither
  * produces stdout to compare against an expected value.
  *
- * Keeping this in terms of `spawnsHostProcess` means the grader and the
- * CODE_RUN_ENABLED gate cannot come to disagree about which languages spawn.
+ * Keeping this in terms of `needsRuntime` means the grader and the runner gate
+ * cannot come to disagree about which languages have to be executed.
  */
 export function isRunnable(language: string): language is RunCodeDto['language'] {
   const parsed = runCodeSchema.shape.language.safeParse(language);
-  return parsed.success && spawnsHostProcess(parsed.data);
+  return parsed.success && needsRuntime(parsed.data);
 }
 
 /**
  * Executes `source` against every case in order.
  *
- * Cases run sequentially rather than in parallel: each spawns a real compiler
- * or interpreter, and a batch submitting at once would otherwise fan out to
- * dozens of concurrent processes on a 1-vCPU box.
+ * Cases run sequentially rather than in parallel. On the host runner each case
+ * spawns a real compiler, and a batch submitting at once would fan out to
+ * dozens of concurrent processes on a 1-vCPU box; against an off-box runner
+ * the same fan-out is what gets the account rate-limited.
  */
 export async function runTestCases(
   language: RunCodeDto['language'],
   source: string,
   cases: TestCase[],
+  target: RunnerTarget,
 ): Promise<TestOutcome[]> {
   const outcomes: TestOutcome[] = [];
   for (const c of cases) {
     try {
-      const result = await executeCode({ language, source, stdin: c.stdin });
+      const result = await executeCode({ language, source, stdin: c.stdin }, target);
       const failedToRun = result.timedOut || result.exitCode !== 0;
       outcomes.push({
         testCaseId: c.id,

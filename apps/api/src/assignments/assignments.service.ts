@@ -20,6 +20,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { ScoresService } from '../skills/scores.service';
 import { assertOrgAccess } from '../common/tenant';
 import type { Env } from '../config/env';
+import { runnerFor } from '../code/code.service';
 import { isRunnable, runTestCases } from './test-runner';
 import type {
   CreateAssignmentDto,
@@ -147,18 +148,25 @@ export class AssignmentsService {
     source: string,
   ): Promise<void> {
     /**
-     * CODE_RUN_ENABLED is an operator switch meaning "do not spawn compilers
-     * on this host", and it is off on the shared VPS by design. The /code/run
-     * endpoint honours it; this path must too.
+     * Where student code may run is an operator decision, and the same one the
+     * /code/run endpoint makes: off-box if a runner URL is set, on this host
+     * only if CODE_RUN_ENABLED says so, otherwise nowhere.
      *
-     * It previously called executeCode() straight from the service, below the
-     * controller where the check lives, so every submission would have run
-     * untrusted student code on a box configured to forbid exactly that.
-     * With the runner off, submissions are graded by AI alone.
+     * This path previously called executeCode() straight from the service,
+     * below the controller where the check lived, so every submission would
+     * have run untrusted student code on a box configured to forbid exactly
+     * that. With no runner at all, submissions are graded by AI alone and
+     * correctness stays heuristic.
      */
-    if (!this.config.get('CODE_RUN_ENABLED', { infer: true })) {
+    const target = runnerFor({
+      CODE_RUN_ENABLED: this.config.get('CODE_RUN_ENABLED', { infer: true }),
+      CODE_RUNNER_URL: this.config.get('CODE_RUNNER_URL', { infer: true }),
+      CODE_RUNNER_TOKEN: this.config.get('CODE_RUNNER_TOKEN', { infer: true }),
+      CODE_RUNNER_TIMEOUT_MS: this.config.get('CODE_RUNNER_TIMEOUT_MS', { infer: true }),
+    });
+    if (target.kind === 'none') {
       this.logger.debug(
-        `Skipping test cases for ${submissionId}: CODE_RUN_ENABLED is off on this host`,
+        `Skipping test cases for ${submissionId}: no code runner is configured on this host`,
       );
       return;
     }
@@ -172,7 +180,7 @@ export class AssignmentsService {
     if (cases.length === 0) return;
 
     try {
-      const outcomes = await runTestCases(assignment.language, source, cases);
+      const outcomes = await runTestCases(assignment.language, source, cases, target);
       await this.prisma.submissionTestResult.createMany({
         data: outcomes.map((o) => ({
           submissionId,
@@ -224,7 +232,9 @@ export class AssignmentsService {
     }
     const submissions = await this.prisma.assignmentSubmission.count({ where: { assignmentId } });
     if (submissions > 0) {
-      throw new BadRequestException('Students have already submitted; this assignment cannot be edited');
+      throw new BadRequestException(
+        'Students have already submitted; this assignment cannot be edited',
+      );
     }
 
     const data = {
@@ -507,11 +517,7 @@ export class AssignmentsService {
     // Students see feedback once RELEASED (auto-released by high-confidence AI)
     // or AI_COMPLETED (legacy). Hide NEEDS_REVIEW / PENDING drafts.
     let evaluation = submission?.evaluation ?? null;
-    if (
-      evaluation &&
-      evaluation.status !== 'RELEASED' &&
-      evaluation.status !== 'AI_COMPLETED'
-    ) {
+    if (evaluation && evaluation.status !== 'RELEASED' && evaluation.status !== 'AI_COMPLETED') {
       evaluation = null;
     }
 
@@ -541,9 +547,7 @@ export class AssignmentsService {
             evaluation,
             testResults,
             testSummary:
-              testResults.length > 0
-                ? { passed: passedCount, total: testResults.length }
-                : null,
+              testResults.length > 0 ? { passed: passedCount, total: testResults.length } : null,
           }
         : null,
     };

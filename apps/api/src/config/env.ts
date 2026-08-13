@@ -48,6 +48,21 @@ export const envSchema = z.object({
     .default('false')
     .transform((v) => v === 'true'),
 
+  /**
+   * Off-box code runner (Judge0 API). When set, the compiled languages execute
+   * there instead of on this host, which is the only arrangement that is safe
+   * on a box that also serves the database.
+   *
+   * A URL rather than a boolean on purpose: the free public instance can be
+   * swapped for a self-hosted or paid one without a code change. That is not
+   * hypothetical — the public Piston API became whitelist-only in Feb 2026.
+   */
+  CODE_RUNNER_URL: z.string().url().optional(),
+  /** Sent as X-Auth-Token. Only needed by instances that require a key. */
+  CODE_RUNNER_TOKEN: z.string().optional(),
+  /** Give a cold compile room to finish; the runner caps real CPU itself. */
+  CODE_RUNNER_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
+
   MAIL_HOST: z.string().optional(),
   MAIL_PORT: z.coerce.number().int().positive().optional(),
   MAIL_USER: z.string().optional(),
