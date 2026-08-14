@@ -63,7 +63,8 @@ refresh_installed_copies() {
   fi
 
   local changed=0
-  for unit in fca-lms-deploy.service fca-lms-deploy.timer; do
+  for unit in fca-lms-deploy.service fca-lms-deploy.timer \
+              fca-lms-demo-reset.service fca-lms-demo-reset.timer; do
     if [[ -f "$LMS_ROOT/deploy/$unit" ]] && ! cmp -s "$LMS_ROOT/deploy/$unit" "/etc/systemd/system/$unit"; then
       install -m 644 "$LMS_ROOT/deploy/$unit" "/etc/systemd/system/$unit" && changed=1
     fi

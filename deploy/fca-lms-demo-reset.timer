@@ -1,0 +1,16 @@
+[Unit]
+Description=Restore the public LMS demo every hour
+
+[Timer]
+# On the hour, rather than an interval from boot, so the reset lands at a
+# predictable time and two restarts in an afternoon do not shift it.
+OnCalendar=hourly
+# Spread it off the exact minute: the deploy poller also wakes on a schedule,
+# and both competing for one core makes the site briefly slow.
+RandomizedDelaySec=180
+# A box that was off through the hour still gets a fresh demo on the way up.
+Persistent=true
+AccuracySec=1min
+
+[Install]
+WantedBy=timers.target

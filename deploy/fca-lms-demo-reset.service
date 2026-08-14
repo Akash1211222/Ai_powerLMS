@@ -1,0 +1,16 @@
+[Unit]
+Description=FutureCorp LMS — restore the public demo to its seeded state
+Documentation=https://github.com/Akash1211222/Ai_powerLMS/blob/main/deploy/README.md
+After=network-online.target postgresql.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/opt/fca-lms/deploy/demo-reset.sh
+# The seed hashes ~100 passwords. On a single core that is enough to be felt by
+# anyone reading a page, so it runs behind everything else.
+Nice=19
+IOSchedulingClass=idle
+CPUWeight=20
+MemoryMax=1G
+TimeoutStartSec=900
