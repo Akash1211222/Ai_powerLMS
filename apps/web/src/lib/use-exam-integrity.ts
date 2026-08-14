@@ -37,33 +37,56 @@ export function useExamIntegrity(attemptId: string | null, active: boolean) {
       assessmentsApi.reportIntegrity(attemptId, { blur, paste, awayMs }).catch(() => undefined);
     };
 
-    const onHidden = () => {
-      if (document.visibilityState === 'hidden') {
-        pending.current.blur += 1;
-        awaySince.current = Date.now();
-      } else if (awaySince.current != null) {
-        pending.current.awayMs += Date.now() - awaySince.current;
-        awaySince.current = null;
-        // Flush on return so a long absence is recorded even if the student
-        // closes the tab straight after.
-        flush();
-      }
+    /**
+     * Leaving and returning are tracked as a state, not as events.
+     *
+     * One tab switch fires visibilitychange AND blur, so counting per event
+     * charged a student two departures for one glance away. And switching to
+     * another application blurs the window without ever hiding the tab, which
+     * meant the most interesting case — the exam still on screen while the
+     * student reads something else — counted as nothing at all.
+     *
+     * `awaySince` is the guard: already away, already counted.
+     */
+    const onAway = () => {
+      if (awaySince.current != null) return;
+      pending.current.blur += 1;
+      awaySince.current = Date.now();
+    };
+
+    const onReturn = () => {
+      if (awaySince.current == null) return;
+      pending.current.awayMs += Date.now() - awaySince.current;
+      awaySince.current = null;
+      // Flush on return so a long absence is recorded even if the student
+      // closes the tab straight after.
+      flush();
+    };
+
+    const onVisibility = () => {
+      if (document.visibilityState === 'hidden') onAway();
+      else onReturn();
     };
 
     const onPaste = () => {
       pending.current.paste += 1;
     };
 
-    document.addEventListener('visibilitychange', onHidden);
-    window.addEventListener('blur', onHidden);
+    document.addEventListener('visibilitychange', onVisibility);
+    window.addEventListener('blur', onAway);
+    window.addEventListener('focus', onReturn);
     document.addEventListener('paste', onPaste);
     const timer = window.setInterval(flush, 20_000);
 
     return () => {
-      document.removeEventListener('visibilitychange', onHidden);
-      window.removeEventListener('blur', onHidden);
+      document.removeEventListener('visibilitychange', onVisibility);
+      window.removeEventListener('blur', onAway);
+      window.removeEventListener('focus', onReturn);
       document.removeEventListener('paste', onPaste);
       window.clearInterval(timer);
+      // A student still away when the view unmounts has that time counted,
+      // rather than losing the whole absence because they never came back.
+      onReturn();
       flush();
     };
   }, [attemptId, active]);
