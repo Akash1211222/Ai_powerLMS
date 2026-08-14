@@ -10,7 +10,7 @@
  *   TEST_DATABASE_URL=postgresql://... pnpm --filter @fca/api test
  * Otherwise it is skipped so the unit suite stays infra-free.
  */
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { JwtService } from '@nestjs/jwt';
 import type { ConfigService } from '@nestjs/config';
 import { PrismaClient } from '@fca/database';
@@ -32,6 +32,7 @@ function cfg(values: Record<string, unknown>): ConfigService<Env, true> {
 run('AuthService (integration)', () => {
   let prisma: PrismaService;
   let auth: AuthService;
+  let passwords: PasswordService;
   const ctx = { ipAddress: '127.0.0.1', userAgent: 'vitest', requestId: 'test' };
   const email = `it-${Date.now()}@example.com`;
   const password = 'Password123!';
@@ -42,7 +43,7 @@ run('AuthService (integration)', () => {
     const client = new PrismaClient({ datasourceUrl: TEST_DB });
     prisma = client as unknown as PrismaService;
 
-    const passwords = new PasswordService(cfg({ ARGON2_MEMORY_COST: 4096, ARGON2_TIME_COST: 2 }));
+    passwords = new PasswordService(cfg({ ARGON2_MEMORY_COST: 4096, ARGON2_TIME_COST: 2 }));
     const tokens = new TokenService(
       new JwtService({}),
       cfg({ JWT_ACCESS_SECRET: 'x'.repeat(48), JWT_ACCESS_TTL: 900, JWT_REFRESH_TTL: 1209600 }),
@@ -108,6 +109,27 @@ run('AuthService (integration)', () => {
     const tokens = await auth.login({ email, password }, ctx);
     expect(tokens.accessToken).toBeTruthy();
     expect(tokens.refreshToken).toBeTruthy();
+  });
+
+  it('hashes even when the account does not exist, so timing cannot enumerate accounts', async () => {
+    /**
+     * Both answers are already the same words — "Invalid email or password" —
+     * but they used to take very different times, because argon2 only ran when
+     * there was a stored hash to compare against. Measured at 6 ms for an
+     * unknown address against 26 ms for a real one: enough to ask the server
+     * who has an account, which for a school is the student roster.
+     *
+     * Asserted by observing that the work happens rather than by timing it, so
+     * this does not go flaky on a busy CI box.
+     */
+    const spy = vi.spyOn(passwords, 'verify');
+    await expect(
+      auth.login({ email: 'no-such-person@example.com', password: 'Whatever123!' }, ctx),
+    ).rejects.toThrow(/invalid email or password/i);
+
+    expect(spy).toHaveBeenCalled();
+    spy.mockRestore();
+    await prisma.loginAttempt.deleteMany({ where: { email: 'no-such-person@example.com' } });
   });
 
   it('rotates refresh tokens and invalidates the old one', async () => {

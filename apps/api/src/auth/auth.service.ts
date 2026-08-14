@@ -91,7 +91,13 @@ export class AuthService {
     await this.assertNotLockedOut(dto.email);
 
     const user = await this.prisma.user.findUnique({ where: { email: dto.email } });
-    const ok = user ? await this.passwords.verify(user.passwordHash, dto.password) : false;
+    // Hash either way. Skipping the work when there is no account answers a
+    // stranger's "does this person study here?" in about a fifth of the time
+    // it takes to answer "is this their password?" — same words, different
+    // duration, and the roster leaks through the gap.
+    const ok = user
+      ? await this.passwords.verify(user.passwordHash, dto.password)
+      : await this.passwords.verifyDecoy(dto.password);
 
     if (!user || !ok) {
       await this.recordLoginAttempt(dto.email, ctx, false, user ? 'bad_password' : 'no_user');
