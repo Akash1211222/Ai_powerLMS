@@ -52,6 +52,18 @@ export class AuthController {
     return this.auth.login(dto, ctx);
   }
 
+  @Post('demo')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({
+    summary: 'Sign in to the shared read-and-write demo account (public, when enabled)',
+  })
+  demo(@ReqContext() ctx: RequestContext) {
+    // Takes no body on purpose. There is nothing for a caller to choose here:
+    // the account is fixed by configuration, so no input can steer which
+    // session gets handed out.
+    return this.auth.demoSignIn(ctx);
+  }
+
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Exchange a refresh token for a new token pair (rotates)' })

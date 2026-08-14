@@ -28,6 +28,9 @@ export const authApi = {
   login: (input: { email: string; password: string }) =>
     apiRequest<AuthTokens>('/auth/login', { method: 'POST', body: input }),
 
+  /** Public demo sign-in. Takes no body: the account is fixed server-side. */
+  demo: () => apiRequest<AuthTokens>('/auth/demo', { method: 'POST' }),
+
   refresh: (refreshToken: string) =>
     apiRequest<AuthTokens>('/auth/refresh', { method: 'POST', body: { refreshToken } }),
 

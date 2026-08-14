@@ -132,6 +132,99 @@ run('AuthService (integration)', () => {
     await prisma.loginAttempt.deleteMany({ where: { email: 'no-such-person@example.com' } });
   });
 
+  describe('the public demo sign-in', () => {
+    /**
+     * This endpoint hands a session to anyone on the internet, so the tests
+     * that matter are the ones about what it refuses. It is rebuilt per case
+     * with its own config, because the guard is the config.
+     */
+    const authWith = (values: Record<string, unknown>) =>
+      new AuthService(
+        prisma,
+        passwords,
+        new TokenService(
+          new JwtService({}),
+          cfg({ JWT_ACCESS_SECRET: 'x'.repeat(48), JWT_ACCESS_TTL: 900, JWT_REFRESH_TTL: 1209600 }),
+        ),
+        new AuditService(prisma),
+        { sendEmailVerification: async () => undefined } as unknown as MailService,
+        cfg({ LOGIN_MAX_ATTEMPTS: 5, LOGIN_LOCKOUT_MINUTES: 15, ...values }),
+      );
+
+    it('does not exist unless the host turns it on', async () => {
+      // 404, not 403: a host with no demo should not advertise the route.
+      await expect(
+        authWith({ DEMO_MODE_ENABLED: false, DEMO_STUDENT_EMAIL: 'x@demo.futurecorp.in' }).demoSignIn(ctx),
+      ).rejects.toThrow(/Cannot POST/);
+    });
+
+    it('refuses to sign in an account outside the demo domain', async () => {
+      // The guard that matters: DEMO_STUDENT_EMAIL pointed at a real member of
+      // staff — by typo or by someone with .env access — must not publish that
+      // person's session to every visitor.
+      await expect(
+        authWith({ DEMO_MODE_ENABLED: true, DEMO_STUDENT_EMAIL: email }).demoSignIn(ctx),
+      ).rejects.toThrow(/not available/i);
+    });
+
+    it('refuses when the named demo account does not exist', async () => {
+      await expect(
+        authWith({
+          DEMO_MODE_ENABLED: true,
+          DEMO_STUDENT_EMAIL: 'nobody@demo.futurecorp.in',
+        }).demoSignIn(ctx),
+      ).rejects.toThrow(/not available/i);
+    });
+
+    it('issues a working session for a real demo account', async () => {
+      const demoEmail = `demo-probe-${Date.now()}@demo.futurecorp.in`;
+      const created = await prisma.user.create({
+        data: {
+          email: demoEmail,
+          passwordHash: await passwords.hash('irrelevant-nobody-signs-in-with-this'),
+          status: 'ACTIVE',
+          emailVerifiedAt: new Date(),
+          profile: { create: { firstName: 'Demo', lastName: 'Visitor' } },
+        },
+      });
+      try {
+        const demoAuth = authWith({ DEMO_MODE_ENABLED: true, DEMO_STUDENT_EMAIL: demoEmail });
+        const tokens = await demoAuth.demoSignIn(ctx);
+
+        expect(tokens.accessToken).toBeTruthy();
+        // The session is real: it can be rotated like any other.
+        const rotated = await demoAuth.refresh({ refreshToken: tokens.refreshToken }, ctx);
+        expect(rotated.accessToken).toBeTruthy();
+      } finally {
+        await prisma.session.deleteMany({ where: { userId: created.id } });
+        await prisma.user.delete({ where: { id: created.id } });
+      }
+    });
+
+    it('never asks for a password, so no shared credential exists to leak', async () => {
+      const demoEmail = `demo-nopw-${Date.now()}@demo.futurecorp.in`;
+      const created = await prisma.user.create({
+        data: {
+          email: demoEmail,
+          passwordHash: await passwords.hash('unguessable'),
+          status: 'ACTIVE',
+          emailVerifiedAt: new Date(),
+          profile: { create: { firstName: 'Demo', lastName: 'Visitor' } },
+        },
+      });
+      try {
+        const spy = vi.spyOn(passwords, 'verify');
+        await authWith({ DEMO_MODE_ENABLED: true, DEMO_STUDENT_EMAIL: demoEmail }).demoSignIn(ctx);
+        // Also why this is cheap enough to sit on a public landing page.
+        expect(spy).not.toHaveBeenCalled();
+        spy.mockRestore();
+      } finally {
+        await prisma.session.deleteMany({ where: { userId: created.id } });
+        await prisma.user.delete({ where: { id: created.id } });
+      }
+    });
+  });
+
   it('rotates refresh tokens and invalidates the old one', async () => {
     const first = await auth.login({ email, password }, ctx);
     const rotated = await auth.refresh({ refreshToken: first.refreshToken }, ctx);

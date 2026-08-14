@@ -10,6 +10,7 @@ interface AuthState {
   user: CurrentUser | null;
   status: 'loading' | 'authenticated' | 'unauthenticated';
   login: (email: string, password: string) => Promise<void>;
+  startDemo: () => Promise<void>;
   changePassword: (currentPassword: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
@@ -51,6 +52,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     },
     [applyTokens, refreshUser],
   );
+
+  /**
+   * Signs the visitor into the shared demo account. No credentials: the server
+   * decides which account this is, so nothing here can ask for a different one.
+   */
+  const startDemo = useCallback(async () => {
+    const tokens = await authApi.demo();
+    applyTokens(tokens.accessToken, tokens.refreshToken);
+    await refreshUser();
+  }, [applyTokens, refreshUser]);
 
   // Returns a fresh token pair, which must replace the current one: the old
   // access token still carries the must-change-password claim and the API
@@ -96,7 +107,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [applyTokens, refreshUser]);
 
   return (
-    <AuthContext.Provider value={{ user, status, login, changePassword, logout, refreshUser }}>
+    <AuthContext.Provider
+      value={{ user, status, login, startDemo, changePassword, logout, refreshUser }}
+    >
       {children}
     </AuthContext.Provider>
   );

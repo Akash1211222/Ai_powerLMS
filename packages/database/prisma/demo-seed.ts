@@ -4,17 +4,36 @@
  * (users @demo.futurecorp.in, courses `demo-*`, batches `DEMO*`, org
  * `futurecorp-north`) and recreates them.
  *
- * ⚠️ DEVELOPMENT DATA ONLY. All accounts share the password `Password123!`.
+ * Safe to run against a public deployment: every account it creates lives on
+ * @demo.futurecorp.in (the only thing cleanup removes), and passwords are
+ * random unless DEMO_SEED_PASSWORD is set.
  *
  * Run:  DATABASE_URL=... pnpm --filter @fca/database exec tsx prisma/demo-seed.ts
  */
+import { randomBytes } from 'node:crypto';
 import { PrismaClient, type Prisma } from '@prisma/client';
 import * as argon2 from 'argon2';
 import { skillSlug } from '@fca/shared';
 
 const prisma = new PrismaClient();
-const PASSWORD = 'Password123!';
 const DEMO_DOMAIN = '@demo.futurecorp.in';
+
+/**
+ * The account the public demo signs visitors into. Must match
+ * DEMO_STUDENT_EMAIL in the API's environment.
+ */
+const DEMO_STUDENT_EMAIL = 'student' + DEMO_DOMAIN;
+
+/**
+ * Password for every seeded persona.
+ *
+ * Random unless explicitly supplied, so a public deployment ends up with demo
+ * accounts nobody can sign into by password at all — the demo hands out a
+ * session through POST /auth/demo, which needs no credential. Set
+ * DEMO_SEED_PASSWORD locally when you want to log in as a trainer or admin to
+ * look around.
+ */
+const PASSWORD = process.env.DEMO_SEED_PASSWORD ?? randomBytes(24).toString('hex');
 
 // --- deterministic helpers -------------------------------------------------
 // A seeded PRNG (mulberry32) rather than Math.random: a demo you can re-run and
@@ -242,19 +261,20 @@ async function main() {
   }
 
   // --- Trainers (reuse the base-seed trainer as one of them) --------------
-  const seedTrainer = await prisma.user.findUnique({ where: { email: 'trainer@futurecorpacademy.in' } });
-  if (seedTrainer) {
-    await ensureUser('trainer@futurecorpacademy.in', 'Tara', 'Rao', 'TRAINER', 'demo');
-  }
+  // Personas live on the demo domain only. Adopting real @futurecorpacademy.in
+  // accounts used to pull actual staff into the demo organisation — where a
+  // public visitor's org-scoped queries can see them — and left them behind,
+  // since cleanup() only removes the demo domain.
+  const trainerDemo0 = await ensureUser('trainer' + DEMO_DOMAIN, 'Tara', 'Rao', 'TRAINER', 'demo');
   const trainerDemo1 = await ensureUser('trainer1' + DEMO_DOMAIN, 'Meera', 'Krishnan', 'TRAINER', 'demo');
   const trainerDemo2 = await ensureUser('trainer2' + DEMO_DOMAIN, 'Sanjay', 'Pillai', 'TRAINER', 'demo');
   const trainerDemo3 = await ensureUser('trainer3' + DEMO_DOMAIN, 'Farah', 'Sheikh', 'TRAINER', 'demo');
   const trainerDemo4 = await ensureUser('trainer4' + DEMO_DOMAIN, 'Vikram', 'Desai', 'TRAINER', 'demo');
-  // Five teachers: the base-seed trainer plus four demo trainers.
-  const demoTrainers = [seedTrainer!, trainerDemo1, trainerDemo2, trainerDemo3, trainerDemo4].filter(Boolean);
+  // Five teachers, all on the demo domain.
+  const demoTrainers = [trainerDemo0, trainerDemo1, trainerDemo2, trainerDemo3, trainerDemo4];
 
-  // --- Students (reuse base-seed student too) -----------------------------
-  const seedStudent = await ensureUser('student@futurecorpacademy.in', 'Sam', 'Learner', 'STUDENT', 'demo');
+  // --- Students -----------------------------------------------------------
+  const seedStudent = await ensureUser(DEMO_STUDENT_EMAIL, 'Sam', 'Learner', 'STUDENT', 'demo');
   const demoStudents = [seedStudent];
   const STUDENT_COUNT = 99; // + the base-seed student = 100
   for (let i = 1; i <= STUDENT_COUNT; i++) {
@@ -492,7 +512,7 @@ async function main() {
     });
     for (const s of cohort) {
       // Struggling students never submit → they show up as overdue.
-      if (!isStruggling(s.id) && (rnd() < (isBorderline(s.id) ? 0.5 : 0.85) || s.email === 'student@futurecorpacademy.in')) {
+      if (!isStruggling(s.id) && (rnd() < (isBorderline(s.id) ? 0.5 : 0.85) || s.email === DEMO_STUDENT_EMAIL)) {
         const submission = await prisma.assignmentSubmission.create({
           data: {
             assignmentId: assignment.id,
@@ -572,7 +592,7 @@ async function main() {
     });
     for (const s of cohort) {
       // Most students attempt; always give the reused seed account data.
-      if (rnd() < 0.85 || s.email === 'student@futurecorpacademy.in') {
+      if (rnd() < 0.85 || s.email === DEMO_STUDENT_EMAIL) {
         // Simulate a graded attempt with per-topic performance.
         const perTopic = new Map<string, { correct: number; total: number }>();
         let score = 0;
@@ -639,9 +659,9 @@ async function main() {
   ];
   const mentors: { id: string; name: string }[] = [];
   // Reuse the base-seed mentor as the first one so its login still works.
-  const seedMentor = await prisma.user.findUnique({ where: { email: 'mentor@futurecorpacademy.in' } });
+  const seedMentor = await prisma.user.findUnique({ where: { email: 'mentor' + DEMO_DOMAIN } });
   if (seedMentor) {
-    await ensureUser('mentor@futurecorpacademy.in', 'Manoj', 'Guide', 'MENTOR', 'demo');
+    await ensureUser('mentor' + DEMO_DOMAIN, 'Manoj', 'Guide', 'MENTOR', 'demo');
     await prisma.mentorProfile.upsert({
       where: { userId: seedMentor.id },
       update: { headline: MENTOR_DEFS[0]!.headline, bio: MENTOR_DEFS[0]!.bio, expertise: MENTOR_DEFS[0]!.expertise, isAcceptingBookings: true },
@@ -705,11 +725,11 @@ async function main() {
     { first: 'Arun', last: 'Prakash', company: 'Finserv Cloud', role: 'ML Engineer', industry: 'Finance', location: 'Bengaluru', year: 2022, story: 'Ship a model end to end, even a bad one. Deployment teaches what notebooks cannot.' },
   ];
   const alumni: { id: string; name: string }[] = [];
-  const seedAlumnus = await prisma.user.findUnique({ where: { email: 'alumni@futurecorpacademy.in' } });
+  const seedAlumnus = await prisma.user.findUnique({ where: { email: 'alumni' + DEMO_DOMAIN } });
   for (const [i, a] of ALUMNI_DEFS.entries()) {
     const user =
       i === 0 && seedAlumnus
-        ? await ensureUser('alumni@futurecorpacademy.in', a.first, a.last, 'ALUMNI', 'demo')
+        ? await ensureUser('alumni' + DEMO_DOMAIN, a.first, a.last, 'ALUMNI', 'demo')
         : await ensureUser(`alumni${i}${DEMO_DOMAIN}`, a.first, a.last, 'ALUMNI', 'demo');
     await prisma.alumniProfile.upsert({
       where: { userId: user.id },
@@ -732,7 +752,7 @@ async function main() {
   }
 
   // --- Placement opportunities + applications -----------------------------
-  const officer = await ensureUser('placement@futurecorpacademy.in', 'Priya', 'Placeworth', 'PLACEMENT_OFFICER', 'demo');
+  const officer = await ensureUser('placement' + DEMO_DOMAIN, 'Priya', 'Placeworth', 'PLACEMENT_OFFICER', 'demo');
   const OPPORTUNITY_DEFS = [
     { title: 'Junior Data Analyst', company: 'Acme Analytics', location: 'Bengaluru', type: 'FULL_TIME', mode: 'HYBRID', reqs: ['SQL', 'Python', 'Pandas'], minReadiness: 30, openings: 4, salary: [600000, 900000] },
     { title: 'Business Intelligence Intern', company: 'Northwind Retail', location: 'Pune', type: 'INTERNSHIP', mode: 'ONSITE', reqs: ['SQL'], minReadiness: null, openings: 6, salary: [240000, 300000] },
@@ -1141,13 +1161,17 @@ async function main() {
   console.log('       pnpm db:demo:intelligence');
   console.log('     …or just use `pnpm db:seed:demo`, which chains both.');
   console.log('');
-  console.log('   Sample logins (password: Password123!):');
-  console.log('     Super Admin:        superadmin@futurecorpacademy.in');
-  console.log('     Placement officer:  placement@futurecorpacademy.in');
-  console.log('     Trainers:           trainer@futurecorpacademy.in, trainer1…trainer4@demo.futurecorp.in');
-  console.log('     Mentors:            mentor@futurecorpacademy.in, mentor2…mentor4@demo.futurecorp.in');
-  console.log('     Alumni:             alumni@futurecorpacademy.in, alumni1…alumni7@demo.futurecorp.in');
-  console.log('     Students:           student@futurecorpacademy.in, student1…student99@demo.futurecorp.in');
+  console.log('   Seeded personas:');
+  console.log('     Placement officer:  placement@demo.futurecorp.in');
+  console.log('     Trainers:           trainer, trainer1…trainer4 @demo.futurecorp.in');
+  console.log('     Mentors:            mentor, mentor2…mentor4 @demo.futurecorp.in');
+  console.log('     Alumni:             alumni, alumni1…alumni7 @demo.futurecorp.in');
+  console.log(`     Public demo lands as: ${DEMO_STUDENT_EMAIL}`);
+  console.log(
+    process.env.DEMO_SEED_PASSWORD
+      ? '     Password:           from DEMO_SEED_PASSWORD'
+      : '     Password:           random — sign in via POST /auth/demo, not /login',
+  );
 }
 
 main()

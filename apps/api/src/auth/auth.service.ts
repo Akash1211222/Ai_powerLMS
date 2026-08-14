@@ -2,6 +2,8 @@ import {
   Injectable,
   UnauthorizedException,
   BadRequestException,
+  NotFoundException,
+  ServiceUnavailableException,
   HttpException,
   HttpStatus,
   Logger,
@@ -36,6 +38,13 @@ const RESET_TTL_MS = 15 * 60 * 1000; // 15m — short, because a 6-digit OTP is 
  */
 const REPLAY_GRACE_MS = 15_000;
 
+/**
+ * The demo account must live here. Checked at sign-in so that pointing
+ * DEMO_STUDENT_EMAIL at a real account — by typo or otherwise — fails closed
+ * instead of publishing that person's session to the internet.
+ */
+const DEMO_EMAIL_DOMAIN = '@demo.futurecorp.in';
+
 @Injectable()
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
@@ -48,7 +57,7 @@ export class AuthService {
     private readonly tokens: TokenService,
     private readonly audit: AuditService,
     private readonly mail: MailService,
-    config: ConfigService,
+    private readonly config: ConfigService,
   ) {
     this.maxAttempts = Number(config.get('LOGIN_MAX_ATTEMPTS') ?? 5);
     this.lockoutMs = Number(config.get('LOGIN_LOCKOUT_MINUTES') ?? 15) * 60 * 1000;
@@ -127,6 +136,50 @@ export class AuthService {
     });
 
     return tokens;
+  }
+
+  // ---- Public demo -------------------------------------------------------
+
+  /**
+   * Signs an anonymous visitor into the shared demo student account.
+   *
+   * No password is involved, which is the point twice over: there is no shared
+   * credential to leak, and no argon2 on the hot path — this endpoint is
+   * reachable by anyone on the internet, and hashing per visitor would make
+   * the landing page's demo link the most expensive route on the box.
+   *
+   * Three things keep it from becoming a way into the real LMS:
+   *
+   *  - It is off unless DEMO_MODE_ENABLED says otherwise.
+   *  - The named account must sit in the demo domain, so a typo (or someone
+   *    with .env access) cannot point it at a real member of staff.
+   *  - The account itself is an ordinary STUDENT in its own organisation, so
+   *    every existing tenant check already applies to it. Nothing here grants
+   *    permissions; it only issues a session for an account that has none
+   *    worth stealing.
+   */
+  async demoSignIn(ctx: RequestContext): Promise<AuthTokens> {
+    if (!this.config.get('DEMO_MODE_ENABLED')) {
+      // 404 rather than 403: a host with no demo should not advertise that the
+      // route exists at all.
+      throw new NotFoundException('Cannot POST /auth/demo');
+    }
+
+    const email = String(this.config.get('DEMO_STUDENT_EMAIL') ?? '').toLowerCase();
+    if (!email.endsWith(DEMO_EMAIL_DOMAIN)) {
+      this.logger.error(
+        `Demo mode is on but DEMO_STUDENT_EMAIL is not a ${DEMO_EMAIL_DOMAIN} address — refusing`,
+      );
+      throw new ServiceUnavailableException('Demo is not available right now');
+    }
+
+    const user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user || user.status !== 'ACTIVE') {
+      this.logger.error(`Demo account ${email} is missing or inactive — has the demo seed run?`);
+      throw new ServiceUnavailableException('Demo is not available right now');
+    }
+
+    return this.issueSession(user.id, user.email, ctx);
   }
 
   // ---- Refresh (rotation) ------------------------------------------------

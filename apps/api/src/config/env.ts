@@ -48,6 +48,22 @@ export const envSchema = z.object({
    */
   API_HOST: z.string().default('0.0.0.0'),
 
+  /**
+   * Public demo. POST /auth/demo signs anyone in as DEMO_STUDENT_EMAIL, so it
+   * is off unless a host deliberately turns it on — an unguarded copy of this
+   * config elsewhere must not hand out sessions.
+   */
+  DEMO_MODE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /**
+   * The account the demo signs visitors into. Deliberately a full address
+   * rather than a flag: whoever enables the demo has to name the account, and
+   * the guard below refuses anything outside the demo domain.
+   */
+  DEMO_STUDENT_EMAIL: z.string().email().optional(),
+
   /** Host code runner (spawns compilers). Must stay off on shared VPS. */
   CODE_RUN_ENABLED: z
     .enum(['true', 'false'])

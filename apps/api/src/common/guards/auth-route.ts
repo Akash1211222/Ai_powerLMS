@@ -12,6 +12,9 @@ const AUTH_PATHS = new Set([
   '/api/v1/auth/verify-email',
   '/api/v1/auth/forgot-password',
   '/api/v1/auth/reset-password',
+  // Public and unauthenticated, and it mints a session on every call. A real
+  // visitor needs one; anything hammering it is filling the session table.
+  '/api/v1/auth/demo',
 ]);
 
 export function isAuthRoute(context: ExecutionContext): boolean {
