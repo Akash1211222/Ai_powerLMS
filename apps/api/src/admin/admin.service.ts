@@ -11,6 +11,7 @@ import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
 import { assertOrgAccess } from '../common/tenant';
 import { PasswordService } from '../auth/password.service';
+import { TokenService } from '../auth/token.service';
 import { randomBytes } from 'node:crypto';
 import { defaultPasswordForRole, temporaryPassword } from './member-passwords';
 import type {
@@ -27,6 +28,7 @@ export class AdminService {
     private readonly audit: AuditService,
     private readonly userContext: UserContextService,
     private readonly passwords: PasswordService,
+    private readonly tokens: TokenService,
   ) {}
 
   /**
@@ -237,6 +239,57 @@ export class AdminService {
 
     // Shown once. Nothing stores it, and asking again issues a different one.
     return { id: target.id, email: target.email, password };
+  }
+
+  /**
+   * Issue a short-lived token for looking at a member's account.
+   *
+   * This is what "the batch manager should be able to see the student's
+   * account" actually needs. A password would only get them in; this shows the
+   * screen the student is describing, and leaves a record of who looked.
+   *
+   * The token grants the member's own permissions, which are lower by rank
+   * than the caller's, so nothing is escalated by borrowing it. It comes alone,
+   * with no refresh token, so the session cannot be extended and expires by
+   * itself. And JwtAuthGuard holds it to reads only — see guards/view-as.ts.
+   */
+  async viewAsMember(actorId: string, targetUserId: string) {
+    await this.assertCanActOnMember(actorId, targetUserId);
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, email: true, status: true, profile: true },
+    });
+    if (!target) throw new NotFoundException('Member not found');
+    if (target.status !== 'ACTIVE') {
+      throw new BadRequestException('This account is not active');
+    }
+
+    const accessToken = await this.tokens.signViewAsToken({
+      sub: target.id,
+      email: target.email,
+      // Deliberately not carrying mcp: staff looking at an account should see
+      // it, not be redirected into its password-change flow.
+      act: actorId,
+    });
+
+    await this.audit.record({
+      action: 'admin.member.viewed_as',
+      actorUserId: actorId,
+      targetType: 'User',
+      targetId: target.id,
+    });
+
+    return {
+      accessToken,
+      expiresIn: this.tokens.viewAsTtlSeconds,
+      viewing: {
+        id: target.id,
+        email: target.email,
+        firstName: target.profile?.firstName ?? null,
+        lastName: target.profile?.lastName ?? null,
+      },
+    };
   }
 
   async listMembers(userId: string, query: ListMembersQuery): Promise<Paginated<unknown>> {

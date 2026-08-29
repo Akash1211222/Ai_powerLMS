@@ -8,6 +8,7 @@ import type { Request } from 'express';
 import { TokenService } from '../token.service';
 import type { AuthUser } from '../auth-user';
 import { assertPasswordChanged } from './password-change';
+import { assertViewOnly } from './view-as';
 
 /**
  * Authenticates a request via `Authorization: Bearer <accessToken>` (§6, §39).
@@ -31,6 +32,7 @@ export class JwtAuthGuard implements CanActivate {
         userId: claims.sub,
         email: claims.email,
         mustChangePassword: claims.mcp === true,
+        ...(claims.act ? { impersonatedBy: claims.act } : {}),
       };
     } catch {
       throw new UnauthorizedException('Invalid or expired token');
@@ -39,6 +41,8 @@ export class JwtAuthGuard implements CanActivate {
     // Outside the try: a ForbiddenException here must reach the client as 403,
     // not be swallowed and rewritten as "invalid token".
     assertPasswordChanged(req.user.mustChangePassword === true, req.path);
+    // A borrowed session may look, not touch.
+    assertViewOnly(Boolean(req.user.impersonatedBy), req.method, req.path);
     return true;
   }
 }

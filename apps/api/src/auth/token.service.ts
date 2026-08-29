@@ -7,6 +7,13 @@ import type { Env } from '../config/env';
 /** The only algorithm access tokens are signed with, and the only one accepted. */
 const ACCESS_TOKEN_ALGORITHM = 'HS256' as const;
 
+/**
+ * How long a borrowed session lasts. Long enough to look at a problem with the
+ * person on the phone, short enough that a forgotten tab is not a standing key
+ * to somebody else's account.
+ */
+const VIEW_AS_TTL_SECONDS = 15 * 60;
+
 export interface AccessTokenClaims {
   sub: string; // user id
   email: string;
@@ -17,6 +24,13 @@ export interface AccessTokenClaims {
    * stuck behind a stale claim after setting their own password.
    */
   mcp?: boolean;
+  /**
+   * Who is really driving, when staff are viewing a member's account.
+   *
+   * Present only on a "view as" token. Its absence is what makes an ordinary
+   * session ordinary, so nothing else may set it.
+   */
+  act?: string;
 }
 
 /**
@@ -45,6 +59,25 @@ export class TokenService {
 
   get refreshTtlSeconds(): number {
     return this.refreshTtl;
+  }
+
+  /**
+   * A token for looking at somebody else's account.
+   *
+   * Deliberately short-lived and issued alone — there is no refresh token, so
+   * the borrowed session cannot be extended and expires on its own. Staff who
+   * need longer ask again, and that ask is audited each time.
+   */
+  signViewAsToken(claims: AccessTokenClaims & { act: string }): Promise<string> {
+    return this.jwt.signAsync(claims, {
+      secret: this.accessSecret,
+      expiresIn: VIEW_AS_TTL_SECONDS,
+      algorithm: ACCESS_TOKEN_ALGORITHM,
+    });
+  }
+
+  get viewAsTtlSeconds(): number {
+    return VIEW_AS_TTL_SECONDS;
   }
 
   signAccessToken(claims: AccessTokenClaims): Promise<string> {

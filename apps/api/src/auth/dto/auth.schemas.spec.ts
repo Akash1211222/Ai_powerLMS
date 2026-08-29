@@ -13,11 +13,15 @@ describe('auth schemas', () => {
   });
 
   it('rejects weak passwords (missing uppercase/number)', () => {
-    expect(() => resetPasswordSchema.parse({ email: 'a@b.com', otp: '123456', password: 'password' })).toThrow();
+    expect(() =>
+      resetPasswordSchema.parse({ email: 'a@b.com', otp: '123456', password: 'password' }),
+    ).toThrow();
   });
 
   it('rejects passwords shorter than 8 chars', () => {
-    expect(() => resetPasswordSchema.parse({ email: 'a@b.com', otp: '123456', password: 'Ab1' })).toThrow();
+    expect(() =>
+      resetPasswordSchema.parse({ email: 'a@b.com', otp: '123456', password: 'Ab1' }),
+    ).toThrow();
   });
 
   it('accepts a compliant password', () => {

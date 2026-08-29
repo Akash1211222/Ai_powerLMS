@@ -34,7 +34,10 @@ export type ForgotPasswordDto = z.infer<typeof forgotPasswordSchema>;
 
 export const resetPasswordSchema = z.object({
   email,
-  otp: z.string().trim().regex(/^\d{6}$/, 'Enter the 6-digit code from your email'),
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code from your email'),
   password,
 });
 export type ResetPasswordDto = z.infer<typeof resetPasswordSchema>;

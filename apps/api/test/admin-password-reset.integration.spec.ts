@@ -17,6 +17,8 @@ import { PasswordService } from '../src/auth/password.service';
 import { AuditService } from '../src/audit/audit.service';
 import { AdminService } from '../src/admin/admin.service';
 import { UserContextService } from '../src/authz/user-context.service';
+import { TokenService } from '../src/auth/token.service';
+import { JwtService } from '@nestjs/jwt';
 import type { Env } from '../src/config/env';
 
 const TEST_DB = process.env.TEST_DATABASE_URL;
@@ -53,11 +55,16 @@ run('resetMemberPassword', () => {
     process.env.DATABASE_URL = TEST_DB;
     prisma = new PrismaClient({ datasourceUrl: TEST_DB }) as unknown as PrismaService;
     passwords = new PasswordService(cfg({ ARGON2_MEMORY_COST: 4096, ARGON2_TIME_COST: 2 }));
+    const tokens = new TokenService(
+      new JwtService({}),
+      cfg({ JWT_ACCESS_SECRET: 'x'.repeat(48), JWT_ACCESS_TTL: 900, JWT_REFRESH_TTL: 1209600 }),
+    );
     admin = new AdminService(
       prisma,
       new AuditService(prisma),
       new UserContextService(prisma),
       passwords,
+      tokens,
     );
 
     const a = await prisma.organization.create({

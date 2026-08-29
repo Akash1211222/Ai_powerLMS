@@ -101,6 +101,17 @@ export class AdminController {
     return this.admin.resetMemberPassword(user.userId, userId);
   }
 
+  @Post('members/:userId/view-as')
+  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @ApiOperation({
+    summary:
+      "Open a member's account to see what they see. Returns a short-lived, " +
+      'read-only token and no refresh token. Audited every time.',
+  })
+  viewAsMember(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
+    return this.admin.viewAsMember(user.userId, userId);
+  }
+
   @Post('roles/grant')
   @RequirePermissions(PERMISSIONS.USER_MANAGE)
   @ApiOperation({ summary: 'Grant an org-scoped role to a member' })
