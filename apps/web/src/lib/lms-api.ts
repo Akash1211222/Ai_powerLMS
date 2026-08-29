@@ -5,7 +5,12 @@ export interface Organization {
   id: string;
   name: string;
   slug: string;
-  type: string;
+  type: 'COLLEGE' | 'COMPANY' | 'INTERNAL' | string;
+  /** What the college calls itself on screen, if different from `name`. */
+  displayName?: string | null;
+  logoUrl?: string | null;
+  /** One brand colour as #rrggbb; accents are derived from it. */
+  primaryColor?: string | null;
   isPrimary?: boolean;
 }
 
@@ -95,7 +100,13 @@ export const coursesApi = {
     }),
   addLesson: (
     moduleId: string,
-    input: { title: string; type: string; contentUrl?: string; body?: string; durationSec?: number },
+    input: {
+      title: string;
+      type: string;
+      contentUrl?: string;
+      body?: string;
+      durationSec?: number;
+    },
   ) =>
     apiRequest<Lesson>(`/courses/modules/${moduleId}/lessons`, {
       method: 'POST',

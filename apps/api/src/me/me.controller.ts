@@ -51,7 +51,21 @@ export class MeController {
   async organizations(@CurrentUser() user: AuthUser) {
     const memberships = await this.prisma.organizationMember.findMany({
       where: { userId: user.userId },
-      include: { organization: { select: { id: true, name: true, slug: true, type: true } } },
+      include: {
+        organization: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            type: true,
+            // Branding travels with the organisation so the shell can theme
+            // itself the moment the active college is known.
+            displayName: true,
+            logoUrl: true,
+            primaryColor: true,
+          },
+        },
+      },
       orderBy: { isPrimary: 'desc' },
     });
     return memberships.map((m) => ({ ...m.organization, isPrimary: m.isPrimary }));

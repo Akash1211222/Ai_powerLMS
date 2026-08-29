@@ -11,6 +11,8 @@ import { useActiveOrg } from '@/lib/use-active-org';
 import { NotificationBell } from '@/components/notification-bell';
 import { OrgSwitcher } from '@/components/org-switcher';
 import { ViewAsBanner } from '@/components/view-as-banner';
+import { BrandThemeStyle } from '@/components/brand-theme-style';
+import { OrgLogo } from '@/components/org-logo';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SectionArtworkBanner } from '@/components/section-artwork';
 import { BrandLoader } from '@/components/brand-loader';
@@ -113,6 +115,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex min-h-screen flex-col bg-bg">
+      <BrandThemeStyle />
       <ViewAsBanner />
       <div className="flex flex-1">
         <div className="aurora-bg max-md:opacity-40" aria-hidden>
@@ -122,7 +125,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         {/* Desktop sidebar */}
         <aside className="glass sticky top-0 z-20 hidden h-screen w-64 flex-col gap-1 overflow-y-auto border-r p-4 md:flex">
           <div className="px-2 pb-5 pt-1">
-            <Logo />
+            <OrgLogo />
           </div>
           <NavLinks />
           <div className="mt-auto border-t border-hair pt-3">
@@ -153,7 +156,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             />
             <aside className="glass absolute inset-y-0 left-0 flex w-[min(20rem,88vw)] flex-col gap-1 overflow-y-auto border-r p-4 shadow-card">
               <div className="mb-2 flex items-center justify-between px-1">
-                <Logo />
+                <OrgLogo />
                 <button
                   type="button"
                   className="rounded-panel border border-hair p-2"

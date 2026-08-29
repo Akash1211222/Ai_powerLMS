@@ -291,6 +291,16 @@ model Organization {
   slug      String             @unique
   type      OrganizationType   @default(COLLEGE)
   status    OrganizationStatus @default(ACTIVE)
+
+  /// What the college calls itself on screen, when that differs from the name
+  /// on the contract ("St. Xavier's" rather than "St. Xavier's College, Mumbai").
+  displayName  String?
+  /// Logo shown in place of ours, in the sidebar and on the sign-in screen.
+  logoUrl      String?
+  /// One brand colour, as #rrggbb. Accents are derived from it for light and
+  /// dark separately — a college picking a dark green must not end up with
+  /// unreadable links on a dark background.
+  primaryColor String?
   createdAt DateTime           @default(now())
   updatedAt DateTime           @updatedAt
 
