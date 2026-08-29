@@ -14,6 +14,15 @@ interface AuthState {
   changePassword: (currentPassword: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refreshUser: () => Promise<void>;
+  /**
+   * Borrow a member's account to see what they see. Takes the short-lived
+   * token from the API; the staff session underneath is untouched, so stopping
+   * is a matter of going back to it.
+   */
+  viewAs: (accessToken: string, who: string) => Promise<void>;
+  stopViewingAs: () => Promise<void>;
+  /** Whose account is on screen, when it is not the signed-in person's own. */
+  viewingAs: string | null;
 }
 
 const AuthContext = createContext<AuthState | null>(null);
@@ -31,6 +40,7 @@ function storeRefreshToken(token: string | null): void {
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<CurrentUser | null>(null);
   const [status, setStatus] = useState<AuthState['status']>('loading');
+  const [viewingAs, setViewingAs] = useState<string | null>(null);
   const bootstrapped = useRef(false);
 
   const applyTokens = useCallback((accessToken: string, refreshToken: string) => {
@@ -84,6 +94,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setStatus('unauthenticated');
   }, []);
 
+  const viewAs = useCallback(
+    async (accessToken: string, who: string) => {
+      // Only the access token changes. The staff refresh token stays in place
+      // and untouched, which is what makes stopping cheap and reliable — there
+      // is nothing to restore, only something to stop using.
+      setAccessToken(accessToken);
+      setViewingAs(who);
+      await refreshUser();
+    },
+    [refreshUser],
+  );
+
+  const stopViewingAs = useCallback(async () => {
+    const refreshToken = readRefreshToken();
+    setViewingAs(null);
+    if (!refreshToken) {
+      // Nothing to go back to; treat it as a sign-out rather than leaving the
+      // borrowed session on screen.
+      setAccessToken(null);
+      setUser(null);
+      setStatus('unauthenticated');
+      return;
+    }
+    const tokens = await authApi.refresh(refreshToken);
+    applyTokens(tokens.accessToken, tokens.refreshToken);
+    await refreshUser();
+  }, [applyTokens, refreshUser]);
+
   // Bootstrap: exchange a stored refresh token for a session on first load.
   useEffect(() => {
     if (bootstrapped.current) return;
@@ -108,7 +146,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <AuthContext.Provider
-      value={{ user, status, login, startDemo, changePassword, logout, refreshUser }}
+      value={{
+        user,
+        status,
+        login,
+        startDemo,
+        changePassword,
+        logout,
+        refreshUser,
+        viewAs,
+        stopViewingAs,
+        viewingAs,
+      }}
     >
       {children}
     </AuthContext.Provider>

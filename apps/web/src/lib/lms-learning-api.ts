@@ -537,6 +537,25 @@ export const adminApi = {
       password: string;
     }>('/admin/members', { method: 'POST', body: input, auth: true }),
 
+  /**
+   * Issue a new temporary password for a member who cannot sign in. The
+   * response carries it once — nothing stores it, and asking again issues a
+   * different one.
+   */
+  resetMemberPassword: (userId: string) =>
+    apiRequest<{ id: string; email: string; password: string }>(
+      `/admin/members/${encodeURIComponent(userId)}/reset-password`,
+      { method: 'POST', auth: true },
+    ),
+
+  /** Borrow a member's account to see what they see. Read-only, and expires. */
+  viewAsMember: (userId: string) =>
+    apiRequest<{
+      accessToken: string;
+      expiresIn: number;
+      viewing: { id: string; email: string; firstName: string | null; lastName: string | null };
+    }>(`/admin/members/${encodeURIComponent(userId)}/view-as`, { method: 'POST', auth: true }),
+
   grantRole: (organizationId: string, userId: string, role: string) =>
     apiRequest<unknown>('/admin/roles/grant', {
       method: 'POST',

@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, Badge, Spinner, Alert, Field, Input, Select } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
@@ -18,7 +19,8 @@ const GRANTABLE = [
 ];
 
 export default function AdminPage() {
-  const { user } = useAuth();
+  const { user, viewAs } = useAuth();
+  const router = useRouter();
   const { org } = useActiveOrg();
   const qc = useQueryClient();
   const [rolePick, setRolePick] = useState<Record<string, string>>({});
@@ -27,6 +29,8 @@ export default function AdminPage() {
   // What the account can reach on day one. Only meaningful for a learner, so
   // the section hides for staff roles rather than offering a choice that does
   // nothing.
+  // The password from a reset, shown once — same as account creation.
+  const [resetFor, setResetFor] = useState<{ email: string; password: string } | null>(null);
   const [recordedCourseIds, setRecordedCourseIds] = useState<string[]>([]);
   const [batchIds, setBatchIds] = useState<string[]>([]);
   const grantsAccess = newMember.role === 'STUDENT';
@@ -69,6 +73,27 @@ export default function AdminPage() {
     queryKey: ['admin', 'flags'],
     queryFn: () => adminApi.flags(),
     enabled: Boolean(canFlags),
+  });
+
+  /**
+   * A member who cannot sign in. Nobody can be shown their current password —
+   * only a hash is stored — so this issues a new one, shown once.
+   */
+  const resetPassword = useMutation({
+    mutationFn: (userId: string) => adminApi.resetMemberPassword(userId),
+    onSuccess: (res) => setResetFor(res),
+  });
+
+  /** Borrow an account to see the screen the member is describing. */
+  const viewAsMember = useMutation({
+    mutationFn: (userId: string) => adminApi.viewAsMember(userId),
+    onSuccess: async (res) => {
+      const who =
+        [res.viewing.firstName, res.viewing.lastName].filter(Boolean).join(' ') ||
+        res.viewing.email;
+      await viewAs(res.accessToken, who);
+      router.push('/dashboard');
+    },
   });
 
   const createMember = useMutation({
@@ -347,6 +372,22 @@ export default function AdminPage() {
                         >
                           Grant
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          loading={viewAsMember.isPending && viewAsMember.variables === m.user.id}
+                          onClick={() => viewAsMember.mutate(m.user.id)}
+                        >
+                          View as
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="secondary"
+                          loading={resetPassword.isPending && resetPassword.variables === m.user.id}
+                          onClick={() => resetPassword.mutate(m.user.id)}
+                        >
+                          Reset password
+                        </Button>
                       </div>
                     )}
                   </div>
@@ -354,6 +395,31 @@ export default function AdminPage() {
               ))}
             </ul>
           )}
+        </Card>
+      )}
+
+      {resetFor && (
+        <Card>
+          <Alert tone="success">
+            <div className="font-semibold">Temporary password issued</div>
+            <div className="mt-2 grid gap-1 text-sm">
+              <div>
+                For: <code className="font-mono">{resetFor.email}</code>
+              </div>
+              <div>
+                Password: <code className="font-mono">{resetFor.password}</code>
+              </div>
+            </div>
+            <p className="mt-2 text-xs">
+              Shown once — nothing stores it, and asking again issues a different one. They will be
+              asked to replace it when they sign in, and any session they had open has been ended.
+            </p>
+            <div className="mt-3">
+              <Button size="sm" variant="secondary" onClick={() => setResetFor(null)}>
+                Done
+              </Button>
+            </div>
+          </Alert>
         </Card>
       )}
 

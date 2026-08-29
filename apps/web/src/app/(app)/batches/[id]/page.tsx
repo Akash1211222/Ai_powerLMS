@@ -1,11 +1,13 @@
 'use client';
 
 import { use, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, Input, Badge, statusTone, Spinner, Alert } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
 import { batchesApi } from '@/lib/lms-api';
+import { adminApi } from '@/lib/lms-learning-api';
 import { ApiError } from '@/lib/api-client';
 import { BatchHealthPanel } from '@/components/batch-health-panel';
 import { BatchPlacementPanel } from '@/components/batch-placement-panel';
@@ -23,7 +25,7 @@ interface BatchDetail {
 }
 interface StudentRow {
   id: string;
-  user: { email: string; profile: { firstName: string; lastName: string } | null };
+  user: { id: string; email: string; profile: { firstName: string; lastName: string } | null };
 }
 
 export default function BatchDetailPage({ params }: { params: Promise<{ id: string }> }) {
@@ -32,6 +34,35 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   const qc = useQueryClient();
   const [email, setEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
+  // The password from a reset, shown once. Nothing stores it.
+  const [issued, setIssued] = useState<{ email: string; password: string } | null>(null);
+  const router = useRouter();
+  const { viewAs } = useAuth();
+
+  /**
+   * The two things the batch desk is actually asked for when a student cannot
+   * get in. They live here rather than under Admin because a batch manager
+   * cannot open Admin at all — this roster is where they already are.
+   */
+  const canSupport = user?.permissions.includes('student:view');
+
+  const resetPassword = useMutation({
+    mutationFn: (userId: string) => adminApi.resetMemberPassword(userId),
+    onSuccess: (res) => setIssued(res),
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not reset the password'),
+  });
+
+  const viewAsStudent = useMutation({
+    mutationFn: (userId: string) => adminApi.viewAsMember(userId),
+    onSuccess: async (res) => {
+      const who =
+        [res.viewing.firstName, res.viewing.lastName].filter(Boolean).join(' ') ||
+        res.viewing.email;
+      await viewAs(res.accessToken, who);
+      router.push('/dashboard');
+    },
+    onError: (e) => setError(e instanceof Error ? e.message : 'Could not open that account'),
+  });
 
   const canManage = user?.permissions.includes('batch:manage');
   const canScheduleLive =
@@ -147,16 +178,64 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
             </div>
           </div>
         )}
+        {issued && (
+          <Alert tone="success" className="mt-4">
+            <div className="font-semibold">Temporary password issued</div>
+            <div className="mt-2 grid gap-1 text-sm">
+              <div>
+                For: <code className="font-mono">{issued.email}</code>
+              </div>
+              <div>
+                Password: <code className="font-mono">{issued.password}</code>
+              </div>
+            </div>
+            <p className="mt-2 text-xs">
+              Read it out once. Nothing stores it, asking again issues a different one, and they
+              will be asked to replace it when they sign in.
+            </p>
+            <div className="mt-3">
+              <Button size="sm" variant="secondary" onClick={() => setIssued(null)}>
+                Done
+              </Button>
+            </div>
+          </Alert>
+        )}
+
         <ul className="mt-4 divide-y divide-hair">
           {students.length === 0 && <li className="py-2 text-sm text-faint">No students yet.</li>}
           {students.map((s) => (
-            <li key={s.id} className="flex items-center justify-between py-2 text-sm">
-              <span className="font-medium">
-                {s.user.profile
-                  ? `${s.user.profile.firstName} ${s.user.profile.lastName}`
-                  : s.user.email}
+            <li
+              key={s.id}
+              className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm"
+            >
+              <span className="min-w-0">
+                <span className="font-medium">
+                  {s.user.profile
+                    ? `${s.user.profile.firstName} ${s.user.profile.lastName}`
+                    : s.user.email}
+                </span>
+                <span className="ml-2 text-faint">{s.user.email}</span>
               </span>
-              <span className="text-faint">{s.user.email}</span>
+              {canSupport && (
+                <span className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={viewAsStudent.isPending && viewAsStudent.variables === s.user.id}
+                    onClick={() => viewAsStudent.mutate(s.user.id)}
+                  >
+                    View as
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={resetPassword.isPending && resetPassword.variables === s.user.id}
+                    onClick={() => resetPassword.mutate(s.user.id)}
+                  >
+                    Reset password
+                  </Button>
+                </span>
+              )}
             </li>
           ))}
         </ul>
