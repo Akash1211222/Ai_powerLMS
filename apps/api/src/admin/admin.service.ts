@@ -45,6 +45,37 @@ export class AdminService {
     const role = await this.prisma.role.findUnique({ where: { name: dto.role } });
     if (!role) throw new NotFoundException('Role not found');
 
+    /**
+     * Everything the account is being given must belong to the organisation it
+     * is being created in. Without this an admin could hand their own student
+     * a seat in another college's batch simply by pasting an id — the tenant
+     * check above guards the organisation, not the ids inside the request.
+     */
+    const recordedCourseIds = [...new Set(dto.recordedCourseIds ?? [])];
+    const batchIds = [...new Set(dto.batchIds ?? [])];
+
+    if (recordedCourseIds.length > 0) {
+      const found = await this.prisma.course.findMany({
+        where: { id: { in: recordedCourseIds }, organizationId: dto.organizationId },
+        select: { id: true },
+      });
+      if (found.length !== recordedCourseIds.length) {
+        throw new BadRequestException('A selected course does not belong to this organization');
+      }
+    }
+
+    // A batch carries the course it runs, so the live seat needs no separate
+    // course choice — reading it here also keeps the enrolment consistent.
+    const batches = batchIds.length
+      ? await this.prisma.batch.findMany({
+          where: { id: { in: batchIds }, organizationId: dto.organizationId },
+          select: { id: true, courseId: true },
+        })
+      : [];
+    if (batches.length !== batchIds.length) {
+      throw new BadRequestException('A selected batch does not belong to this organization');
+    }
+
     const password = defaultPasswordForRole(dto.role);
     const passwordHash = await this.passwords.hash(password);
 
@@ -65,6 +96,28 @@ export class AdminService {
       await tx.userRole.create({
         data: { userId: created.id, roleId: role.id, organizationId: dto.organizationId },
       });
+
+      /**
+       * A live seat already carries its course's material, and a person can
+       * only be enrolled in a course once. So a course that is also covered by
+       * a chosen batch is not a second, batch-less enrolment — it is the same
+       * enrolment, and the batch is the more specific of the two.
+       */
+      const liveCourseIds = new Set(batches.map((b) => b.courseId));
+      for (const courseId of recordedCourseIds) {
+        if (liveCourseIds.has(courseId)) continue;
+        await tx.enrollment.create({ data: { userId: created.id, courseId } });
+      }
+
+      // A live seat is both an enrolment against the batch's course and a place
+      // on the roster, which is what attendance and grading read.
+      for (const batch of batches) {
+        await tx.enrollment.create({
+          data: { userId: created.id, courseId: batch.courseId, batchId: batch.id },
+        });
+        await tx.batchStudent.create({ data: { batchId: batch.id, userId: created.id } });
+      }
+
       return created;
     });
 
@@ -73,6 +126,11 @@ export class AdminService {
       actorUserId: actorId,
       targetType: 'User',
       targetId: user.id,
+      metadata: {
+        role: dto.role,
+        recordedCourses: recordedCourseIds.length,
+        liveBatches: batches.length,
+      },
     });
 
     return {
@@ -81,6 +139,8 @@ export class AdminService {
       firstName: dto.firstName,
       lastName: dto.lastName,
       role: dto.role,
+      recordedCourseIds,
+      batchIds: batches.map((b) => b.id),
       // Shown once so the admin can pass it on; never stored in plain text.
       password,
     };

@@ -22,6 +22,20 @@ export const createMemberSchema = z.object({
   firstName: z.string().min(1).max(80).trim(),
   lastName: z.string().min(1).max(80).trim(),
   role: roleEnum,
+  /**
+   * What the account can reach on day one.
+   *
+   * A student who buys on the website is paying for one of two things, and
+   * sometimes both: the recorded material, or a seat in a live batch. The two
+   * are separate because they are sold separately — somebody can buy the
+   * recordings now and join a cohort next month.
+   *
+   * The distinction is already in the data: an enrolment with no batch is
+   * recorded access, and one with a batch is a live seat. Nothing offered the
+   * choice, so every account was created with neither.
+   */
+  recordedCourseIds: z.array(z.string().min(1)).max(50).optional(),
+  batchIds: z.array(z.string().min(1)).max(20).optional(),
 });
 export type CreateMemberDto = z.infer<typeof createMemberSchema>;
 
