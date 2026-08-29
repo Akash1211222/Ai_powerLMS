@@ -3,14 +3,16 @@ import {
   NotFoundException,
   BadRequestException,
   ConflictException,
+  ForbiddenException,
 } from '@nestjs/common';
-import { buildPaginationMeta, type Paginated } from '@fca/shared';
+import { buildPaginationMeta, type Paginated, outranks, type RoleName } from '@fca/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
 import { assertOrgAccess } from '../common/tenant';
 import { PasswordService } from '../auth/password.service';
-import { defaultPasswordForRole } from './member-passwords';
+import { randomBytes } from 'node:crypto';
+import { defaultPasswordForRole, temporaryPassword } from './member-passwords';
 import type {
   ListMembersQuery,
   GrantRoleDto,
@@ -144,6 +146,97 @@ export class AdminService {
       // Shown once so the admin can pass it on; never stored in plain text.
       password,
     };
+  }
+
+  /**
+   * May the actor act on this member — reset their password, or later open
+   * their account as them?
+   *
+   * Two questions, both necessary. Do they share a college, so a batch manager
+   * at one campus cannot touch a student at another; and does the actor
+   * outrank the target, so peers cannot take over each other's accounts and
+   * nobody reaches a super admin. Permissions alone answer neither: they say
+   * what somebody may do, never to whom.
+   */
+  private async assertCanActOnMember(actorId: string, targetUserId: string) {
+    if (actorId === targetUserId) {
+      throw new BadRequestException('Use the change-password endpoint for your own account');
+    }
+
+    const principal = await this.userContext.getPrincipal(actorId);
+    const [actorRoles, targetRoles, targetOrgs] = await Promise.all([
+      this.prisma.userRole.findMany({ where: { userId: actorId }, include: { role: true } }),
+      this.prisma.userRole.findMany({ where: { userId: targetUserId }, include: { role: true } }),
+      this.prisma.organizationMember.findMany({
+        where: { userId: targetUserId },
+        select: { organizationId: true },
+      }),
+    ]);
+
+    if (targetOrgs.length === 0 && !principal.isSuperAdmin) {
+      throw new NotFoundException('Member not found');
+    }
+    if (
+      !principal.isSuperAdmin &&
+      !targetOrgs.some((o) => principal.organizationIds.has(o.organizationId))
+    ) {
+      // Same wording as a missing member: whether an account exists elsewhere
+      // is not this caller's business.
+      throw new NotFoundException('Member not found');
+    }
+
+    const actorNames = actorRoles.map((r) => r.role.name as RoleName);
+    const targetNames = targetRoles.map((r) => r.role.name as RoleName);
+    if (!outranks(actorNames, targetNames)) {
+      throw new ForbiddenException('You cannot act on this member');
+    }
+    return { targetNames };
+  }
+
+  /**
+   * Issue a new temporary password for a member who cannot get in.
+   *
+   * The stored password is an argon2 hash and cannot be turned back into text,
+   * so "show me their password" is not a thing any system can do. This is the
+   * answer to the same need: a fresh password, shown once, that the member must
+   * replace on first use.
+   *
+   * Existing sessions are cut. Someone asking for a reset may be locked out
+   * because their account was taken, and leaving the thief's session alive
+   * would make the reset theatre.
+   */
+  async resetMemberPassword(actorId: string, targetUserId: string) {
+    await this.assertCanActOnMember(actorId, targetUserId);
+
+    const target = await this.prisma.user.findUnique({
+      where: { id: targetUserId },
+      select: { id: true, email: true },
+    });
+    if (!target) throw new NotFoundException('Member not found');
+
+    const password = temporaryPassword(randomBytes);
+    const passwordHash = await this.passwords.hash(password);
+
+    await this.prisma.$transaction([
+      this.prisma.user.update({
+        where: { id: target.id },
+        data: { passwordHash, mustChangePassword: true },
+      }),
+      this.prisma.session.updateMany({
+        where: { userId: target.id, revokedAt: null },
+        data: { revokedAt: new Date(), revokedReason: 'PASSWORD_RESET' },
+      }),
+    ]);
+
+    await this.audit.record({
+      action: 'admin.member.password_reset',
+      actorUserId: actorId,
+      targetType: 'User',
+      targetId: target.id,
+    });
+
+    // Shown once. Nothing stores it, and asking again issues a different one.
+    return { id: target.id, email: target.email, password };
   }
 
   async listMembers(userId: string, query: ListMembersQuery): Promise<Paginated<unknown>> {

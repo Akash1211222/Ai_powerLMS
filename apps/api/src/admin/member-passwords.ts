@@ -35,3 +35,23 @@ export function defaultPasswordForRole(
   const override = env[`MEMBER_DEFAULT_PASSWORD_${role}`];
   return override && override.length > 0 ? override : FALLBACKS[role];
 }
+
+/**
+ * A one-off password for a reset.
+ *
+ * Deliberately not the role default. Those are uniform by design so they can be
+ * read out over a phone, which also means everyone holding a role shares one —
+ * fine for an account that has never been used, wrong for an account somebody
+ * is already locked out of. This is random, still easy to dictate, and dies at
+ * first login because the reset forces a change.
+ *
+ * Ambiguous characters are left out: nobody should have to ask whether that was
+ * a one or an ell.
+ */
+export function temporaryPassword(bytes: (n: number) => Buffer): string {
+  const alphabet = 'ABCDEFGHJKMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789';
+  const raw = bytes(12);
+  const body = Array.from(raw, (b) => alphabet[b % alphabet.length]).join('');
+  // Grouped for reading aloud, and shaped to satisfy the password policy.
+  return `${body.slice(0, 4)}-${body.slice(4, 8)}-${body.slice(8, 12)}!7`;
+}

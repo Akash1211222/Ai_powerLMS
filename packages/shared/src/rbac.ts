@@ -23,6 +23,48 @@ export const ROLES = [
 export type RoleName = (typeof ROLES)[number];
 
 /**
+ * How much authority a role carries, for deciding who may act on whom.
+ *
+ * Permissions answer "may this person do X". They cannot answer "may this
+ * person do X *to that person*", which is what resetting somebody's password
+ * or opening their account as them requires. Counting permissions would be a
+ * poor stand-in — a placement officer and a mentor hold five each and are not
+ * interchangeable.
+ *
+ * The rule everywhere is the same: you may act on somebody strictly below you,
+ * never on a peer and never upwards. A batch manager can help a student; two
+ * college admins cannot reset each other; nobody reaches a super admin.
+ */
+export const ROLE_RANK: Record<RoleName, number> = {
+  SUPER_ADMIN: 100,
+  OPERATIONAL_LEAD: 80,
+  COLLEGE_ADMIN: 70,
+  BATCH_MANAGER: 50,
+  TRAINER: 50,
+  MENTOR: 40,
+  PLACEMENT_OFFICER: 40,
+  ALUMNI: 10,
+  RECRUITER: 10,
+  STUDENT: 10,
+};
+
+/** The authority of the strongest role somebody holds. 0 when they hold none. */
+export function highestRank(roles: readonly RoleName[]): number {
+  return roles.reduce((max, r) => Math.max(max, ROLE_RANK[r] ?? 0), 0);
+}
+
+/**
+ * Whether `actorRoles` may act on `targetRoles` — reset their password, or open
+ * their account. Strictly greater, so peers cannot act on each other.
+ */
+export function outranks(
+  actorRoles: readonly RoleName[],
+  targetRoles: readonly RoleName[],
+): boolean {
+  return highestRank(actorRoles) > highestRank(targetRoles);
+}
+
+/**
  * All permissions in the system. Grouped by domain. Phase 0 defines the full
  * vocabulary so later phases only wire behavior — the strings are stable.
  */

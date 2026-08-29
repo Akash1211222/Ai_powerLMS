@@ -89,6 +89,18 @@ export class AdminController {
     return this.admin.createMember(user.userId, dto);
   }
 
+  @Post('members/:userId/reset-password')
+  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @ApiOperation({
+    summary:
+      'Issue a new temporary password for a member who cannot sign in. ' +
+      'Returns it once; the member must replace it at next login. ' +
+      'Gated further by rank: you can only reset somebody below you.',
+  })
+  resetMemberPassword(@CurrentUser() user: AuthUser, @Param('userId') userId: string) {
+    return this.admin.resetMemberPassword(user.userId, userId);
+  }
+
   @Post('roles/grant')
   @RequirePermissions(PERMISSIONS.USER_MANAGE)
   @ApiOperation({ summary: 'Grant an org-scoped role to a member' })

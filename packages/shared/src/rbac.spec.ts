@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest';
-import { ROLES, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, PERMISSIONS } from './rbac';
+import {
+  ROLES,
+  ALL_PERMISSIONS,
+  DEFAULT_ROLE_PERMISSIONS,
+  PERMISSIONS,
+  ROLE_RANK,
+  outranks,
+} from './rbac';
 
 /**
  * The permission matrix is enforced from the database, seeded from this file on
@@ -90,5 +97,44 @@ describe('OPERATIONAL_LEAD', () => {
     const size = (r: keyof typeof DEFAULT_ROLE_PERMISSIONS) => DEFAULT_ROLE_PERMISSIONS[r].length;
     expect(size('SUPER_ADMIN')).toBeGreaterThan(size('OPERATIONAL_LEAD'));
     expect(size('OPERATIONAL_LEAD')).toBeGreaterThan(size('BATCH_MANAGER'));
+  });
+});
+
+describe('who may act on whom', () => {
+  it('lets a batch manager help a student', () => {
+    // The case this exists for: a student cannot log in and the batch desk is
+    // who they ask.
+    expect(outranks(['BATCH_MANAGER'], ['STUDENT'])).toBe(true);
+  });
+
+  it('does not let peers act on each other', () => {
+    // Two college admins resetting each other's passwords is a way to take
+    // over a colleague's account, not a support flow.
+    expect(outranks(['COLLEGE_ADMIN'], ['COLLEGE_ADMIN'])).toBe(false);
+    expect(outranks(['TRAINER'], ['BATCH_MANAGER'])).toBe(false);
+    expect(outranks(['MENTOR'], ['PLACEMENT_OFFICER'])).toBe(false);
+  });
+
+  it('never allows acting upwards', () => {
+    expect(outranks(['BATCH_MANAGER'], ['COLLEGE_ADMIN'])).toBe(false);
+    expect(outranks(['COLLEGE_ADMIN'], ['OPERATIONAL_LEAD'])).toBe(false);
+    expect(outranks(['OPERATIONAL_LEAD'], ['SUPER_ADMIN'])).toBe(false);
+  });
+
+  it('puts nobody above the platform owner', () => {
+    for (const role of ROLES.filter((r) => r !== 'SUPER_ADMIN')) {
+      expect(outranks([role], ['SUPER_ADMIN'])).toBe(false);
+    }
+    expect(outranks(['SUPER_ADMIN'], ['OPERATIONAL_LEAD'])).toBe(true);
+  });
+
+  it('reads the strongest role somebody holds, not the first', () => {
+    // People collect roles. A trainer who is also a college admin is an admin.
+    expect(outranks(['TRAINER', 'COLLEGE_ADMIN'], ['BATCH_MANAGER'])).toBe(true);
+    expect(outranks(['STUDENT'], ['ALUMNI'])).toBe(false);
+  });
+
+  it('gives every role a rank', () => {
+    for (const role of ROLES) expect(ROLE_RANK[role]).toBeGreaterThan(0);
   });
 });
