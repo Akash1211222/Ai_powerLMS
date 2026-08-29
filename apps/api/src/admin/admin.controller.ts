@@ -36,6 +36,10 @@ import {
   type GrantRoleDto,
   type RevokeRoleDto,
   type UpdateFlagDto,
+  createOrganizationSchema,
+  updateOrganizationSchema,
+  type CreateOrganizationDto,
+  type UpdateOrganizationDto,
 } from './dto/admin.schemas';
 
 @ApiTags('admin')
@@ -62,6 +66,39 @@ export class AdminController {
       this.prisma.auditLog.count(),
     ]);
     return { data: rows, meta: buildPaginationMeta(total, page, pageSize) };
+  }
+
+  @Get('organizations')
+  @RequirePermissions(PERMISSIONS.ORG_MANAGE)
+  @ApiOperation({ summary: 'Every college on the platform (platform owner only)' })
+  listOrganizations() {
+    return this.admin.listOrganizations();
+  }
+
+  @Post('organizations')
+  @HttpCode(HttpStatus.CREATED)
+  @RequirePermissions(PERMISSIONS.ORG_MANAGE)
+  @ApiOperation({
+    summary:
+      'Open a college. Staff, batches and branding all hang off this, so it is ' +
+      'the first step in onboarding one.',
+  })
+  createOrganization(
+    @CurrentUser() user: AuthUser,
+    @Body(new ZodValidationPipe(createOrganizationSchema)) dto: CreateOrganizationDto,
+  ) {
+    return this.admin.createOrganization(user.userId, dto);
+  }
+
+  @Patch('organizations/:id')
+  @RequirePermissions(PERMISSIONS.ORG_MANAGE)
+  @ApiOperation({ summary: "Change a college's display name, logo or colour" })
+  updateOrganization(
+    @CurrentUser() user: AuthUser,
+    @Param('id') id: string,
+    @Body(new ZodValidationPipe(updateOrganizationSchema)) dto: UpdateOrganizationDto,
+  ) {
+    return this.admin.updateOrganization(user.userId, id, dto);
   }
 
   @Get('members')

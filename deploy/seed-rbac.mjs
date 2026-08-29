@@ -53,13 +53,19 @@ async function main() {
     }
   }
 
+  // Our own academy — the B2C course business — rather than a customer.
+  // The distinction is what stops the LMS branding itself as a college it is
+  // not: an unbranded *college* now shows its own name in the header, and this
+  // org is the one place where the product logo is the right answer. The type
+  // is in `update` as well as `create` because this row predates the
+  // distinction and has to be corrected in place.
   await prisma.organization.upsert({
     where: { slug: 'futurecorp-academy' },
-    update: {},
+    update: { type: 'INTERNAL' },
     create: {
       name: 'FutureCorp Academy',
       slug: 'futurecorp-academy',
-      type: 'COLLEGE',
+      type: 'INTERNAL',
       status: 'ACTIVE',
     },
   });

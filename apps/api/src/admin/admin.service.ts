@@ -12,14 +12,14 @@ import { UserContextService } from '../authz/user-context.service';
 import { assertOrgAccess } from '../common/tenant';
 import { PasswordService } from '../auth/password.service';
 import { TokenService } from '../auth/token.service';
+import { slugify } from '../common/slug';
 import { randomBytes } from 'node:crypto';
 import { defaultPasswordForRole, temporaryPassword } from './member-passwords';
 import type {
   ListMembersQuery,
   GrantRoleDto,
   RevokeRoleDto,
-  CreateMemberDto,
-} from './dto/admin.schemas';
+  CreateMemberDto, CreateOrganizationDto, UpdateOrganizationDto } from './dto/admin.schemas';
 
 @Injectable()
 export class AdminService {
@@ -290,6 +290,98 @@ export class AdminService {
         lastName: target.profile?.lastName ?? null,
       },
     };
+  }
+
+  // --- Colleges -----------------------------------------------------------
+
+  /**
+   * Every organisation on the platform, for the owner's college list.
+   *
+   * The only place that deliberately reads across tenants, which is why the
+   * endpoint is gated on ORG_MANAGE — a permission nobody but the platform
+   * owner holds, asserted by a test in @fca/shared.
+   */
+  async listOrganizations() {
+    const orgs = await this.prisma.organization.findMany({
+      orderBy: [{ type: 'asc' }, { name: 'asc' }],
+      select: {
+        id: true, name: true, displayName: true, slug: true, type: true, status: true,
+        logoUrl: true, primaryColor: true, createdAt: true,
+        _count: { select: { members: true, batches: true } },
+      },
+    });
+
+    // Flatten Prisma's _count so the shape the client sees is its own, not an
+    // artefact of how the query happened to be written.
+    return orgs.map(({ _count, ...org }) => ({
+      ...org,
+      memberCount: _count.members,
+      batchCount: _count.batches,
+    }));
+  }
+
+  /**
+   * Opens a college. Everything else about onboarding hangs off this: staff are
+   * created inside an organisation, batches belong to one, and the branding
+   * that makes the LMS feel like theirs is stored on it.
+   */
+  async createOrganization(actorId: string, dto: CreateOrganizationDto) {
+    // The slug is a URL-safe handle derived from the name, and unique. Two
+    // colleges called "St. Xavier's" is not far-fetched in this market, so a
+    // collision is a normal event rather than an error to hand back.
+    const base = slugify(dto.name) || 'college';
+    let slug = base;
+    for (let n = 2; await this.prisma.organization.findUnique({ where: { slug } }); n++) {
+      slug = `${base}-${n}`;
+      if (n > 50) throw new ConflictException('Could not find a free address for that name');
+    }
+
+    const org = await this.prisma.organization.create({
+      data: {
+        name: dto.name,
+        slug,
+        type: dto.type,
+        displayName: dto.displayName ?? null,
+        logoUrl: dto.logoUrl ?? null,
+        primaryColor: dto.primaryColor ?? null,
+      },
+    });
+
+    await this.audit.record({
+      action: 'admin.organization.created',
+      actorUserId: actorId,
+      organizationId: org.id,
+      targetType: 'Organization',
+      targetId: org.id,
+      metadata: { name: org.name, type: org.type },
+    });
+
+    return org;
+  }
+
+  /** Change how a college looks. Name and address stay put once set. */
+  async updateOrganization(actorId: string, id: string, dto: UpdateOrganizationDto) {
+    const existing = await this.prisma.organization.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('College not found');
+
+    const org = await this.prisma.organization.update({
+      where: { id },
+      data: {
+        ...(dto.displayName !== undefined ? { displayName: dto.displayName } : {}),
+        ...(dto.logoUrl !== undefined ? { logoUrl: dto.logoUrl } : {}),
+        ...(dto.primaryColor !== undefined ? { primaryColor: dto.primaryColor } : {}),
+      },
+    });
+
+    await this.audit.record({
+      action: 'admin.organization.updated',
+      actorUserId: actorId,
+      organizationId: org.id,
+      targetType: 'Organization',
+      targetId: org.id,
+    });
+
+    return org;
   }
 
   async listMembers(userId: string, query: ListMembersQuery): Promise<Paginated<unknown>> {

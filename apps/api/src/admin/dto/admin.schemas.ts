@@ -39,6 +39,45 @@ export const createMemberSchema = z.object({
 });
 export type CreateMemberDto = z.infer<typeof createMemberSchema>;
 
+/**
+ * A colour that will end up inside a stylesheet, so only a hex value is
+ * accepted — see brand-theme.ts on the web side, which drops anything else.
+ * Validated here too: an API is not made safe by a careful client.
+ */
+const hexColour = z
+  .string()
+  .trim()
+  .regex(/^#(?:[0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Use a hex colour like #1e3a8a');
+
+/**
+ * Logos are fetched by the browser from wherever the college hosts them. https
+ * only: an http image on an https page is blocked as mixed content, so allowing
+ * it would only produce a logo that silently never appears.
+ */
+const logoUrl = z
+  .string()
+  .trim()
+  .url()
+  .max(2048)
+  .refine((u) => u.startsWith('https://'), 'The logo address must start with https://');
+
+export const createOrganizationSchema = z.object({
+  name: z.string().min(2).max(120).trim(),
+  /** What it calls itself on screen, when shorter than the legal name. */
+  displayName: z.string().min(1).max(80).trim().optional(),
+  type: z.enum(['COLLEGE', 'COMPANY', 'INTERNAL']).default('COLLEGE'),
+  logoUrl: logoUrl.optional(),
+  primaryColor: hexColour.optional(),
+});
+export type CreateOrganizationDto = z.infer<typeof createOrganizationSchema>;
+
+export const updateOrganizationSchema = z.object({
+  displayName: z.string().min(1).max(80).trim().nullable().optional(),
+  logoUrl: logoUrl.nullable().optional(),
+  primaryColor: hexColour.nullable().optional(),
+});
+export type UpdateOrganizationDto = z.infer<typeof updateOrganizationSchema>;
+
 export const grantRoleSchema = z.object({
   organizationId: z.string().min(1),
   userId: z.string().min(1),

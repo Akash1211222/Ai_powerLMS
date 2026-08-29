@@ -556,6 +556,52 @@ export const adminApi = {
       viewing: { id: string; email: string; firstName: string | null; lastName: string | null };
     }>(`/admin/members/${encodeURIComponent(userId)}/view-as`, { method: 'POST', auth: true }),
 
+  /**
+   * Every college on the platform. This is one of the few reads that is not
+   * scoped to a tenant, so it is gated on organization:manage — the permission
+   * only the platform owner holds.
+   */
+  organizations: () =>
+    apiRequest<
+      Array<{
+        id: string;
+        name: string;
+        displayName: string | null;
+        slug: string;
+        type: string;
+        status: string;
+        logoUrl: string | null;
+        primaryColor: string | null;
+        memberCount: number;
+        batchCount: number;
+      }>
+    >('/admin/organizations', { auth: true }),
+
+  /** Open a college. Its staff and batches are created inside it afterwards. */
+  createOrganization: (input: {
+    name: string;
+    displayName?: string;
+    type?: string;
+    logoUrl?: string;
+    primaryColor?: string;
+  }) =>
+    apiRequest<{ id: string; name: string; slug: string }>('/admin/organizations', {
+      method: 'POST',
+      body: input,
+      auth: true,
+    }),
+
+  /** Change a college's branding. Null clears a field back to the default look. */
+  updateOrganization: (
+    id: string,
+    input: { displayName?: string | null; logoUrl?: string | null; primaryColor?: string | null },
+  ) =>
+    apiRequest<{ id: string }>(`/admin/organizations/${encodeURIComponent(id)}`, {
+      method: 'PATCH',
+      body: input,
+      auth: true,
+    }),
+
   grantRole: (organizationId: string, userId: string, role: string) =>
     apiRequest<unknown>('/admin/roles/grant', {
       method: 'POST',

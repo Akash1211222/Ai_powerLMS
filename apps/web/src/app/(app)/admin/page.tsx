@@ -8,6 +8,7 @@ import { useAuth } from '@/lib/auth-context';
 import { useActiveOrg } from '@/lib/use-active-org';
 import { adminApi } from '@/lib/lms-learning-api';
 import { coursesApi, batchesApi } from '@/lib/lms-api';
+import { CollegesPanel } from '@/components/colleges-panel';
 
 const GRANTABLE = [
   'STUDENT',
@@ -50,6 +51,9 @@ export default function AdminPage() {
 
   const canManage = user?.permissions.includes('user:manage');
   const canFlags = user?.permissions.includes('feature-flag:manage');
+  // Opening a college is platform work, not college work — the one thing here
+  // that is not scoped to the org in the header.
+  const canOpenColleges = user?.permissions.includes('organization:manage');
 
   const membersQ = useQuery({
     queryKey: ['admin', 'members', org?.id],
@@ -132,7 +136,7 @@ export default function AdminPage() {
   });
 
   if (!org) return <Spinner />;
-  if (!user?.permissions.includes('user:view') && !canFlags) {
+  if (!user?.permissions.includes('user:view') && !canFlags && !canOpenColleges) {
     return <Alert tone="error">You do not have admin access.</Alert>;
   }
 
@@ -144,6 +148,8 @@ export default function AdminPage() {
         </h1>
         <p className="mt-1 text-faint">{org.name} — members, roles, and feature flags.</p>
       </div>
+
+      {canOpenColleges && <CollegesPanel />}
 
       {canManage && (
         <Card>
