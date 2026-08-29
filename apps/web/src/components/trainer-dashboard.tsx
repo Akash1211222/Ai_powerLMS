@@ -13,12 +13,14 @@ import {
 } from 'lucide-react';
 import { Card, Badge, statusTone, Spinner, Alert } from '@fca/ui';
 import { dashboardApi } from '@/lib/dashboard-api';
+import { useAuth } from '@/lib/auth-context';
 import { formatTime, formatDate } from '@/lib/format';
 import { StatTile, ProgressBar } from './stat-tile';
 import { BarsChart, DonutChart, CHART_COLORS } from './charts';
 import { DashboardHero, HeroPanel, todayLabel } from './dashboard-hero';
 
 export function TrainerDashboard({ firstName }: { firstName: string }) {
+  const { user } = useAuth();
   const q = useQuery({ queryKey: ['dashboard', 'trainer'], queryFn: dashboardApi.trainer });
 
   if (q.isLoading) return <Spinner />;
@@ -36,19 +38,38 @@ export function TrainerDashboard({ firstName }: { firstName: string }) {
   }));
   const nextSession = d.upcomingSessions[0];
 
+  /**
+   * A batch manager lands on this same dashboard — the batches, students and
+   * attendance on it are exactly their job. The shortcuts were not: they were
+   * offered "Create assignment" and "New test", neither of which their role can
+   * do, so the buttons led to a refusal.
+   */
+  const can = (perm: string) => user?.permissions.includes(perm) ?? false;
+  const isTeaching = can('assignment:create') || can('assessment:create');
+  const actions = [
+    ...(can('assignment:create')
+      ? [{ label: 'Create assignment', href: '/assignments', icon: ClipboardList, primary: true }]
+      : []),
+    ...(can('assessment:create')
+      ? [{ label: 'New test', href: '/assessments', icon: FileCheck2 }]
+      : []),
+    ...(can('batch:create')
+      ? [{ label: 'New batch', href: '/batches', icon: Users, primary: !isTeaching }]
+      : []),
+    ...(can('attendance:mark')
+      ? [{ label: 'Mark attendance', href: '/attendance', icon: CalendarCheck }]
+      : []),
+  ];
+
   return (
     <div className="flex flex-col gap-6">
       <DashboardHero
-        eyebrow="Trainer dashboard"
+        eyebrow={isTeaching ? 'Trainer dashboard' : 'Batch dashboard'}
         title="Welcome back,"
         highlight={firstName}
         suffix="👋"
         subtitle={`${todayLabel()} · ${d.stats.totalBatches} batch${d.stats.totalBatches === 1 ? '' : 'es'} · ${d.stats.totalStudents} students in your care`}
-        actions={[
-          { label: 'Create assignment', href: '/assignments', icon: ClipboardList, primary: true },
-          { label: 'New test', href: '/assessments', icon: FileCheck2 },
-          { label: 'Mark attendance', href: '/attendance', icon: CalendarCheck },
-        ]}
+        actions={actions}
       >
         <HeroPanel title="Next session">
           {nextSession ? (
@@ -72,15 +93,31 @@ export function TrainerDashboard({ firstName }: { firstName: string }) {
 
       <div className="grid gap-4 sm:grid-cols-3">
         <StatTile label="Batches" value={d.stats.totalBatches} icon={Users} accent="violet" />
-        <StatTile label="Students" value={d.stats.totalStudents} icon={GraduationCap} accent="aqua" />
-        <StatTile label="Avg progress" value={`${d.stats.avgProgress}%`} icon={TrendingUp} accent="pink" />
+        <StatTile
+          label="Students"
+          value={d.stats.totalStudents}
+          icon={GraduationCap}
+          accent="aqua"
+        />
+        <StatTile
+          label="Avg progress"
+          value={`${d.stats.avgProgress}%`}
+          icon={TrendingUp}
+          accent="pink"
+        />
       </div>
 
       {d.batches.length > 0 && (
         <div className="grid gap-4 lg:grid-cols-3">
           <Card className="lg:col-span-2">
             <h2 className="mb-2 font-display font-bold">Batch progress</h2>
-            <BarsChart data={progressByBatch} xKey="batch" bars={[{ key: 'Progress', color: '#f97316' }]} yMax={100} height={220} />
+            <BarsChart
+              data={progressByBatch}
+              xKey="batch"
+              bars={[{ key: 'Progress', color: '#f97316' }]}
+              yMax={100}
+              height={220}
+            />
           </Card>
           <Card>
             <h2 className="font-display font-bold">Students per batch</h2>
@@ -112,7 +149,9 @@ export function TrainerDashboard({ firstName }: { firstName: string }) {
                     </div>
                     <div className="mt-3 flex items-center gap-3">
                       <ProgressBar percent={b.avgProgress} />
-                      <span className="w-10 text-right text-sm font-semibold">{b.avgProgress}%</span>
+                      <span className="w-10 text-right text-sm font-semibold">
+                        {b.avgProgress}%
+                      </span>
                     </div>
                     <div className="mt-1 text-xs text-faint">{b.studentCount} students</div>
                   </Card>
@@ -130,7 +169,10 @@ export function TrainerDashboard({ firstName }: { firstName: string }) {
             ) : (
               <ul className="flex flex-col gap-3">
                 {d.upcomingSessions.map((s) => (
-                  <li key={s.id} className="rounded-panel border-l-4 border-aqua-400 bg-chip py-1.5 pl-3 pr-2">
+                  <li
+                    key={s.id}
+                    className="rounded-panel border-l-4 border-aqua-400 bg-chip py-1.5 pl-3 pr-2"
+                  >
                     <div className="text-sm font-semibold">{s.title}</div>
                     <div className="text-xs text-faint">
                       {formatDate(s.startsAt)} · {formatTime(s.startsAt)}

@@ -3,41 +3,15 @@
 import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import {
-  LayoutDashboard,
-  BookOpen,
-  Users,
-  ClipboardList,
-  FileCheck2,
-  CalendarCheck,
-  Briefcase,
-  BrainCircuit,
-  HeartHandshake,
-  ShieldCheck,
-  Database,
-  CalendarDays,
-  LogOut,
-  Sparkles,
-  Target,
-  GraduationCap,
-  MessagesSquare,
-  LineChart,
-  FileBarChart,
-  Radio,
-  Menu,
-  X,
-  MoreHorizontal,
-  UserRound,
-  type LucideIcon,
-} from 'lucide-react';
+import { LogOut, Menu, X, MoreHorizontal } from 'lucide-react';
 import { Logo, cn } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
+import { buildNav, type NavItem, type TenantKind } from '@/lib/nav-items';
+import { useActiveOrg } from '@/lib/use-active-org';
 import { NotificationBell } from '@/components/notification-bell';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SectionArtworkBanner } from '@/components/section-artwork';
 import { BrandLoader } from '@/components/brand-loader';
-
-type NavItem = { href: string; label: string; icon: LucideIcon; show: boolean; mobilePrimary?: boolean };
 
 /**
  * Client-side guard + shell for authenticated pages. Desktop keeps the full
@@ -49,6 +23,8 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const router = useRouter();
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
+  // Threaded into the menu so the org switcher and per-college branding have it.
+  const { org } = useActiveOrg();
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
@@ -73,9 +49,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (status !== 'authenticated' || !user) {
     return (
-      <BrandLoader
-        message={status === 'unauthenticated' ? 'Redirecting to sign in…' : undefined}
-      />
+      <BrandLoader message={status === 'unauthenticated' ? 'Redirecting to sign in…' : undefined} />
     );
   }
 
@@ -85,54 +59,10 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
     ? `${user.profile.firstName[0] ?? ''}${user.profile.lastName[0] ?? ''}`
     : user.email.slice(0, 2).toUpperCase();
 
-  const nav: NavItem[] = [
-    { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, show: true, mobilePrimary: true },
-    { href: '/courses', label: 'Courses', icon: BookOpen, show: can('course:view'), mobilePrimary: true },
-    { href: '/batches', label: 'Batches', icon: Users, show: can('batch:view') },
-    {
-      href: '/assignments',
-      label: 'Assignments',
-      icon: ClipboardList,
-      show: can('assignment:submit') || can('assignment:create'),
-      mobilePrimary: true,
-    },
-    {
-      href: '/assessments',
-      label: 'Assessments',
-      icon: FileCheck2,
-      show: can('assignment:submit') || can('assessment:create'),
-    },
-    {
-      href: '/attendance',
-      label: 'Attendance',
-      icon: CalendarCheck,
-      show: can('attendance:view') || can('attendance:mark'),
-    },
-    { href: '/live', label: 'Live', icon: Radio, show: true, mobilePrimary: true },
-    { href: '/skills', label: 'Skills', icon: Sparkles, show: true },
-    { href: '/career', label: 'Career', icon: Briefcase, show: true },
-    { href: '/opportunities', label: 'Opportunities', icon: Target, show: can('placement:view') },
-    {
-      href: '/intelligence',
-      label: 'Intelligence',
-      icon: BrainCircuit,
-      show: can('student:view') || can('assignment:submit'),
-    },
-    { href: '/mentorship', label: 'Mentorship', icon: HeartHandshake, show: true },
-    { href: '/alumni', label: 'Alumni', icon: GraduationCap, show: true },
-    { href: '/community', label: 'Community', icon: MessagesSquare, show: true },
-    { href: '/reports', label: 'Reports', icon: FileBarChart, show: true },
-    { href: '/insights', label: 'Insights', icon: LineChart, show: can('analytics:view') },
-    {
-      href: '/admin',
-      label: 'Admin',
-      icon: ShieldCheck,
-      show: can('user:view') || can('feature-flag:manage'),
-    },
-    { href: '/admin/database', label: 'Database', icon: Database, show: can('database:admin') },
-    { href: '/calendar', label: 'Calendar', icon: CalendarDays, show: true, mobilePrimary: true },
-    { href: '/profile', label: 'Profile', icon: UserRound, show: true },
-  ].filter((n) => n.show);
+  const nav: NavItem[] = buildNav({
+    permissions: user.permissions,
+    orgType: org?.type as TenantKind | undefined,
+  });
 
   const mobilePrimary = nav.filter((n) => n.mobilePrimary).slice(0, 4);
   const current = nav.find((n) => pathname === n.href || pathname.startsWith(`${n.href}/`));
