@@ -71,6 +71,67 @@ export class MeController {
     return memberships.map((m) => ({ ...m.organization, isPrimary: m.isPrimary }));
   }
 
+  @Get('portfolio')
+  @ApiOperation({
+    summary:
+      'Every organisation the user belongs to, with the numbers that say ' +
+      'whether it needs attention. For an operations lead running several ' +
+      'colleges; one row for everybody else.',
+  })
+  async portfolio(@CurrentUser() user: AuthUser) {
+    // Scoped to memberships, never "all organisations". An operations lead
+    // reaches several colleges by belonging to them, so this is the same
+    // boundary every other endpoint uses rather than a new one.
+    const memberships = await this.prisma.organizationMember.findMany({
+      where: { userId: user.userId },
+      include: {
+        organization: {
+          select: { id: true, name: true, displayName: true, slug: true, type: true },
+        },
+      },
+      orderBy: { isPrimary: 'desc' },
+    });
+
+    return Promise.all(
+      memberships.map(async (m) => {
+        const organizationId = m.organizationId;
+        const [batches, activeBatches, students, openRoles, pendingApplications] =
+          await Promise.all([
+            this.prisma.batch.count({ where: { organizationId } }),
+            this.prisma.batch.count({ where: { organizationId, status: 'ACTIVE' } }),
+            this.prisma.batchStudent.count({
+              where: { status: 'ACTIVE', batch: { organizationId } },
+            }),
+            this.prisma.opportunity.count({ where: { organizationId, status: 'OPEN' } }),
+            this.prisma.application.count({
+              where: { status: 'APPLIED', opportunity: { organizationId } },
+            }),
+          ]);
+
+        // Attendance across the college, as a single number a lead can scan.
+        const [present, total] = await Promise.all([
+          this.prisma.attendanceRecord.count({
+            where: { status: 'PRESENT', session: { batch: { organizationId } } },
+          }),
+          this.prisma.attendanceRecord.count({ where: { session: { batch: { organizationId } } } }),
+        ]);
+
+        return {
+          organization: m.organization,
+          isPrimary: m.isPrimary,
+          batches,
+          activeBatches,
+          students,
+          openRoles,
+          pendingApplications,
+          // Null rather than 0% when nothing has been recorded — an empty
+          // college is not a college with terrible attendance.
+          attendanceRate: total > 0 ? Math.round((present / total) * 100) : null,
+        };
+      }),
+    );
+  }
+
   @Get('enrollments')
   @ApiOperation({ summary: "The current user's course enrollments with progress" })
   enrollments(@CurrentUser() user: AuthUser) {

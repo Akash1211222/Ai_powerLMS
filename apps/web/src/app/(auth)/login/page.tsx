@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AuthShell, Field, Input, Button, Alert } from '@fca/ui';
 import { useAuth } from '@/lib/auth-context';
+import { DemoRoleButtons } from '@/components/demo-role-buttons';
 import { ApiError } from '@/lib/api-client';
 import { loginForm, type LoginForm } from '@/lib/form-schemas';
 
@@ -37,8 +38,7 @@ export default function LoginPage() {
       footer={
         <>
           {/* No self-signup: this is a paid LMS, accounts are issued by the academy. */}
-          Need access? Contact your academy administrator to have an account
-          created for you.
+          Need access? Contact your academy administrator to have an account created for you.
         </>
       }
     >
@@ -46,7 +46,13 @@ export default function LoginPage() {
         {formError && <Alert tone="error">{formError}</Alert>}
         <Field label="Email" error={errors.email?.message}>
           {({ id, invalid }) => (
-            <Input id={id} type="email" autoComplete="email" invalid={invalid} {...register('email')} />
+            <Input
+              id={id}
+              type="email"
+              autoComplete="email"
+              invalid={invalid}
+              {...register('email')}
+            />
           )}
         </Field>
         <Field label="Password" error={errors.password?.message}>
@@ -69,6 +75,8 @@ export default function LoginPage() {
           Sign in
         </Button>
       </form>
+
+      <DemoRoleButtons />
     </AuthShell>
   );
 }

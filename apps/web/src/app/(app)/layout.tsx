@@ -28,7 +28,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Threaded into the menu so the org switcher and per-college branding have it.
-  const { org } = useActiveOrg();
+  const { org, orgs } = useActiveOrg();
 
   useEffect(() => {
     if (status === 'unauthenticated') router.replace('/login');
@@ -77,6 +77,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
   const nav: NavItem[] = buildNav({
     permissions: user.permissions,
     orgType: org?.type as TenantKind | undefined,
+    orgCount: orgs.length,
   });
 
   const mobilePrimary = nav.filter((n) => n.mobilePrimary).slice(0, 4);

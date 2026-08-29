@@ -60,16 +60,83 @@ const randInt = (a: number, b: number) => a + Math.floor(rnd() * (b - a + 1));
 const daysFromNow = (d: number) => new Date(Date.now() + d * 86400000);
 
 const FIRST = [
-  'Aarav', 'Diya', 'Vivaan', 'Ananya', 'Aditya', 'Ishaan', 'Saanvi', 'Kabir', 'Myra', 'Reyansh',
-  'Anika', 'Arjun', 'Kiara', 'Vihaan', 'Aadhya', 'Rohan', 'Navya', 'Dhruv', 'Riya', 'Krishna',
-  'Sara', 'Yash', 'Tara', 'Neel', 'Zoya', 'Advait', 'Ira', 'Kabeer', 'Meher', 'Ayaan',
-  'Prisha', 'Atharv', 'Avni', 'Shaurya', 'Pari', 'Veer', 'Amaira', 'Ranbir', 'Nitara', 'Samar',
-  'Ahana', 'Devansh', 'Mishka', 'Rudra', 'Aarohi', 'Kian', 'Siya', 'Ojas', 'Inaya', 'Hriday',
+  'Aarav',
+  'Diya',
+  'Vivaan',
+  'Ananya',
+  'Aditya',
+  'Ishaan',
+  'Saanvi',
+  'Kabir',
+  'Myra',
+  'Reyansh',
+  'Anika',
+  'Arjun',
+  'Kiara',
+  'Vihaan',
+  'Aadhya',
+  'Rohan',
+  'Navya',
+  'Dhruv',
+  'Riya',
+  'Krishna',
+  'Sara',
+  'Yash',
+  'Tara',
+  'Neel',
+  'Zoya',
+  'Advait',
+  'Ira',
+  'Kabeer',
+  'Meher',
+  'Ayaan',
+  'Prisha',
+  'Atharv',
+  'Avni',
+  'Shaurya',
+  'Pari',
+  'Veer',
+  'Amaira',
+  'Ranbir',
+  'Nitara',
+  'Samar',
+  'Ahana',
+  'Devansh',
+  'Mishka',
+  'Rudra',
+  'Aarohi',
+  'Kian',
+  'Siya',
+  'Ojas',
+  'Inaya',
+  'Hriday',
 ];
 const LAST = [
-  'Sharma', 'Verma', 'Patel', 'Reddy', 'Nair', 'Iyer', 'Gupta', 'Mehta', 'Rao', 'Das',
-  'Bose', 'Khan', 'Menon', 'Kapoor', 'Chopra', 'Joshi', 'Malhotra', 'Banerjee', 'Pillai', 'Ahuja',
-  'Sinha', 'Chauhan', 'Bhatt', 'Kulkarni', 'Ghosh',
+  'Sharma',
+  'Verma',
+  'Patel',
+  'Reddy',
+  'Nair',
+  'Iyer',
+  'Gupta',
+  'Mehta',
+  'Rao',
+  'Das',
+  'Bose',
+  'Khan',
+  'Menon',
+  'Kapoor',
+  'Chopra',
+  'Joshi',
+  'Malhotra',
+  'Banerjee',
+  'Pillai',
+  'Ahuja',
+  'Sinha',
+  'Chauhan',
+  'Bhatt',
+  'Kulkarni',
+  'Ghosh',
 ];
 
 interface CourseDef {
@@ -85,18 +152,29 @@ interface CourseDef {
 
 const COURSES: CourseDef[] = [
   {
-    slug: 'demo-python-data', title: 'Python for Data Analytics', level: 'BEGINNER', org: 'demo',
-    program: 'Data Analytics', topics: ['Python', 'NumPy', 'Pandas'],
+    slug: 'demo-python-data',
+    title: 'Python for Data Analytics',
+    level: 'BEGINNER',
+    org: 'demo',
+    program: 'Data Analytics',
+    topics: ['Python', 'NumPy', 'Pandas'],
     summary: 'Foundations of data analysis with Python, NumPy and Pandas.',
     modules: [
       { title: 'Python Basics', lessons: ['Variables & Types', 'Control Flow', 'Functions'] },
       { title: 'NumPy', lessons: ['Arrays', 'Broadcasting', 'Aggregations'] },
-      { title: 'Pandas', lessons: ['Series & DataFrame', 'GroupBy', 'Merge & Join', 'Visualization'] },
+      {
+        title: 'Pandas',
+        lessons: ['Series & DataFrame', 'GroupBy', 'Merge & Join', 'Visualization'],
+      },
     ],
   },
   {
-    slug: 'demo-sql-databases', title: 'SQL & Databases', level: 'INTERMEDIATE', org: 'demo',
-    program: 'Data Analytics', topics: ['SQL', 'Joins', 'Window Functions'],
+    slug: 'demo-sql-databases',
+    title: 'SQL & Databases',
+    level: 'INTERMEDIATE',
+    org: 'demo',
+    program: 'Data Analytics',
+    topics: ['SQL', 'Joins', 'Window Functions'],
     summary: 'Query, model and optimize relational databases with SQL.',
     modules: [
       { title: 'SQL Fundamentals', lessons: ['SELECT & WHERE', 'Aggregations', 'GROUP BY'] },
@@ -105,8 +183,12 @@ const COURSES: CourseDef[] = [
     ],
   },
   {
-    slug: 'demo-ml-foundations', title: 'Machine Learning Foundations', level: 'ADVANCED', org: 'demo',
-    program: 'Data Analytics', topics: ['Regression', 'Classification', 'Model Evaluation'],
+    slug: 'demo-ml-foundations',
+    title: 'Machine Learning Foundations',
+    level: 'ADVANCED',
+    org: 'demo',
+    program: 'Data Analytics',
+    topics: ['Regression', 'Classification', 'Model Evaluation'],
     summary: 'Core supervised learning: regression, classification and evaluation.',
     modules: [
       { title: 'Regression', lessons: ['Linear Regression', 'Regularization', 'Metrics'] },
@@ -115,18 +197,29 @@ const COURSES: CourseDef[] = [
     ],
   },
   {
-    slug: 'demo-fullstack-web', title: 'Full-Stack Web Development', level: 'INTERMEDIATE', org: 'demo',
-    program: 'Software Engineering', topics: ['JavaScript', 'React', 'Node', 'APIs'],
+    slug: 'demo-fullstack-web',
+    title: 'Full-Stack Web Development',
+    level: 'INTERMEDIATE',
+    org: 'demo',
+    program: 'Software Engineering',
+    topics: ['JavaScript', 'React', 'Node', 'APIs'],
     summary: 'Build modern web apps with React, Node and REST APIs.',
     modules: [
-      { title: 'Frontend', lessons: ['HTML & CSS', 'JavaScript', 'React Components', 'State & Hooks'] },
+      {
+        title: 'Frontend',
+        lessons: ['HTML & CSS', 'JavaScript', 'React Components', 'State & Hooks'],
+      },
       { title: 'Backend', lessons: ['Node & Express', 'REST APIs', 'Auth'] },
       { title: 'Databases', lessons: ['Postgres Basics', 'Prisma ORM', 'Deployment'] },
     ],
   },
   {
-    slug: 'demo-cloud-devops', title: 'Cloud & DevOps Essentials', level: 'INTERMEDIATE', org: 'demo',
-    program: 'Software Engineering', topics: ['Linux', 'Docker', 'CI/CD', 'Cloud'],
+    slug: 'demo-cloud-devops',
+    title: 'Cloud & DevOps Essentials',
+    level: 'INTERMEDIATE',
+    org: 'demo',
+    program: 'Software Engineering',
+    topics: ['Linux', 'Docker', 'CI/CD', 'Cloud'],
     summary: 'Ship and operate software with Docker, CI/CD and the cloud.',
     modules: [
       { title: 'Linux & Shell', lessons: ['Command Line', 'Scripting', 'Permissions'] },
@@ -149,13 +242,18 @@ async function cleanup() {
   });
   const demoBatchIds = demoBatches.map((b) => b.id);
 
-  const demoOrgRow = await prisma.organization.findUnique({ where: { slug: 'futurecorp-demo' }, select: { id: true } });
+  const demoOrgRow = await prisma.organization.findUnique({
+    where: { slug: 'futurecorp-demo' },
+    select: { id: true },
+  });
 
   // Phase 3/4 data is owned by the ORG, so it does not cascade with the demo
   // users. Order matters: children before parents.
   if (demoOrgRow) {
     await prisma.referral.deleteMany({ where: { opportunity: { organizationId: demoOrgRow.id } } });
-    await prisma.application.deleteMany({ where: { opportunity: { organizationId: demoOrgRow.id } } });
+    await prisma.application.deleteMany({
+      where: { opportunity: { organizationId: demoOrgRow.id } },
+    });
     await prisma.opportunity.deleteMany({ where: { organizationId: demoOrgRow.id } });
     // Social hub (children before parents)
     await prisma.communityMessage.deleteMany({
@@ -191,7 +289,9 @@ async function cleanup() {
     await prisma.communityQuestion.deleteMany({ where: { organizationId: demoOrgRow.id } }); // cascades answers + votes
   }
   // Mentor/alumni artefacts for the users we're about to remove.
-  await prisma.mentorBooking.deleteMany({ where: { OR: [{ mentorId: { in: demoUserIds } }, { studentId: { in: demoUserIds } }] } });
+  await prisma.mentorBooking.deleteMany({
+    where: { OR: [{ mentorId: { in: demoUserIds } }, { studentId: { in: demoUserIds } }] },
+  });
   await prisma.mentorSlot.deleteMany({ where: { mentorId: { in: demoUserIds } } });
   await prisma.achievement.deleteMany({ where: { userId: { in: demoUserIds } } });
 
@@ -255,7 +355,9 @@ async function main() {
       where: { userId: user.id, roleId: roleId(role), organizationId: orgId(org) },
     });
     if (!existingRole) {
-      await prisma.userRole.create({ data: { userId: user.id, roleId: roleId(role), organizationId: orgId(org) } });
+      await prisma.userRole.create({
+        data: { userId: user.id, roleId: roleId(role), organizationId: orgId(org) },
+      });
     }
     return user;
   }
@@ -266,10 +368,34 @@ async function main() {
   // public visitor's org-scoped queries can see them — and left them behind,
   // since cleanup() only removes the demo domain.
   const trainerDemo0 = await ensureUser('trainer' + DEMO_DOMAIN, 'Tara', 'Rao', 'TRAINER', 'demo');
-  const trainerDemo1 = await ensureUser('trainer1' + DEMO_DOMAIN, 'Meera', 'Krishnan', 'TRAINER', 'demo');
-  const trainerDemo2 = await ensureUser('trainer2' + DEMO_DOMAIN, 'Sanjay', 'Pillai', 'TRAINER', 'demo');
-  const trainerDemo3 = await ensureUser('trainer3' + DEMO_DOMAIN, 'Farah', 'Sheikh', 'TRAINER', 'demo');
-  const trainerDemo4 = await ensureUser('trainer4' + DEMO_DOMAIN, 'Vikram', 'Desai', 'TRAINER', 'demo');
+  const trainerDemo1 = await ensureUser(
+    'trainer1' + DEMO_DOMAIN,
+    'Meera',
+    'Krishnan',
+    'TRAINER',
+    'demo',
+  );
+  const trainerDemo2 = await ensureUser(
+    'trainer2' + DEMO_DOMAIN,
+    'Sanjay',
+    'Pillai',
+    'TRAINER',
+    'demo',
+  );
+  const trainerDemo3 = await ensureUser(
+    'trainer3' + DEMO_DOMAIN,
+    'Farah',
+    'Sheikh',
+    'TRAINER',
+    'demo',
+  );
+  const trainerDemo4 = await ensureUser(
+    'trainer4' + DEMO_DOMAIN,
+    'Vikram',
+    'Desai',
+    'TRAINER',
+    'demo',
+  );
   // Five teachers, all on the demo domain.
   const demoTrainers = [trainerDemo0, trainerDemo1, trainerDemo2, trainerDemo3, trainerDemo4];
 
@@ -290,7 +416,10 @@ async function main() {
   }
 
   // --- Courses (with modules + lessons) -----------------------------------
-  const courseBySlug = new Map<string, { id: string; org: 'demo' | 'north'; topics: string[]; lessonIds: string[] }>();
+  const courseBySlug = new Map<
+    string,
+    { id: string; org: 'demo' | 'north'; topics: string[]; lessonIds: string[] }
+  >();
   const programCache = new Map<string, string>();
   for (const c of COURSES) {
     const progKey = `${c.org}:${c.program}`;
@@ -354,12 +483,36 @@ async function main() {
   // Four batches, all in the demo college, so one dashboard shows the whole
   // cohort. A second trainer rides along on each as ASSISTANT.
   const batchPlan = [
-    { course: 'demo-python-data', code: 'DEMO-PY-01', name: 'Python Data · Batch A', trainer: demoTrainers[0]!, assistant: demoTrainers[1] },
-    { course: 'demo-sql-databases', code: 'DEMO-SQL-01', name: 'SQL & Databases · Batch A', trainer: demoTrainers[1]!, assistant: demoTrainers[2] },
-    { course: 'demo-ml-foundations', code: 'DEMO-ML-01', name: 'ML Foundations · Batch A', trainer: demoTrainers[2]!, assistant: demoTrainers[3] },
-    { course: 'demo-fullstack-web', code: 'DEMO-FS-01', name: 'Full-Stack Web · Batch A', trainer: demoTrainers[3]!, assistant: demoTrainers[4] },
+    {
+      course: 'demo-python-data',
+      code: 'DEMO-PY-01',
+      name: 'Python Data · Batch A',
+      trainer: demoTrainers[0]!,
+      assistant: demoTrainers[1],
+    },
+    {
+      course: 'demo-sql-databases',
+      code: 'DEMO-SQL-01',
+      name: 'SQL & Databases · Batch A',
+      trainer: demoTrainers[1]!,
+      assistant: demoTrainers[2],
+    },
+    {
+      course: 'demo-ml-foundations',
+      code: 'DEMO-ML-01',
+      name: 'ML Foundations · Batch A',
+      trainer: demoTrainers[2]!,
+      assistant: demoTrainers[3],
+    },
+    {
+      course: 'demo-fullstack-web',
+      code: 'DEMO-FS-01',
+      name: 'Full-Stack Web · Batch A',
+      trainer: demoTrainers[3]!,
+      assistant: demoTrainers[4],
+    },
   ];
-  const STUDENTS_PER_BATCH = Math.floor((demoStudents.length) / batchPlan.length); // 25
+  const STUDENTS_PER_BATCH = Math.floor(demoStudents.length / batchPlan.length); // 25
 
   // distribute students across batches
   const demoQueue = [...demoStudents];
@@ -399,9 +552,24 @@ async function main() {
         },
         schedules: {
           create: [
-            { title: 'Live Session — Q&A', startsAt: daysFromNow(2), endsAt: daysFromNow(2.08), location: 'Online' },
-            { title: 'Live Session — Project Review', startsAt: daysFromNow(5), endsAt: daysFromNow(5.08), location: 'Online' },
-            { title: 'Guest Lecture', startsAt: daysFromNow(9), endsAt: daysFromNow(9.08), location: 'Auditorium' },
+            {
+              title: 'Live Session — Q&A',
+              startsAt: daysFromNow(2),
+              endsAt: daysFromNow(2.08),
+              location: 'Online',
+            },
+            {
+              title: 'Live Session — Project Review',
+              startsAt: daysFromNow(5),
+              endsAt: daysFromNow(5.08),
+              location: 'Online',
+            },
+            {
+              title: 'Guest Lecture',
+              startsAt: daysFromNow(9),
+              endsAt: daysFromNow(9.08),
+              location: 'Auditorium',
+            },
           ],
         },
       },
@@ -429,9 +597,15 @@ async function main() {
     const isBorderline = (id: string) => borderlineIds.has(id);
 
     for (const s of cohort) {
-      await prisma.batchStudent.create({ data: { batchId: batch.id, userId: s.id, status: 'ACTIVE' } });
+      await prisma.batchStudent.create({
+        data: { batchId: batch.id, userId: s.id, status: 'ACTIVE' },
+      });
       const struggling = isStruggling(s.id);
-      const completed = struggling ? 1 : isBorderline(s.id) ? randInt(2, Math.max(2, Math.floor(totalLessons * 0.45))) : randInt(3, totalLessons);
+      const completed = struggling
+        ? 1
+        : isBorderline(s.id)
+          ? randInt(2, Math.max(2, Math.floor(totalLessons * 0.45)))
+          : randInt(3, totalLessons);
       const percent = Math.round((completed / totalLessons) * 100);
       const enrollment = await prisma.enrollment.create({
         data: {
@@ -452,7 +626,13 @@ async function main() {
       // Lesson progress rows for the completed lessons.
       for (let li = 0; li < completed; li++) {
         await prisma.lessonProgress.create({
-          data: { enrollmentId: enrollment.id, lessonId: course.lessonIds[li]!, userId: s.id, status: 'COMPLETED', completedAt: daysFromNow(-randInt(0, 20)) },
+          data: {
+            enrollmentId: enrollment.id,
+            lessonId: course.lessonIds[li]!,
+            userId: s.id,
+            status: 'COMPLETED',
+            completedAt: daysFromNow(-randInt(0, 20)),
+          },
         });
       }
       studentsEnrolled++;
@@ -461,7 +641,13 @@ async function main() {
     // --- Attendance: 5 past sessions with records -----------------------
     for (let w = 5; w >= 1; w--) {
       const session = await prisma.attendanceSession.create({
-        data: { batchId: batch.id, title: `Week ${6 - w} Session`, sessionDate: daysFromNow(-w * 6), status: 'CLOSED', createdById: bp.trainer.id },
+        data: {
+          batchId: batch.id,
+          title: `Week ${6 - w} Session`,
+          sessionDate: daysFromNow(-w * 6),
+          status: 'CLOSED',
+          createdById: bp.trainer.id,
+        },
       });
       sessionsCreated++;
       for (const s of cohort) {
@@ -475,15 +661,21 @@ async function main() {
               : r < 0.68
                 ? 'LATE'
                 : 'ABSENT'
-          : r < 0.78
-            ? 'PRESENT'
-            : r < 0.9
-              ? 'LATE'
-              : r < 0.97
-                ? 'ABSENT'
-                : 'EXCUSED';
+            : r < 0.78
+              ? 'PRESENT'
+              : r < 0.9
+                ? 'LATE'
+                : r < 0.97
+                  ? 'ABSENT'
+                  : 'EXCUSED';
         await prisma.attendanceRecord.create({
-          data: { sessionId: session.id, studentId: s.id, status, source: 'MANUAL', markedById: bp.trainer.id },
+          data: {
+            sessionId: session.id,
+            studentId: s.id,
+            status,
+            source: 'MANUAL',
+            markedById: bp.trainer.id,
+          },
         });
       }
     }
@@ -503,8 +695,18 @@ async function main() {
         createdById: bp.trainer.id,
         criteria: {
           create: [
-            { title: 'Correctness', description: 'Solution works and meets requirements', weight: 60, order: 0 },
-            { title: 'Code quality & clarity', description: 'Readable, well-structured work', weight: 40, order: 1 },
+            {
+              title: 'Correctness',
+              description: 'Solution works and meets requirements',
+              weight: 60,
+              order: 0,
+            },
+            {
+              title: 'Code quality & clarity',
+              description: 'Readable, well-structured work',
+              weight: 40,
+              order: 1,
+            },
           ],
         },
       },
@@ -512,13 +714,17 @@ async function main() {
     });
     for (const s of cohort) {
       // Struggling students never submit → they show up as overdue.
-      if (!isStruggling(s.id) && (rnd() < (isBorderline(s.id) ? 0.5 : 0.85) || s.email === DEMO_STUDENT_EMAIL)) {
+      if (
+        !isStruggling(s.id) &&
+        (rnd() < (isBorderline(s.id) ? 0.5 : 0.85) || s.email === DEMO_STUDENT_EMAIL)
+      ) {
         const submission = await prisma.assignmentSubmission.create({
           data: {
             assignmentId: assignment.id,
             studentId: s.id,
             attemptNumber: 1,
-            contentText: 'My approach: I analysed the dataset, built the solution and documented the results.',
+            contentText:
+              'My approach: I analysed the dataset, built the solution and documented the results.',
             repoUrl: 'https://github.com/example/project',
             status: 'EVALUATED',
             submittedAt: daysFromNow(-randInt(0, 3)),
@@ -543,10 +749,18 @@ async function main() {
           });
           for (const crit of assignment.criteria) {
             await prisma.evaluationCriterionScore.create({
-              data: { evaluationId: evaluation.id, criterionId: crit.id, score: Math.round(crit.weight * (finalScore / 100)), comment: 'Good.' },
+              data: {
+                evaluationId: evaluation.id,
+                criterionId: crit.id,
+                score: Math.round(crit.weight * (finalScore / 100)),
+                comment: 'Good.',
+              },
             });
           }
-          await prisma.assignmentSubmission.update({ where: { id: submission.id }, data: { status: 'RETURNED' } });
+          await prisma.assignmentSubmission.update({
+            where: { id: submission.id },
+            data: { status: 'RETURNED' },
+          });
         }
       }
     }
@@ -638,9 +852,28 @@ async function main() {
     for (const s of cohort) {
       await prisma.notification.createMany({
         data: [
-          { userId: s.id, type: 'ENROLLMENT', title: 'You’ve been enrolled', body: `Welcome to "${bp.name}".`, deepLink: '/dashboard', readAt: daysFromNow(-2) },
-          { userId: s.id, type: 'ASSIGNMENT_PUBLISHED', title: 'New assignment', body: `"${assignment.title}" is due soon.`, deepLink: '/dashboard' },
-          { userId: s.id, type: 'ASSESSMENT_PUBLISHED', title: 'New test available', body: `"${assessment.title}" is now open.`, deepLink: '/dashboard' },
+          {
+            userId: s.id,
+            type: 'ENROLLMENT',
+            title: 'You’ve been enrolled',
+            body: `Welcome to "${bp.name}".`,
+            deepLink: '/dashboard',
+            readAt: daysFromNow(-2),
+          },
+          {
+            userId: s.id,
+            type: 'ASSIGNMENT_PUBLISHED',
+            title: 'New assignment',
+            body: `"${assignment.title}" is due soon.`,
+            deepLink: '/dashboard',
+          },
+          {
+            userId: s.id,
+            type: 'ASSESSMENT_PUBLISHED',
+            title: 'New test available',
+            body: `"${assessment.title}" is now open.`,
+            deepLink: '/dashboard',
+          },
         ],
       });
     }
@@ -652,10 +885,38 @@ async function main() {
 
   // --- Mentors ------------------------------------------------------------
   const MENTOR_DEFS = [
-    { email: 'mentor1', first: 'Manoj', last: 'Guide', headline: 'Data career mentor', expertise: ['SQL', 'Interviews', 'Portfolio review'], bio: 'Ten years hiring analysts. I help with interview technique and portfolio framing.' },
-    { email: 'mentor2', first: 'Leena', last: 'Fernandes', headline: 'Analytics lead & coach', expertise: ['Pandas', 'Storytelling', 'Career planning'], bio: 'I coach on turning analysis into decisions stakeholders act on.' },
-    { email: 'mentor3', first: 'Rahul', last: 'Bakshi', headline: 'ML engineer, ex-startup', expertise: ['Machine Learning', 'Model Evaluation', 'System design'], bio: 'Happy to review projects and talk through ML fundamentals.' },
-    { email: 'mentor4', first: 'Sneha', last: 'Kulkarni', headline: 'Full-stack engineer', expertise: ['React', 'Node', 'APIs'], bio: 'Frontend and API design reviews, plus first-job advice.' },
+    {
+      email: 'mentor1',
+      first: 'Manoj',
+      last: 'Guide',
+      headline: 'Data career mentor',
+      expertise: ['SQL', 'Interviews', 'Portfolio review'],
+      bio: 'Ten years hiring analysts. I help with interview technique and portfolio framing.',
+    },
+    {
+      email: 'mentor2',
+      first: 'Leena',
+      last: 'Fernandes',
+      headline: 'Analytics lead & coach',
+      expertise: ['Pandas', 'Storytelling', 'Career planning'],
+      bio: 'I coach on turning analysis into decisions stakeholders act on.',
+    },
+    {
+      email: 'mentor3',
+      first: 'Rahul',
+      last: 'Bakshi',
+      headline: 'ML engineer, ex-startup',
+      expertise: ['Machine Learning', 'Model Evaluation', 'System design'],
+      bio: 'Happy to review projects and talk through ML fundamentals.',
+    },
+    {
+      email: 'mentor4',
+      first: 'Sneha',
+      last: 'Kulkarni',
+      headline: 'Full-stack engineer',
+      expertise: ['React', 'Node', 'APIs'],
+      bio: 'Frontend and API design reviews, plus first-job advice.',
+    },
   ];
   const mentors: { id: string; name: string }[] = [];
   // Reuse the base-seed mentor as the first one so its login still works.
@@ -664,8 +925,18 @@ async function main() {
     await ensureUser('mentor' + DEMO_DOMAIN, 'Manoj', 'Guide', 'MENTOR', 'demo');
     await prisma.mentorProfile.upsert({
       where: { userId: seedMentor.id },
-      update: { headline: MENTOR_DEFS[0]!.headline, bio: MENTOR_DEFS[0]!.bio, expertise: MENTOR_DEFS[0]!.expertise, isAcceptingBookings: true },
-      create: { userId: seedMentor.id, headline: MENTOR_DEFS[0]!.headline, bio: MENTOR_DEFS[0]!.bio, expertise: MENTOR_DEFS[0]!.expertise },
+      update: {
+        headline: MENTOR_DEFS[0]!.headline,
+        bio: MENTOR_DEFS[0]!.bio,
+        expertise: MENTOR_DEFS[0]!.expertise,
+        isAcceptingBookings: true,
+      },
+      create: {
+        userId: seedMentor.id,
+        headline: MENTOR_DEFS[0]!.headline,
+        bio: MENTOR_DEFS[0]!.bio,
+        expertise: MENTOR_DEFS[0]!.expertise,
+      },
     });
     mentors.push({ id: seedMentor.id, name: 'Manoj Guide' });
   }
@@ -702,10 +973,18 @@ async function main() {
             slotId: slot.id,
             mentorId: mentor.id,
             studentId: student.id,
-            topic: pick(['Interview preparation', 'Portfolio review', 'Career path advice', 'Resume feedback', 'Choosing a specialisation']),
+            topic: pick([
+              'Interview preparation',
+              'Portfolio review',
+              'Career path advice',
+              'Resume feedback',
+              'Choosing a specialisation',
+            ]),
             note: 'Looking for concrete next steps.',
             status: past ? 'COMPLETED' : 'CONFIRMED',
-            mentorNotes: past ? 'Good session — agreed on two practice projects before we meet again.' : null,
+            mentorNotes: past
+              ? 'Good session — agreed on two practice projects before we meet again.'
+              : null,
           },
         });
         bookingsCreated++;
@@ -715,14 +994,89 @@ async function main() {
 
   // --- Alumni -------------------------------------------------------------
   const ALUMNI_DEFS = [
-    { first: 'Alia', last: 'Past', company: 'Acme Analytics', role: 'Data Analyst', industry: 'Technology', location: 'Bengaluru', year: 2024, story: 'Practising SQL every single day is what got me through the interviews.' },
-    { first: 'Nikhil', last: 'Menon', company: 'Northwind Retail', role: 'BI Developer', industry: 'Retail', location: 'Pune', year: 2024, story: 'The portfolio project mattered more than my CV. Build something real and explain the decisions.' },
-    { first: 'Fatima', last: 'Qureshi', company: 'Lumen Health', role: 'Data Scientist', industry: 'Healthcare', location: 'Hyderabad', year: 2023, story: 'I failed my first two interviews on statistics. Go back to the fundamentals early, not the week before.' },
-    { first: 'Rohit', last: 'Saxena', company: 'Acme Analytics', role: 'Analytics Engineer', industry: 'Technology', location: 'Bengaluru', year: 2023, story: 'Learn dbt and warehouse modelling — it is what most analyst roles actually need.' },
-    { first: 'Divya', last: 'Raman', company: 'Finserv Cloud', role: 'Backend Engineer', industry: 'Finance', location: 'Chennai', year: 2024, story: 'Ask questions in the community. The answers I got here saved me weeks.' },
-    { first: 'Imran', last: 'Sheikh', company: 'Northwind Retail', role: 'Data Analyst', industry: 'Retail', location: 'Mumbai', year: 2025, story: 'Do the mock interviews with a mentor. It is the single highest-leverage hour you can spend.' },
-    { first: 'Kavya', last: 'Nambiar', company: 'BrightPath EdTech', role: 'Product Analyst', industry: 'Education', location: 'Kochi', year: 2023, story: 'Analytics is 70% asking the right question. Practise framing, not just querying.' },
-    { first: 'Arun', last: 'Prakash', company: 'Finserv Cloud', role: 'ML Engineer', industry: 'Finance', location: 'Bengaluru', year: 2022, story: 'Ship a model end to end, even a bad one. Deployment teaches what notebooks cannot.' },
+    {
+      first: 'Alia',
+      last: 'Past',
+      company: 'Acme Analytics',
+      role: 'Data Analyst',
+      industry: 'Technology',
+      location: 'Bengaluru',
+      year: 2024,
+      story: 'Practising SQL every single day is what got me through the interviews.',
+    },
+    {
+      first: 'Nikhil',
+      last: 'Menon',
+      company: 'Northwind Retail',
+      role: 'BI Developer',
+      industry: 'Retail',
+      location: 'Pune',
+      year: 2024,
+      story:
+        'The portfolio project mattered more than my CV. Build something real and explain the decisions.',
+    },
+    {
+      first: 'Fatima',
+      last: 'Qureshi',
+      company: 'Lumen Health',
+      role: 'Data Scientist',
+      industry: 'Healthcare',
+      location: 'Hyderabad',
+      year: 2023,
+      story:
+        'I failed my first two interviews on statistics. Go back to the fundamentals early, not the week before.',
+    },
+    {
+      first: 'Rohit',
+      last: 'Saxena',
+      company: 'Acme Analytics',
+      role: 'Analytics Engineer',
+      industry: 'Technology',
+      location: 'Bengaluru',
+      year: 2023,
+      story: 'Learn dbt and warehouse modelling — it is what most analyst roles actually need.',
+    },
+    {
+      first: 'Divya',
+      last: 'Raman',
+      company: 'Finserv Cloud',
+      role: 'Backend Engineer',
+      industry: 'Finance',
+      location: 'Chennai',
+      year: 2024,
+      story: 'Ask questions in the community. The answers I got here saved me weeks.',
+    },
+    {
+      first: 'Imran',
+      last: 'Sheikh',
+      company: 'Northwind Retail',
+      role: 'Data Analyst',
+      industry: 'Retail',
+      location: 'Mumbai',
+      year: 2025,
+      story:
+        'Do the mock interviews with a mentor. It is the single highest-leverage hour you can spend.',
+    },
+    {
+      first: 'Kavya',
+      last: 'Nambiar',
+      company: 'BrightPath EdTech',
+      role: 'Product Analyst',
+      industry: 'Education',
+      location: 'Kochi',
+      year: 2023,
+      story: 'Analytics is 70% asking the right question. Practise framing, not just querying.',
+    },
+    {
+      first: 'Arun',
+      last: 'Prakash',
+      company: 'Finserv Cloud',
+      role: 'ML Engineer',
+      industry: 'Finance',
+      location: 'Bengaluru',
+      year: 2022,
+      story: 'Ship a model end to end, even a bad one. Deployment teaches what notebooks cannot.',
+    },
   ];
   const alumni: { id: string; name: string }[] = [];
   const seedAlumnus = await prisma.user.findUnique({ where: { email: 'alumni' + DEMO_DOMAIN } });
@@ -752,14 +1106,110 @@ async function main() {
   }
 
   // --- Placement opportunities + applications -----------------------------
-  const officer = await ensureUser('placement' + DEMO_DOMAIN, 'Priya', 'Placeworth', 'PLACEMENT_OFFICER', 'demo');
+  const officer = await ensureUser(
+    'placement' + DEMO_DOMAIN,
+    'Priya',
+    'Placeworth',
+    'PLACEMENT_OFFICER',
+    'demo',
+  );
+
+  /**
+   * One persona per role, so the sign-in screen can offer a way into each.
+   *
+   * SUPER_ADMIN is deliberately absent and always will be: it is the only role
+   * that crosses tenants and holds the raw database browser, so a public demo
+   * of it would hand every organisation — including the real one — to anyone
+   * who found the button.
+   *
+   * The operations lead sits in both demo organisations, which is what makes
+   * the college switcher and the portfolio view worth looking at.
+   */
+  await ensureUser('admin' + DEMO_DOMAIN, 'Anita', 'Deshpande', 'COLLEGE_ADMIN', 'demo');
+  await ensureUser('manager' + DEMO_DOMAIN, 'Bina', 'Shah', 'BATCH_MANAGER', 'demo');
+  await ensureUser('recruiter' + DEMO_DOMAIN, 'Rohit', 'Chandra', 'RECRUITER', 'demo');
+  // The mentor and alumni personas above are created only when they already
+  // exist, carried over from the base seed. On a fresh database they do not, so
+  // the sign-in screen would offer two buttons that lead nowhere. ensureUser
+  // upserts, so naming them here is safe either way.
+  await ensureUser('mentor' + DEMO_DOMAIN, 'Manoj', 'Guide', 'MENTOR', 'demo');
+  await ensureUser('alumni' + DEMO_DOMAIN, 'Asha', 'Iyer', 'ALUMNI', 'demo');
+  const opsLead = await ensureUser(
+    'ops' + DEMO_DOMAIN,
+    'Priya',
+    'Nair',
+    'OPERATIONAL_LEAD',
+    'demo',
+  );
+  await ensureUser('ops' + DEMO_DOMAIN, 'Priya', 'Nair', 'OPERATIONAL_LEAD', 'north');
+  void opsLead;
   const OPPORTUNITY_DEFS = [
-    { title: 'Junior Data Analyst', company: 'Acme Analytics', location: 'Bengaluru', type: 'FULL_TIME', mode: 'HYBRID', reqs: ['SQL', 'Python', 'Pandas'], minReadiness: 30, openings: 4, salary: [600000, 900000] },
-    { title: 'Business Intelligence Intern', company: 'Northwind Retail', location: 'Pune', type: 'INTERNSHIP', mode: 'ONSITE', reqs: ['SQL'], minReadiness: null, openings: 6, salary: [240000, 300000] },
-    { title: 'Analytics Engineer', company: 'Finserv Cloud', location: 'Remote', type: 'FULL_TIME', mode: 'REMOTE', reqs: ['SQL', 'Python'], minReadiness: 55, openings: 2, salary: [900000, 1400000] },
-    { title: 'Machine Learning Associate', company: 'Lumen Health', location: 'Hyderabad', type: 'FULL_TIME', mode: 'ONSITE', reqs: ['Machine Learning', 'Python', 'Model Evaluation'], minReadiness: 70, openings: 2, salary: [1000000, 1600000] },
-    { title: 'Frontend Developer', company: 'BrightPath EdTech', location: 'Kochi', type: 'FULL_TIME', mode: 'HYBRID', reqs: ['React', 'JavaScript'], minReadiness: 40, openings: 3, salary: [700000, 1100000] },
-    { title: 'Cloud Support Associate', company: 'Finserv Cloud', location: 'Chennai', type: 'CONTRACT', mode: 'ONSITE', reqs: ['Linux', 'Docker'], minReadiness: null, openings: 5, salary: [500000, 750000] },
+    {
+      title: 'Junior Data Analyst',
+      company: 'Acme Analytics',
+      location: 'Bengaluru',
+      type: 'FULL_TIME',
+      mode: 'HYBRID',
+      reqs: ['SQL', 'Python', 'Pandas'],
+      minReadiness: 30,
+      openings: 4,
+      salary: [600000, 900000],
+    },
+    {
+      title: 'Business Intelligence Intern',
+      company: 'Northwind Retail',
+      location: 'Pune',
+      type: 'INTERNSHIP',
+      mode: 'ONSITE',
+      reqs: ['SQL'],
+      minReadiness: null,
+      openings: 6,
+      salary: [240000, 300000],
+    },
+    {
+      title: 'Analytics Engineer',
+      company: 'Finserv Cloud',
+      location: 'Remote',
+      type: 'FULL_TIME',
+      mode: 'REMOTE',
+      reqs: ['SQL', 'Python'],
+      minReadiness: 55,
+      openings: 2,
+      salary: [900000, 1400000],
+    },
+    {
+      title: 'Machine Learning Associate',
+      company: 'Lumen Health',
+      location: 'Hyderabad',
+      type: 'FULL_TIME',
+      mode: 'ONSITE',
+      reqs: ['Machine Learning', 'Python', 'Model Evaluation'],
+      minReadiness: 70,
+      openings: 2,
+      salary: [1000000, 1600000],
+    },
+    {
+      title: 'Frontend Developer',
+      company: 'BrightPath EdTech',
+      location: 'Kochi',
+      type: 'FULL_TIME',
+      mode: 'HYBRID',
+      reqs: ['React', 'JavaScript'],
+      minReadiness: 40,
+      openings: 3,
+      salary: [700000, 1100000],
+    },
+    {
+      title: 'Cloud Support Associate',
+      company: 'Finserv Cloud',
+      location: 'Chennai',
+      type: 'CONTRACT',
+      mode: 'ONSITE',
+      reqs: ['Linux', 'Docker'],
+      minReadiness: null,
+      openings: 5,
+      salary: [500000, 750000],
+    },
   ];
   const opportunities: { id: string; title: string }[] = [];
   for (const [i, o] of OPPORTUNITY_DEFS.entries()) {
@@ -789,8 +1239,21 @@ async function main() {
   }
 
   // A realistic funnel: many applied, fewer shortlisted, a couple hired.
-  const APPLICATION_FUNNEL: Array<'APPLIED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'INTERVIEW' | 'OFFERED' | 'HIRED' | 'REJECTED'> = [
-    'APPLIED', 'APPLIED', 'APPLIED', 'UNDER_REVIEW', 'UNDER_REVIEW', 'SHORTLISTED', 'SHORTLISTED', 'INTERVIEW', 'OFFERED', 'HIRED', 'REJECTED', 'REJECTED',
+  const APPLICATION_FUNNEL: Array<
+    'APPLIED' | 'UNDER_REVIEW' | 'SHORTLISTED' | 'INTERVIEW' | 'OFFERED' | 'HIRED' | 'REJECTED'
+  > = [
+    'APPLIED',
+    'APPLIED',
+    'APPLIED',
+    'UNDER_REVIEW',
+    'UNDER_REVIEW',
+    'SHORTLISTED',
+    'SHORTLISTED',
+    'INTERVIEW',
+    'OFFERED',
+    'HIRED',
+    'REJECTED',
+    'REJECTED',
   ];
   let applicationsCreated = 0;
   const applicantPool = demoStudents.slice(0, 60);
@@ -805,12 +1268,18 @@ async function main() {
             opportunityId: opp.id,
             studentId: student.id,
             status,
-            coverNote: 'I have been building projects in this area throughout the programme and would love to contribute.',
+            coverNote:
+              'I have been building projects in this area throughout the programme and would love to contribute.',
             readinessSnapshot: randInt(25, 85),
             matchSnapshot: randInt(20, 100),
             reviewedById: decided ? officer.id : null,
             reviewedAt: decided ? daysFromNow(-randInt(1, 8)) : null,
-            decisionNote: status === 'HIRED' ? 'Strong fit — offer accepted.' : status === 'REJECTED' ? 'Not a fit for this round; encouraged to reapply.' : null,
+            decisionNote:
+              status === 'HIRED'
+                ? 'Strong fit — offer accepted.'
+                : status === 'REJECTED'
+                  ? 'Not a fit for this round; encouraged to reapply.'
+                  : null,
           },
         })
         .then(() => {
@@ -927,7 +1396,9 @@ async function main() {
       });
       answersCreated++;
       // A handful of upvotes from students who aren't the author.
-      const voters = demoStudents.filter((s) => s.id !== author.id).slice(ai * 4, ai * 4 + randInt(2, 7));
+      const voters = demoStudents
+        .filter((s) => s.id !== author.id)
+        .slice(ai * 4, ai * 4 + randInt(2, 7));
       for (const v of voters) {
         await prisma.communityAnswerVote
           .create({ data: { answerId: answer.id, userId: v.id } })
@@ -937,10 +1408,18 @@ async function main() {
   }
 
   console.log('✅ Demo seed complete:');
-  console.log(`   • ${COURSES.length} courses, ${batchPlan.length} batches, ${demoStudents.length} students, ${demoTrainers.length} trainers`);
-  console.log(`   • ${studentsEnrolled} enrollments · ${sessionsCreated} attendance sessions · ${submissionsCreated} submissions · ${attemptsCreated} quiz attempts`);
-  console.log(`   • ${mentors.length} mentors (${slotsCreated} slots, ${bookingsCreated} bookings) · ${alumni.length} alumni`);
-  console.log(`   • ${opportunities.length} opportunities · ${applicationsCreated} applications · ${referralsCreated} referrals`);
+  console.log(
+    `   • ${COURSES.length} courses, ${batchPlan.length} batches, ${demoStudents.length} students, ${demoTrainers.length} trainers`,
+  );
+  console.log(
+    `   • ${studentsEnrolled} enrollments · ${sessionsCreated} attendance sessions · ${submissionsCreated} submissions · ${attemptsCreated} quiz attempts`,
+  );
+  console.log(
+    `   • ${mentors.length} mentors (${slotsCreated} slots, ${bookingsCreated} bookings) · ${alumni.length} alumni`,
+  );
+  console.log(
+    `   • ${opportunities.length} opportunities · ${applicationsCreated} applications · ${referralsCreated} referrals`,
+  );
   console.log(`   • ${questionsCreated} community questions · ${answersCreated} answers`);
 
   // --- Community social hub ------------------------------------------------
@@ -953,10 +1432,34 @@ async function main() {
       kind: 'BATCH' as const,
       batchId: batchForChannel?.id ?? null,
     },
-    { name: 'Python help', slug: 'python-help', emoji: '🐍', kind: 'TOPIC' as const, batchId: null },
-    { name: 'SQL practice', slug: 'sql-practice', emoji: '🗄', kind: 'TOPIC' as const, batchId: null },
-    { name: 'Placement prep', slug: 'placement-prep', emoji: '💼', kind: 'TOPIC' as const, batchId: null },
-    { name: 'Capstone teams', slug: 'capstone-teams', emoji: '🚀', kind: 'TOPIC' as const, batchId: null },
+    {
+      name: 'Python help',
+      slug: 'python-help',
+      emoji: '🐍',
+      kind: 'TOPIC' as const,
+      batchId: null,
+    },
+    {
+      name: 'SQL practice',
+      slug: 'sql-practice',
+      emoji: '🗄',
+      kind: 'TOPIC' as const,
+      batchId: null,
+    },
+    {
+      name: 'Placement prep',
+      slug: 'placement-prep',
+      emoji: '💼',
+      kind: 'TOPIC' as const,
+      batchId: null,
+    },
+    {
+      name: 'Capstone teams',
+      slug: 'capstone-teams',
+      emoji: '🚀',
+      kind: 'TOPIC' as const,
+      batchId: null,
+    },
   ];
   const channels = [];
   for (const def of channelDefs) {
@@ -1015,7 +1518,9 @@ async function main() {
         authorId: qAuthor.id,
         kind: 'QUESTION',
         title: openQ?.title ?? 'Stuck on LEFT JOIN duplicates',
-        body: openQ?.body ?? 'My LEFT JOIN returns duplicates even after DISTINCT. Anyone else hit this?',
+        body:
+          openQ?.body ??
+          'My LEFT JOIN returns duplicates even after DISTINCT. Anyone else hit this?',
         questionId: openQ?.id,
         createdAt: daysFromNow(-1),
       },
@@ -1025,7 +1530,9 @@ async function main() {
   for (const p of hubPosts) {
     const reactors = demoStudents.filter((s) => s.id !== p.authorId).slice(0, randInt(3, 8));
     for (const r of reactors) {
-      await prisma.communityPostReaction.create({ data: { postId: p.id, userId: r.id } }).catch(() => undefined);
+      await prisma.communityPostReaction
+        .create({ data: { postId: p.id, userId: r.id } })
+        .catch(() => undefined);
     }
     await prisma.communityPostComment.create({
       data: {

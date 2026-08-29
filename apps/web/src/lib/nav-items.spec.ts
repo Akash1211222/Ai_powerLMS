@@ -126,6 +126,20 @@ describe('the menu as a whole', () => {
     expect(size('BATCH_MANAGER')).toBeGreaterThan(size('RECRUITER'));
   });
 
+  it('offers the portfolio only to somebody with more than one college', () => {
+    // Almost everyone belongs to one organisation. A page comparing it with
+    // itself is a menu item that answers nothing.
+    const perms = DEFAULT_ROLE_PERMISSIONS.OPERATIONAL_LEAD as string[];
+    expect(buildNav({ permissions: perms, orgCount: 1 }).map((n) => n.label)).not.toContain(
+      'Your colleges',
+    );
+    expect(buildNav({ permissions: perms, orgCount: 3 }).map((n) => n.label)).toContain(
+      'Your colleges',
+    );
+    // Unknown count behaves like one, so nothing appears before the org list loads.
+    expect(buildNav({ permissions: perms }).map((n) => n.label)).not.toContain('Your colleges');
+  });
+
   it('leaves no duplicate destinations', () => {
     const hrefs = buildNav({ permissions: DEFAULT_ROLE_PERMISSIONS.SUPER_ADMIN as string[] }).map(
       (n) => n.href,

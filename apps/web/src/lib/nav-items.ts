@@ -3,6 +3,7 @@ import {
   BookOpen,
   BrainCircuit,
   Briefcase,
+  Building2,
   CalendarCheck,
   CalendarDays,
   ClipboardList,
@@ -40,6 +41,12 @@ export type TenantKind = 'COLLEGE' | 'COMPANY' | 'INTERNAL';
 
 export interface NavContext {
   permissions: string[];
+  /**
+   * How many organisations this person belongs to. Almost everyone belongs to
+   * one and never thinks about it; an operations lead belongs to several, and
+   * only then is a page comparing them worth a place in the menu.
+   */
+  orgCount?: number;
   /**
    * Which kind of customer this person belongs to. Nothing keys off it yet —
    * permissions alone produce the right menu today, and gating on tenant would
@@ -86,6 +93,12 @@ export function buildNav(ctx: NavContext): NavItem[] {
       mobilePrimary: true,
     },
     { href: '/batches', label: 'Batches', icon: Users, show: can('batch:view') },
+    {
+      href: '/portfolio',
+      label: 'Your colleges',
+      icon: Building2,
+      show: (ctx.orgCount ?? 1) > 1,
+    },
     {
       href: '/assignments',
       label: 'Assignments',

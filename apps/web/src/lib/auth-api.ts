@@ -28,8 +28,14 @@ export const authApi = {
   login: (input: { email: string; password: string }) =>
     apiRequest<AuthTokens>('/auth/login', { method: 'POST', body: input }),
 
-  /** Public demo sign-in. Takes no body: the account is fixed server-side. */
-  demo: () => apiRequest<AuthTokens>('/auth/demo', { method: 'POST' }),
+  /**
+   * Public demo sign-in. Which account each role maps to is decided server-side;
+   * the role is a request, not an instruction. SUPER_ADMIN is refused there.
+   */
+  demo: (role?: string) =>
+    apiRequest<AuthTokens>(`/auth/demo${role ? `?role=${encodeURIComponent(role)}` : ''}`, {
+      method: 'POST',
+    }),
 
   refresh: (refreshToken: string) =>
     apiRequest<AuthTokens>('/auth/refresh', { method: 'POST', body: { refreshToken } }),

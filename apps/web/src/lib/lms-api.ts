@@ -83,6 +83,28 @@ export const orgApi = {
   mine: () => apiRequest<Organization[]>('/me/organizations', { auth: true }),
 };
 
+export interface PortfolioRow {
+  organization: {
+    id: string;
+    name: string;
+    displayName: string | null;
+    slug: string;
+    type: string;
+  };
+  isPrimary: boolean;
+  batches: number;
+  activeBatches: number;
+  students: number;
+  openRoles: number;
+  pendingApplications: number;
+  attendanceRate: number | null;
+}
+
+export const portfolioApi = {
+  /** Every organisation this person belongs to, with the numbers worth scanning. */
+  mine: () => apiRequest<PortfolioRow[]>('/me/portfolio', { auth: true }),
+};
+
 export const coursesApi = {
   list: (organizationId: string) =>
     apiRequest<Paginated<CourseSummary>>(

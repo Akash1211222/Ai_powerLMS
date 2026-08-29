@@ -158,14 +158,46 @@ export class AuthService {
    *    permissions; it only issues a session for an account that has none
    *    worth stealing.
    */
-  async demoSignIn(ctx: RequestContext): Promise<AuthTokens> {
+  /**
+   * Which demo account each role signs in as.
+   *
+   * SUPER_ADMIN is absent on purpose and must stay absent. It is the only role
+   * that reaches across tenants and it carries the raw database browser, so a
+   * public button for it would hand every organisation — the real one included
+   * — to anybody who found the page.
+   */
+  private static readonly DEMO_PERSONAS: Record<string, string> = {
+    STUDENT: 'student',
+    TRAINER: 'trainer',
+    BATCH_MANAGER: 'manager',
+    COLLEGE_ADMIN: 'admin',
+    OPERATIONAL_LEAD: 'ops',
+    PLACEMENT_OFFICER: 'placement',
+    MENTOR: 'mentor',
+    ALUMNI: 'alumni',
+    RECRUITER: 'recruiter',
+  };
+
+  async demoSignIn(ctx: RequestContext, role?: string): Promise<AuthTokens> {
     if (!this.config.get('DEMO_MODE_ENABLED')) {
       // 404 rather than 403: a host with no demo should not advertise that the
       // route exists at all.
       throw new NotFoundException('Cannot POST /auth/demo');
     }
 
-    const email = String(this.config.get('DEMO_STUDENT_EMAIL') ?? '').toLowerCase();
+    let email: string;
+    if (role) {
+      const local = AuthService.DEMO_PERSONAS[role.toUpperCase()];
+      if (!local) {
+        // Covers SUPER_ADMIN and anything invented by the caller. Same answer
+        // for both: this is not a role the demo offers.
+        throw new BadRequestException('That role is not available in the demo');
+      }
+      email = `${local}${DEMO_EMAIL_DOMAIN}`;
+    } else {
+      email = String(this.config.get('DEMO_STUDENT_EMAIL') ?? '').toLowerCase();
+    }
+
     if (!email.endsWith(DEMO_EMAIL_DOMAIN)) {
       this.logger.error(
         `Demo mode is on but DEMO_STUDENT_EMAIL is not a ${DEMO_EMAIL_DOMAIN} address — refusing`,
@@ -173,9 +205,20 @@ export class AuthService {
       throw new ServiceUnavailableException('Demo is not available right now');
     }
 
-    const user = await this.prisma.user.findUnique({ where: { email } });
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: { roles: { include: { role: true } } },
+    });
     if (!user || user.status !== 'ACTIVE') {
       this.logger.error(`Demo account ${email} is missing or inactive — has the demo seed run?`);
+      throw new ServiceUnavailableException('Demo is not available right now');
+    }
+
+    // Belt and braces. The persona map cannot name a super admin, but a seed
+    // could one day grant one to an address that it can — and this route is
+    // public, so it refuses rather than trusting the map alone.
+    if (user.roles.some((r) => r.role.name === 'SUPER_ADMIN')) {
+      this.logger.error(`Demo account ${email} holds SUPER_ADMIN — refusing to sign in`);
       throw new ServiceUnavailableException('Demo is not available right now');
     }
 

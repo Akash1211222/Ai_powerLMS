@@ -1,4 +1,13 @@
-import { Body, Controller, Get, HttpCode, HttpStatus, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  HttpCode,
+  HttpStatus,
+  Post,
+  UseGuards,
+  Query,
+} from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { ZodValidationPipe } from '../common/pipes/zod-validation.pipe';
 import { ReqContext } from '../common/decorators/request-context.decorator';
@@ -57,11 +66,11 @@ export class AuthController {
   @ApiOperation({
     summary: 'Sign in to the shared read-and-write demo account (public, when enabled)',
   })
-  demo(@ReqContext() ctx: RequestContext) {
+  demo(@ReqContext() ctx: RequestContext, @Query('role') role?: string) {
     // Takes no body on purpose. There is nothing for a caller to choose here:
     // the account is fixed by configuration, so no input can steer which
     // session gets handed out.
-    return this.auth.demoSignIn(ctx);
+    return this.auth.demoSignIn(ctx, role);
   }
 
   @Post('refresh')
