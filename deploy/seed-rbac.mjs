@@ -23,7 +23,7 @@ async function main() {
   }
   const { PrismaClient } = requireDb('@prisma/client');
   const shared = requireShared('@fca/shared');
-  const { ROLES, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS } = shared;
+  const { ROLES, ALL_PERMISSIONS, DEFAULT_ROLE_PERMISSIONS, REVOKED_ROLE_PERMISSIONS } = shared;
   const prisma = new PrismaClient();
 
   for (const key of ALL_PERMISSIONS) {
@@ -59,6 +59,23 @@ async function main() {
   // org is the one place where the product logo is the right answer. The type
   // is in `update` as well as `create` because this row predates the
   // distinction and has to be corrected in place.
+  // Take back the grants that were deliberately withdrawn. This loop is the
+  // only thing in the deploy that deletes a permission, and it deletes exactly
+  // what is named — nothing is inferred from what is missing above.
+  let revoked = 0;
+  for (const [name, perms] of Object.entries(REVOKED_ROLE_PERMISSIONS ?? {})) {
+    const role = await prisma.role.findUnique({ where: { name } });
+    if (!role) continue;
+    for (const permKey of perms) {
+      const permissionId = permIdByKey.get(permKey);
+      if (!permissionId) continue;
+      const { count } = await prisma.rolePermission.deleteMany({
+        where: { roleId: role.id, permissionId },
+      });
+      revoked += count;
+    }
+  }
+
   await prisma.organization.upsert({
     where: { slug: 'futurecorp-academy' },
     update: { type: 'INTERNAL' },
@@ -70,7 +87,10 @@ async function main() {
     },
   });
 
-  console.log(`RBAC ready: ${ROLES.length} roles, ${ALL_PERMISSIONS.length} permissions`);
+  console.log(
+    `RBAC ready: ${ROLES.length} roles, ${ALL_PERMISSIONS.length} permissions` +
+      (revoked ? `, ${revoked} grant(s) revoked` : ''),
+  );
   await prisma.$disconnect();
 }
 

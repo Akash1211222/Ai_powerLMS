@@ -11,6 +11,11 @@ import { UserContextService } from '../authz/user-context.service';
 import { NotificationService } from '../notifications/notification.service';
 import { AssignmentsService } from '../assignments/assignments.service';
 import { assertOrgAccess } from '../common/tenant';
+import {
+  assertBatchAccess,
+  resolveStudentScope,
+  visibleBatchWhere,
+} from '../common/student-scope';
 import type {
   CreateBatchDto,
   UpdateBatchDto,
@@ -68,9 +73,14 @@ export class BatchesService {
 
   async list(userId: string, query: ListBatchesQuery): Promise<Paginated<unknown>> {
     await assertOrgAccess(this.userContext, userId, query.organizationId);
+    const scope = await resolveStudentScope(this.userContext, userId, query.organizationId);
+    // The page and the total are built from one `where`, so both narrow
+    // together — a count that outran its own list would show a trainer how
+    // many batches they cannot see.
     const where = {
       organizationId: query.organizationId,
       ...(query.status ? { status: query.status } : {}),
+      ...visibleBatchWhere(scope),
     };
     const [data, total] = await this.prisma.$transaction([
       this.prisma.batch.findMany({
@@ -88,10 +98,19 @@ export class BatchesService {
     return { data, meta: buildPaginationMeta(total, query.page, query.pageSize) };
   }
 
+  /**
+   * The batch, if the caller may work with it. Two checks: the organisation,
+   * which separates customers, and then the batch itself, which separates a
+   * trainer's own batches from their colleagues'.
+   *
+   * Everything reached through here — the batch page, its roster, its
+   * schedules, adding a student — is narrowed by this one call.
+   */
   private async loadOwnedBatch(userId: string, batchId: string) {
     const batch = await this.prisma.batch.findUnique({ where: { id: batchId } });
     if (!batch) throw new NotFoundException('Batch not found');
     await assertOrgAccess(this.userContext, userId, batch.organizationId);
+    await assertBatchAccess(this.userContext, this.prisma, userId, batch);
     return batch;
   }
 

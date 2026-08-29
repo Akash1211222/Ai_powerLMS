@@ -11,6 +11,11 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../authz/user-context.service';
 import { assertOrgAccess } from '../common/tenant';
+import {
+  assertBatchAccess,
+  resolveStudentScope,
+  visibleBatchWhere,
+} from '../common/student-scope';
 import { computeAttendanceRate } from '../attendance/attendance.calc';
 
 export interface StudentIntelligenceRow {
@@ -35,14 +40,28 @@ export class IntelligenceService {
     private readonly userContext: UserContextService,
   ) {}
 
-  /** Staff cohort view: every active student in the org (optionally one batch). */
+  /**
+   * Staff cohort view: the active students the caller may see — their whole
+   * college, or the batches they train.
+   *
+   * When a batch is named explicitly it is checked rather than filtered. An
+   * empty list would read as "that batch has no students", which is a
+   * different and untrue statement.
+   */
   async cohort(callerId: string, organizationId: string, batchId?: string) {
     await assertOrgAccess(this.userContext, callerId, organizationId);
+    const scope = await resolveStudentScope(this.userContext, callerId, organizationId);
+    if (batchId) {
+      await assertBatchAccess(this.userContext, this.prisma, callerId, {
+        id: batchId,
+        organizationId,
+      });
+    }
 
     const links = await this.prisma.batchStudent.findMany({
       where: {
         status: 'ACTIVE',
-        batch: { organizationId, ...(batchId ? { id: batchId } : {}) },
+        batch: { organizationId, ...(batchId ? { id: batchId } : {}), ...visibleBatchWhere(scope) },
       },
       include: {
         user: {

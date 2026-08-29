@@ -76,6 +76,15 @@ export const PERMISSIONS = {
   USER_MANAGE: 'user:manage',
   USER_VIEW: 'user:view',
   ROLE_MANAGE: 'role:manage',
+  /**
+   * Issue somebody a new temporary password, or open their account to see what
+   * they see. Both are held apart from user:manage because the people who need
+   * them are not the people who create accounts: a batch manager cannot open
+   * Admin at all, yet is exactly who a student goes to when they cannot sign
+   * in. Kept apart from student:view for the opposite reason — a trainer needs
+   * to read a student's record without being able to become them.
+   */
+  MEMBER_SUPPORT: 'member:support',
   // Courses
   COURSE_CREATE: 'course:create',
   COURSE_UPDATE: 'course:update',
@@ -97,6 +106,19 @@ export const PERMISSIONS = {
   ASSESSMENT_GRADE: 'assessment:grade',
   // Students / intelligence
   STUDENT_VIEW: 'student:view',
+  /**
+   * Widens student:view from "the students assigned to you" to "every student
+   * in this college".
+   *
+   * The narrow reading is the default precisely because this permission can be
+   * absent: a trainer holds student:view and not this, so their reach is the
+   * batches they are actually on. Written as a widening grant rather than a
+   * narrowing one because the deploy seed only ever adds mappings — a
+   * permission removed from a role stays in the database until something
+   * deletes it, and a leak that persists after the fix ships is worse than no
+   * fix at all.
+   */
+  STUDENT_VIEW_ALL: 'student:view-all',
   STUDENT_INTERVENE: 'student:intervene',
   // Placement
   PLACEMENT_MANAGE: 'placement:manage',
@@ -155,6 +177,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.USER_MANAGE,
     PERMISSIONS.USER_VIEW,
     PERMISSIONS.ROLE_MANAGE,
+    PERMISSIONS.MEMBER_SUPPORT,
     PERMISSIONS.COURSE_VIEW,
     PERMISSIONS.BATCH_CREATE,
     PERMISSIONS.BATCH_MANAGE,
@@ -162,6 +185,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.ATTENDANCE_MARK,
     PERMISSIONS.ATTENDANCE_VIEW,
     PERMISSIONS.STUDENT_VIEW,
+    PERMISSIONS.STUDENT_VIEW_ALL,
     PERMISSIONS.STUDENT_INTERVENE,
     PERMISSIONS.MENTOR_MANAGE,
     PERMISSIONS.PLACEMENT_MANAGE,
@@ -175,6 +199,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.USER_MANAGE,
     PERMISSIONS.USER_VIEW,
     PERMISSIONS.ROLE_MANAGE,
+    PERMISSIONS.MEMBER_SUPPORT,
     PERMISSIONS.COURSE_CREATE,
     PERMISSIONS.COURSE_UPDATE,
     PERMISSIONS.COURSE_PUBLISH,
@@ -189,6 +214,7 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.ASSESSMENT_CREATE,
     PERMISSIONS.ASSESSMENT_GRADE,
     PERMISSIONS.STUDENT_VIEW,
+    PERMISSIONS.STUDENT_VIEW_ALL,
     PERMISSIONS.STUDENT_INTERVENE,
     PERMISSIONS.MENTOR_MANAGE,
     PERMISSIONS.PLACEMENT_MANAGE,
@@ -210,9 +236,19 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.ATTENDANCE_MARK,
     PERMISSIONS.ATTENDANCE_VIEW,
     PERMISSIONS.STUDENT_VIEW,
+    // The college's batch desk: they run every batch in it, so their reach is
+    // the whole college rather than a list of batches they happen to be on.
+    PERMISSIONS.STUDENT_VIEW_ALL,
+    // A student who cannot sign in goes to their batch manager, and the roster
+    // is the only screen they can reach a student from.
+    PERMISSIONS.MEMBER_SUPPORT,
     PERMISSIONS.COMMUNITY_POST,
     PERMISSIONS.ANALYTICS_VIEW,
   ],
+  // Teaches the batches they are put on. Deliberately without STUDENT_VIEW_ALL:
+  // a trainer holds STUDENT_VIEW, so their reach is the students of those
+  // batches and not the college roll. Also without MEMBER_SUPPORT — reading a
+  // student's record is their job; becoming that student is not.
   TRAINER: [
     PERMISSIONS.COURSE_CREATE,
     PERMISSIONS.COURSE_UPDATE,
@@ -230,6 +266,8 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.COMMUNITY_MODERATE,
     PERMISSIONS.ANALYTICS_VIEW,
   ],
+  // Sees the students who booked them. Same reasoning as TRAINER for the two
+  // absent permissions.
   MENTOR: [
     PERMISSIONS.STUDENT_VIEW,
     PERMISSIONS.STUDENT_INTERVENE,
@@ -242,6 +280,9 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.PLACEMENT_MANAGE,
     PERMISSIONS.PLACEMENT_VIEW,
     PERMISSIONS.STUDENT_VIEW,
+    // You cannot place students you cannot see, and a placement desk works the
+    // whole graduating cohort rather than one batch.
+    PERMISSIONS.STUDENT_VIEW_ALL,
     PERMISSIONS.COMMUNITY_POST,
     PERMISSIONS.ANALYTICS_VIEW,
   ],
@@ -256,3 +297,25 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
     PERMISSIONS.COMMUNITY_POST,
   ],
 };
+
+/**
+ * Grants to take away from a role that once had them.
+ *
+ * The deploy seed only ever adds role→permission mappings, so deleting a
+ * permission from `DEFAULT_ROLE_PERMISSIONS` does nothing in production: the
+ * row stays, and the role keeps the access. A fix that ships without removing
+ * the row is not a fix.
+ *
+ * Entries here are permanent and append-only — they name a pairing that must
+ * not exist, so re-adding the grant above would be undone on the next deploy
+ * rather than silently winning. Deliberately not "delete every mapping not in
+ * DEFAULT_ROLE_PERMISSIONS": `role:manage` exists, so a college may have
+ * granted something by hand, and a rollback to an older API would strip
+ * permissions the running code still needs.
+ *
+ * Empty today. Both of the narrowing changes it was built for — batch-scoped
+ * student visibility and account support — were expressed as *new* permissions
+ * that trainers and mentors simply never receive, precisely so that nothing
+ * needed revoking.
+ */
+export const REVOKED_ROLE_PERMISSIONS: Partial<Record<RoleName, Permission[]>> = {};

@@ -6,6 +6,7 @@ import { NotificationService } from '../notifications/notification.service';
 import { AuditService } from '../audit/audit.service';
 import { InterventionsService } from '../interventions/interventions.service';
 import { assertOrgAccess, assertStudentAccess } from '../common/tenant';
+import { assertBatchAccess } from '../common/student-scope';
 
 /**
  * At-risk detection (§18). Deterministic rules live in @fca/analytics; this
@@ -106,6 +107,8 @@ export class RiskService {
     const batch = await this.prisma.batch.findUnique({ where: { id: batchId } });
     if (!batch) throw new NotFoundException('Batch not found');
     await assertOrgAccess(this.userContext, actorId, batch.organizationId);
+    // A work queue for somebody else's batch is not a work queue.
+    await assertBatchAccess(this.userContext, this.prisma, actorId, batch);
 
     const students = await this.prisma.batchStudent.findMany({
       where: { batchId, status: 'ACTIVE' },

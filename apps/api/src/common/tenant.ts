@@ -1,6 +1,12 @@
 import { ForbiddenException } from '@nestjs/common';
 import { UserContextService } from '../authz/user-context.service';
 import { isMemberOf } from '../authz/principal';
+import {
+  mentorsStudent,
+  scopeFor,
+  sharesBatchWith,
+  type StudentScopeReader,
+} from './student-scope';
 
 /**
  * Verifies the caller may act within a specific organization (§5, §39).
@@ -52,12 +58,24 @@ export async function resolvePrimaryOrgId(
 }
 
 /**
- * Verifies the actor may view a student's data: super admin, or shares an
- * organization with the student. Used by staff drill-down endpoints (§5, §39).
+ * Verifies the actor may view a student's data. Two questions, in order:
+ * do they share an organization at all, and — for staff whose remit is a set
+ * of batches rather than the whole college — do they share a batch.
+ *
+ * Used by every staff drill-down endpoint (§5, §39). The batch narrowing is
+ * applied here rather than at each call site precisely because there are
+ * eleven of them: `/students/:id/skills`, `/score`, `/risk`, `/reports`,
+ * `/interventions`, `/recommendations`, `/career-profile`, `/placement`. A
+ * rule written once cannot be forgotten by the twelfth.
+ *
+ * The organization check is untouched and still runs first — it is the wall
+ * between customers, and this only narrows inside one college.
  */
 export async function assertStudentAccess(
   userContext: UserContextService,
-  prisma: { organizationMember: { findMany: (args: object) => Promise<Array<{ organizationId: string }>> } },
+  prisma: {
+    organizationMember: { findMany: (args: object) => Promise<Array<{ organizationId: string }>> };
+  } & StudentScopeReader,
   actorId: string,
   studentId: string,
 ): Promise<void> {
@@ -67,7 +85,23 @@ export async function assertStudentAccess(
     where: { userId: studentId },
     select: { organizationId: true },
   });
-  if (!memberships.some((m) => isMemberOf(principal, m.organizationId))) {
+  const shared = memberships.filter((m) => isMemberOf(principal, m.organizationId));
+  if (shared.length === 0) {
+    throw new ForbiddenException('You do not have access to this student');
+  }
+
+  // College-wide in any one of the organizations they share is enough. A
+  // placement officer in college A and a trainer in college B should reach a
+  // student of A through their placement role, not be narrowed by the other.
+  if (shared.some((m) => scopeFor(principal, m.organizationId).unscoped)) return;
+
+  const reaches =
+    (await sharesBatchWith(prisma, actorId, studentId)) ||
+    (await mentorsStudent(prisma, actorId, studentId));
+  if (!reaches) {
+    // Deliberately the same message as the org failure. Distinguishing "not
+    // your student" from "not your college" would confirm to a trainer that a
+    // given person exists in their college, which is the fact being withheld.
     throw new ForbiddenException('You do not have access to this student');
   }
 }

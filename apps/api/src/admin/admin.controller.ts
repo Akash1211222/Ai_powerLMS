@@ -127,7 +127,7 @@ export class AdminController {
   }
 
   @Post('members/:userId/reset-password')
-  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @RequirePermissions(PERMISSIONS.MEMBER_SUPPORT)
   @ApiOperation({
     summary:
       'Issue a new temporary password for a member who cannot sign in. ' +
@@ -139,7 +139,7 @@ export class AdminController {
   }
 
   @Post('members/:userId/view-as')
-  @RequirePermissions(PERMISSIONS.STUDENT_VIEW)
+  @RequirePermissions(PERMISSIONS.MEMBER_SUPPORT)
   @ApiOperation({
     summary:
       "Open a member's account to see what they see. Returns a short-lived, " +

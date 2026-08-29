@@ -3,6 +3,7 @@ import {
   ROLES,
   ALL_PERMISSIONS,
   DEFAULT_ROLE_PERMISSIONS,
+  REVOKED_ROLE_PERMISSIONS,
   PERMISSIONS,
   ROLE_RANK,
   outranks,
@@ -136,5 +137,80 @@ describe('who may act on whom', () => {
 
   it('gives every role a rank', () => {
     for (const role of ROLES) expect(ROLE_RANK[role]).toBeGreaterThan(0);
+  });
+});
+
+describe('seeing students, and acting on them', () => {
+  const has = (role: (typeof ROLES)[number], perm: string) =>
+    (DEFAULT_ROLE_PERMISSIONS[role] as string[]).includes(perm);
+  const holders = (perm: string) => ROLES.filter((r) => has(r, perm));
+
+  it('lets the college-wide roles see the whole college, and nobody else', () => {
+    // The absence of this permission is what narrows somebody to their own
+    // batches, so the holder list is the entire definition of "college-wide".
+    expect(holders(PERMISSIONS.STUDENT_VIEW_ALL)).toEqual([
+      'SUPER_ADMIN',
+      'OPERATIONAL_LEAD',
+      'COLLEGE_ADMIN',
+      'BATCH_MANAGER',
+      'PLACEMENT_OFFICER',
+    ]);
+  });
+
+  it('keeps a trainer and a mentor to the students they work with', () => {
+    // Both still read student records — they just do not read every record.
+    for (const role of ['TRAINER', 'MENTOR'] as const) {
+      expect(has(role, PERMISSIONS.STUDENT_VIEW), `${role} needs student:view`).toBe(true);
+      expect(has(role, PERMISSIONS.STUDENT_VIEW_ALL), `${role} must not see the whole college`).toBe(
+        false,
+      );
+    }
+  });
+
+  it('never widens a role that cannot see students at all', () => {
+    // student:view-all widens student:view; on its own it would mean nothing,
+    // and a role holding only the wide one would be a bug that reads as a grant.
+    for (const role of ROLES) {
+      if (has(role, PERMISSIONS.STUDENT_VIEW_ALL)) {
+        expect(has(role, PERMISSIONS.STUDENT_VIEW), `${role} holds view-all without view`).toBe(
+          true,
+        );
+      }
+    }
+  });
+
+  it('limits password resets and account access to the people who run accounts', () => {
+    // Resetting a password and opening somebody's account are the sharpest
+    // things a member of staff can do to a student. Teaching them is not a
+    // reason to be able to become them.
+    expect(holders(PERMISSIONS.MEMBER_SUPPORT)).toEqual([
+      'SUPER_ADMIN',
+      'OPERATIONAL_LEAD',
+      'COLLEGE_ADMIN',
+      'BATCH_MANAGER',
+    ]);
+  });
+});
+
+describe('taking a grant back', () => {
+  it('never revokes something the same role is also granted', () => {
+    // The seed adds first and revokes second, so a permission in both maps
+    // would be granted and then deleted on every deploy — a role that quietly
+    // loses access nobody meant to remove.
+    for (const role of ROLES) {
+      const granted = DEFAULT_ROLE_PERMISSIONS[role] as string[];
+      for (const perm of REVOKED_ROLE_PERMISSIONS[role] ?? []) {
+        expect(granted, `${role} both grants and revokes ${perm}`).not.toContain(perm);
+      }
+    }
+  });
+
+  it('names only permissions that exist', () => {
+    // A typo here is silent: deleteMany finds nothing and the grant survives.
+    for (const role of ROLES) {
+      for (const perm of REVOKED_ROLE_PERMISSIONS[role] ?? []) {
+        expect(ALL_PERMISSIONS, `unknown permission ${perm}`).toContain(perm);
+      }
+    }
   });
 });

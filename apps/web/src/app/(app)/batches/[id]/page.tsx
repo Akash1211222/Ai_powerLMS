@@ -43,8 +43,12 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
    * The two things the batch desk is actually asked for when a student cannot
    * get in. They live here rather than under Admin because a batch manager
    * cannot open Admin at all — this roster is where they already are.
+   *
+   * Gated on member:support rather than student:view: a trainer reads the same
+   * roster to teach from, and reading a student's record is a long way from
+   * being able to become them.
    */
-  const canSupport = user?.permissions.includes('student:view');
+  const canSupport = user?.permissions.includes('member:support');
 
   const resetPassword = useMutation({
     mutationFn: (userId: string) => adminApi.resetMemberPassword(userId),
@@ -65,10 +69,14 @@ export default function BatchDetailPage({ params }: { params: Promise<{ id: stri
   });
 
   const canManage = user?.permissions.includes('batch:manage');
+  /**
+   * Mirrors what the API will actually accept: batch:manage, course:update, or
+   * being one of this batch's trainers. attendance:mark used to be in here and
+   * is not a rule the server has ever honoured — it offered a Schedule button
+   * that answered 403.
+   */
   const canScheduleLive =
-    Boolean(canManage) ||
-    user?.permissions.includes('course:update') ||
-    user?.permissions.includes('attendance:mark');
+    Boolean(canManage) || Boolean(user?.permissions.includes('course:update'));
   const canViewAnalytics = user?.permissions.includes('analytics:view');
 
   const batchQuery = useQuery({

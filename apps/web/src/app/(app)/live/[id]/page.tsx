@@ -62,10 +62,10 @@ export default function LiveClassPage({ params }: { params: Promise<{ id: string
   const [googleEmail, setGoogleEmail] = useState(user?.googleEmail ?? '');
   const timer = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // The same three-way rule the API enforces, minus attendance:mark — marking a
+  // register was never permission to end somebody else's class.
   const canManage =
-    user?.permissions.includes('attendance:mark') ||
-    user?.permissions.includes('batch:manage') ||
-    user?.permissions.includes('course:update');
+    user?.permissions.includes('batch:manage') || user?.permissions.includes('course:update');
 
   const q = useQuery({ queryKey: ['live', id], queryFn: () => liveApi.get(id), refetchInterval: 15_000 });
 
