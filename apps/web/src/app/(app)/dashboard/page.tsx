@@ -17,7 +17,11 @@ export default function DashboardPage() {
   const firstName = user.profile?.firstName ?? user.email;
   const roles = user.roles.map((r) => r.role);
 
-  if (roles.some((r) => r === 'COLLEGE_ADMIN' || r === 'SUPER_ADMIN')) {
+  // An operations lead runs colleges rather than studying at one, so they get
+  // the admin view of whichever college the switcher is pointing at. Without
+  // this they fell through to the student dashboard and were told they were not
+  // enrolled in any course.
+  if (roles.some((r) => r === 'COLLEGE_ADMIN' || r === 'SUPER_ADMIN' || r === 'OPERATIONAL_LEAD')) {
     return <AdminDashboard firstName={firstName} />;
   }
   if (roles.includes('PLACEMENT_OFFICER')) {

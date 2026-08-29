@@ -9,6 +9,7 @@ import { useAuth } from '@/lib/auth-context';
 import { buildNav, type NavItem, type TenantKind } from '@/lib/nav-items';
 import { useActiveOrg } from '@/lib/use-active-org';
 import { NotificationBell } from '@/components/notification-bell';
+import { OrgSwitcher } from '@/components/org-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { SectionArtworkBanner } from '@/components/section-artwork';
 import { BrandLoader } from '@/components/brand-loader';
@@ -176,6 +177,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             </span>
           </div>
           <div className="flex items-center gap-2 md:gap-3">
+            <OrgSwitcher />
             <ThemeToggle />
             <NotificationBell />
           </div>

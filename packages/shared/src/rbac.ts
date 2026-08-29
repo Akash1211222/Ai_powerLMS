@@ -9,6 +9,7 @@
 /** All platform roles (§6). */
 export const ROLES = [
   'SUPER_ADMIN',
+  'OPERATIONAL_LEAD',
   'COLLEGE_ADMIN',
   'BATCH_MANAGER',
   'TRAINER',
@@ -90,6 +91,43 @@ export const DEFAULT_ROLE_PERMISSIONS: Record<RoleName, Permission[]> = {
   // Deliberately excluded:
   //   ORG_MANAGE / FEATURE_FLAG_MANAGE — platform-wide, affect every college
   //   ASSIGNMENT_SUBMIT               — "submit my own work", a student action
+  /**
+   * Runs operations across a portfolio of colleges, and our own academy.
+   *
+   * The first role that is cross-tenant without being the platform owner. It
+   * reaches several colleges by being a *member* of each one, granted per
+   * college — not by skipping the ownership check. That check is the only wall
+   * between customers, so an exception inside it would have to be remembered by
+   * every endpoint written afterwards; membership needs no exception at all.
+   *
+   * Deliberately excluded:
+   *   ORG_MANAGE / FEATURE_FLAG_MANAGE / DATABASE_ADMIN — platform switches and
+   *     raw data. An operations person should not be able to reshape the
+   *     product or read tables directly.
+   *   COURSE_CREATE / UPDATE / PUBLISH, ASSIGNMENT_*, ASSESSMENT_* — authoring
+   *     and grading are the trainer's craft, not operations.
+   *   ASSIGNMENT_SUBMIT — a student action.
+   */
+  OPERATIONAL_LEAD: [
+    PERMISSIONS.ORG_VIEW,
+    PERMISSIONS.USER_MANAGE,
+    PERMISSIONS.USER_VIEW,
+    PERMISSIONS.ROLE_MANAGE,
+    PERMISSIONS.COURSE_VIEW,
+    PERMISSIONS.BATCH_CREATE,
+    PERMISSIONS.BATCH_MANAGE,
+    PERMISSIONS.BATCH_VIEW,
+    PERMISSIONS.ATTENDANCE_MARK,
+    PERMISSIONS.ATTENDANCE_VIEW,
+    PERMISSIONS.STUDENT_VIEW,
+    PERMISSIONS.STUDENT_INTERVENE,
+    PERMISSIONS.MENTOR_MANAGE,
+    PERMISSIONS.PLACEMENT_MANAGE,
+    PERMISSIONS.PLACEMENT_VIEW,
+    PERMISSIONS.COMMUNITY_POST,
+    PERMISSIONS.ANALYTICS_VIEW,
+    PERMISSIONS.AUDIT_VIEW,
+  ],
   COLLEGE_ADMIN: [
     PERMISSIONS.ORG_VIEW,
     PERMISSIONS.USER_MANAGE,
