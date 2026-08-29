@@ -184,10 +184,9 @@ export const codeApi = {
 
 export const assignmentsApi = {
   listForBatch: (batchId: string) =>
-    apiRequest<AssignmentSummary[]>(
-      `/assignments?batchId=${encodeURIComponent(batchId)}`,
-      { auth: true },
-    ),
+    apiRequest<AssignmentSummary[]>(`/assignments?batchId=${encodeURIComponent(batchId)}`, {
+      auth: true,
+    }),
   create: (input: {
     batchId: string;
     title: string;
@@ -232,7 +231,8 @@ export const assignmentsApi = {
         isHidden?: boolean;
       }>;
     },
-  ) => apiRequest<StaffAssignment>(`/assignments/${id}`, { method: 'PATCH', body: input, auth: true }),
+  ) =>
+    apiRequest<StaffAssignment>(`/assignments/${id}`, { method: 'PATCH', body: input, auth: true }),
   publish: (id: string) =>
     apiRequest<AssignmentSummary>(`/assignments/${id}/publish`, { method: 'POST', auth: true }),
   submissions: (id: string) =>
@@ -344,10 +344,9 @@ export interface AttemptResult {
 
 export const assessmentsApi = {
   listForBatch: (batchId: string) =>
-    apiRequest<AssessmentSummary[]>(
-      `/assessments?batchId=${encodeURIComponent(batchId)}`,
-      { auth: true },
-    ),
+    apiRequest<AssessmentSummary[]>(`/assessments?batchId=${encodeURIComponent(batchId)}`, {
+      auth: true,
+    }),
   create: (input: {
     batchId: string;
     title: string;
@@ -376,8 +375,7 @@ export const assessmentsApi = {
       auth: true,
     }),
   /** Staff view: questions WITH the answer key, for review before publishing. */
-  getForStaff: (id: string) =>
-    apiRequest<StaffAssessment>(`/assessments/${id}`, { auth: true }),
+  getForStaff: (id: string) => apiRequest<StaffAssessment>(`/assessments/${id}`, { auth: true }),
   /** Edits a DRAFT. Sending `questions` replaces the whole paper. */
   update: (
     id: string,
@@ -406,12 +404,10 @@ export const assessmentsApi = {
   start: (id: string) =>
     apiRequest<AttemptStart>(`/assessments/${id}/attempts`, { method: 'POST', auth: true }),
   /** Graded attempts for a quiz, with integrity signals (staff). */
-  attempts: (id: string) => apiRequest<StaffAttempt[]>(`/assessments/${id}/attempts`, { auth: true }),
+  attempts: (id: string) =>
+    apiRequest<StaffAttempt[]>(`/assessments/${id}/attempts`, { auth: true }),
   /** Browser-reported integrity signals for an in-progress attempt. */
-  reportIntegrity: (
-    attemptId: string,
-    input: { blur?: number; paste?: number; awayMs?: number },
-  ) =>
+  reportIntegrity: (attemptId: string, input: { blur?: number; paste?: number; awayMs?: number }) =>
     apiRequest<{ recorded: boolean }>(`/assessments/attempts/${attemptId}/integrity`, {
       method: 'POST',
       body: input,
@@ -472,10 +468,9 @@ export interface MyAttendance {
 
 export const attendanceApi = {
   listSessions: (batchId: string) =>
-    apiRequest<AttendanceSession[]>(
-      `/attendance/sessions?batchId=${encodeURIComponent(batchId)}`,
-      { auth: true },
-    ),
+    apiRequest<AttendanceSession[]>(`/attendance/sessions?batchId=${encodeURIComponent(batchId)}`, {
+      auth: true,
+    }),
   createSession: (batchId: string, title: string) =>
     apiRequest<AttendanceSession>('/attendance/sessions', {
       method: 'POST',
@@ -484,10 +479,7 @@ export const attendanceApi = {
     }),
   getSession: (id: string) =>
     apiRequest<AttendanceSessionDetail>(`/attendance/sessions/${id}`, { auth: true }),
-  mark: (
-    sessionId: string,
-    records: Array<{ studentId: string; status: string; note?: string }>,
-  ) =>
+  mark: (sessionId: string, records: Array<{ studentId: string; status: string; note?: string }>) =>
     apiRequest<unknown>(`/attendance/sessions/${sessionId}/mark`, {
       method: 'POST',
       body: { records },
@@ -529,6 +521,10 @@ export const adminApi = {
     firstName: string;
     lastName: string;
     role: string;
+    /** Courses the account can watch on its own — an enrolment with no batch. */
+    recordedCourseIds?: string[];
+    /** Live seats. The batch carries its own course. */
+    batchIds?: string[];
   }) =>
     apiRequest<{
       id: string;
@@ -536,6 +532,8 @@ export const adminApi = {
       firstName: string;
       lastName: string;
       role: string;
+      recordedCourseIds: string[];
+      batchIds: string[];
       password: string;
     }>('/admin/members', { method: 'POST', body: input, auth: true }),
 

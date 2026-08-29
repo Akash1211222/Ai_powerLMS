@@ -6,6 +6,7 @@ import { Card, Button, Badge, Spinner, Alert, Field, Input, Select } from '@fca/
 import { useAuth } from '@/lib/auth-context';
 import { useActiveOrg } from '@/lib/use-active-org';
 import { adminApi } from '@/lib/lms-learning-api';
+import { coursesApi, batchesApi } from '@/lib/lms-api';
 
 const GRANTABLE = [
   'STUDENT',
@@ -23,6 +24,14 @@ export default function AdminPage() {
   const [rolePick, setRolePick] = useState<Record<string, string>>({});
   const emptyMember = { firstName: '', lastName: '', email: '', role: 'STUDENT' };
   const [newMember, setNewMember] = useState(emptyMember);
+  // What the account can reach on day one. Only meaningful for a learner, so
+  // the section hides for staff roles rather than offering a choice that does
+  // nothing.
+  const [recordedCourseIds, setRecordedCourseIds] = useState<string[]>([]);
+  const [batchIds, setBatchIds] = useState<string[]>([]);
+  const grantsAccess = newMember.role === 'STUDENT';
+  const toggle = (list: string[], id: string) =>
+    list.includes(id) ? list.filter((x) => x !== id) : [...list, id];
   // Issued credentials, surfaced once — the password is never retrievable
   // afterwards, so it stays on screen until another member is added.
   const [created, setCreated] = useState<{
@@ -30,6 +39,8 @@ export default function AdminPage() {
     firstName: string;
     lastName: string;
     role: string;
+    recordedCourseIds?: string[];
+    batchIds?: string[];
     password: string;
   } | null>(null);
 
@@ -42,6 +53,18 @@ export default function AdminPage() {
     enabled: Boolean(org?.id) && Boolean(user?.permissions.includes('user:view')),
   });
 
+  // Only fetched while the form can actually use them.
+  const coursesQ = useQuery({
+    queryKey: ['admin', 'courses', org?.id],
+    queryFn: () => coursesApi.list(org!.id),
+    enabled: Boolean(org?.id) && Boolean(canManage),
+  });
+  const batchesQ = useQuery({
+    queryKey: ['admin', 'batches', org?.id],
+    queryFn: () => batchesApi.list(org!.id),
+    enabled: Boolean(org?.id) && Boolean(canManage),
+  });
+
   const flagsQ = useQuery({
     queryKey: ['admin', 'flags'],
     queryFn: () => adminApi.flags(),
@@ -50,10 +73,17 @@ export default function AdminPage() {
 
   const createMember = useMutation({
     mutationFn: (input: typeof emptyMember) =>
-      adminApi.createMember({ organizationId: org!.id, ...input }),
+      adminApi.createMember({
+        organizationId: org!.id,
+        ...input,
+        // Sent only for a learner: staff accounts have no course access.
+        ...(input.role === 'STUDENT' ? { recordedCourseIds, batchIds } : {}),
+      }),
     onSuccess: (res) => {
       setCreated(res);
       setNewMember(emptyMember);
+      setRecordedCourseIds([]);
+      setBatchIds([]);
       qc.invalidateQueries({ queryKey: ['admin', 'members', org?.id] });
     },
   });
@@ -84,7 +114,9 @@ export default function AdminPage() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="font-display text-3xl font-extrabold tracking-tight"><span className="gradient-text">College admin</span></h1>
+        <h1 className="font-display text-3xl font-extrabold tracking-tight">
+          <span className="gradient-text">College admin</span>
+        </h1>
         <p className="mt-1 text-faint">{org.name} — members, roles, and feature flags.</p>
       </div>
 
@@ -92,15 +124,23 @@ export default function AdminPage() {
         <Card>
           <h2 className="mb-1 font-bold">Add a member</h2>
           <p className="mb-3 text-sm text-faint">
-            There is no public sign-up. Create the account here, then pass the
-            login details on — the password is shown once and cannot be
-            retrieved later.
+            There is no public sign-up. Create the account here, then pass the login details on —
+            the password is shown once and cannot be retrieved later.
           </p>
 
           {created && (
             <Alert tone="success">
               <div className="font-semibold">
                 {created.firstName} {created.lastName} added as {created.role}
+                {created.recordedCourseIds?.length || created.batchIds?.length ? (
+                  <span className="ml-1 font-normal">
+                    {' '}
+                    with {created.recordedCourseIds?.length ?? 0} recorded course
+                    {(created.recordedCourseIds?.length ?? 0) === 1 ? '' : 's'} and{' '}
+                    {created.batchIds?.length ?? 0} live batch
+                    {(created.batchIds?.length ?? 0) === 1 ? '' : 'es'}
+                  </span>
+                ) : null}
               </div>
               <div className="mt-2 grid gap-1 text-sm">
                 <div>
@@ -111,8 +151,8 @@ export default function AdminPage() {
                 </div>
               </div>
               <div className="mt-2 text-xs opacity-80">
-                Share these over a private channel. The member can change the
-                password from “Forgot password”.
+                Share these over a private channel. The member can change the password from “Forgot
+                password”.
               </div>
             </Alert>
           )}
@@ -177,6 +217,67 @@ export default function AdminPage() {
                 </Select>
               )}
             </Field>
+            {grantsAccess && (
+              <div className="sm:col-span-2 rounded-panel border border-hair bg-soft p-4">
+                <p className="text-sm font-semibold">Course access</p>
+                <p className="mt-0.5 text-xs text-faint">
+                  What this student can open on day one. A live seat already includes that
+                  course&rsquo;s material, so there is no need to tick both for the same course.
+                </p>
+
+                <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                  <fieldset className="min-w-0">
+                    <legend className="text-xs font-semibold uppercase tracking-wide text-faint">
+                      Recorded courses
+                    </legend>
+                    <div className="mt-2 max-h-44 overflow-y-auto pr-1">
+                      {coursesQ.isLoading && <Spinner />}
+                      {coursesQ.data?.data.length === 0 && (
+                        <p className="text-xs text-faint">No courses yet.</p>
+                      )}
+                      {coursesQ.data?.data.map((c) => (
+                        <label key={c.id} className="flex items-start gap-2 py-1 text-sm">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={recordedCourseIds.includes(c.id)}
+                            onChange={() => setRecordedCourseIds((v) => toggle(v, c.id))}
+                          />
+                          <span className="min-w-0 truncate">{c.title}</span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+
+                  <fieldset className="min-w-0">
+                    <legend className="text-xs font-semibold uppercase tracking-wide text-faint">
+                      Live batches
+                    </legend>
+                    <div className="mt-2 max-h-44 overflow-y-auto pr-1">
+                      {batchesQ.isLoading && <Spinner />}
+                      {batchesQ.data?.data.length === 0 && (
+                        <p className="text-xs text-faint">No batches yet.</p>
+                      )}
+                      {batchesQ.data?.data.map((b) => (
+                        <label key={b.id} className="flex items-start gap-2 py-1 text-sm">
+                          <input
+                            type="checkbox"
+                            className="mt-1"
+                            checked={batchIds.includes(b.id)}
+                            onChange={() => setBatchIds((v) => toggle(v, b.id))}
+                          />
+                          <span className="min-w-0 truncate">
+                            {b.name}
+                            <span className="ml-1 text-xs text-faint">{b.code}</span>
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </fieldset>
+                </div>
+              </div>
+            )}
+
             <div className="sm:col-span-2">
               <Button type="submit" loading={createMember.isPending}>
                 Add member
