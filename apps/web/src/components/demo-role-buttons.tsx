@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/lib/auth-context';
+import { ApiError } from '@/lib/api-client';
 
 /**
  * A way into the demo as each kind of person.
@@ -40,8 +41,15 @@ export function DemoRoleButtons() {
     try {
       await startDemo(role);
       router.push('/dashboard');
-    } catch {
-      setError('That demo account is not available right now.');
+    } catch (e) {
+      // Reviewing all nine roles in a row is exactly what this is for, and
+      // that trips the per-IP limit on auth routes. Saying "not available"
+      // there reads as a broken demo rather than "you are going quickly".
+      setError(
+        e instanceof ApiError && e.status === 429
+          ? 'Too many demo sign-ins from here. Wait a few seconds and try again.'
+          : 'That demo account is not available right now.',
+      );
     } finally {
       setBusy(null);
     }
