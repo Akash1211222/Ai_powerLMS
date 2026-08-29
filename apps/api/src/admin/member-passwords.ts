@@ -16,6 +16,7 @@ import type { RoleName } from '@fca/shared';
  */
 const FALLBACKS: Record<RoleName, string> = {
   SUPER_ADMIN: 'SuperAdmin123!',
+  OPERATIONAL_LEAD: 'OpsLead123!',
   COLLEGE_ADMIN: 'Admin123!',
   BATCH_MANAGER: 'Manager123!',
   TRAINER: 'Teacher123!',
