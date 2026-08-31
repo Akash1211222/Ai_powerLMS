@@ -1,7 +1,8 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { UserContextService } from '../authz/user-context.service';
-import { assertOrgAccess } from '../common/tenant';
+import { assertOrgAccess, resolvePrimaryOrgId } from '../common/tenant';
+import { resolveStudentScope, visibleBatchWhere } from '../common/student-scope';
 import { computeAttendanceRate } from '../attendance/attendance.calc';
 
 function dayBounds(now = new Date()) {
@@ -282,21 +283,40 @@ export class DashboardService {
     };
   }
 
-  async trainer(userId: string) {
+  /**
+   * The batches this person is responsible for.
+   *
+   * Serves both the trainer and the batch manager, whose answers to "mine"
+   * differ: a trainer's batches are the ones they were put on, a batch
+   * manager's are the college's — running them is the job. Asking only
+   * BatchTrainer, as this did, gave every batch manager an empty dashboard,
+   * because a batch manager is never a trainer on anything.
+   */
+  async trainer(userId: string, organizationId?: string) {
     const now = new Date();
     const { start } = dayBounds(now);
 
-    const trainerBatches = await this.prisma.batchTrainer.findMany({
-      where: { userId },
+    const orgId = organizationId ?? (await resolvePrimaryOrgId(this.prisma, userId));
+    if (!orgId) return this.emptyTrainerDashboard();
+    await assertOrgAccess(this.userContext, userId, orgId);
+
+    const scope = await resolveStudentScope(this.userContext, userId, orgId);
+    const ownedBatches = await this.prisma.batch.findMany({
+      // No status filter: a batch that has not started yet is still one you are
+      // about to be responsible for, and this board is where you would look.
+      where: { organizationId: orgId, ...visibleBatchWhere(scope) },
       include: {
-        batch: {
-          include: {
-            course: { select: { id: true, title: true } },
-            _count: { select: { students: true } },
-          },
-        },
+        course: { select: { id: true, title: true } },
+        _count: { select: { students: true } },
+        // Their own place on the batch, when they have one. A batch manager
+        // has none — they run the batch rather than teach it — so this is null
+        // for them, which is the truthful answer rather than a borrowed title.
+        trainers: { where: { userId }, select: { role: true } },
       },
+      orderBy: { createdAt: 'desc' },
     });
+    // Kept in the shape the rest of this method already expects.
+    const trainerBatches = ownedBatches.map((batch) => ({ batchId: batch.id, batch }));
     const batchIds = trainerBatches.map((t) => t.batchId);
 
     const [enrollments, upcomingSessions] = await Promise.all([
@@ -331,7 +351,7 @@ export class DashboardService {
         name: t.batch.name,
         code: t.batch.code,
         status: t.batch.status,
-        role: t.role,
+        role: t.batch.trainers[0]?.role ?? null,
         courseTitle: t.batch.course.title,
         studentCount: t.batch._count.students,
         avgProgress: agg && agg.count ? Math.round(agg.sum / agg.count) : 0,
@@ -347,6 +367,15 @@ export class DashboardService {
       stats: { totalBatches: batches.length, totalStudents, avgProgress },
       batches,
       upcomingSessions,
+    };
+  }
+
+  /** Somebody who belongs to no organisation yet. An empty board, not an error. */
+  private emptyTrainerDashboard() {
+    return {
+      stats: { totalBatches: 0, totalStudents: 0, avgProgress: 0 },
+      batches: [] as Array<never>,
+      upcomingSessions: [] as Array<never>,
     };
   }
 

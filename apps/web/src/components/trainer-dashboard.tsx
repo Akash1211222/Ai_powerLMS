@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { Card, Badge, statusTone, Spinner, Alert } from '@fca/ui';
 import { dashboardApi } from '@/lib/dashboard-api';
+import { useActiveOrg } from '@/lib/use-active-org';
 import { useAuth } from '@/lib/auth-context';
 import { formatTime, formatDate } from '@/lib/format';
 import { StatTile, ProgressBar } from './stat-tile';
@@ -21,7 +22,14 @@ import { DashboardHero, HeroPanel, todayLabel } from './dashboard-hero';
 
 export function TrainerDashboard({ firstName }: { firstName: string }) {
   const { user } = useAuth();
-  const q = useQuery({ queryKey: ['dashboard', 'trainer'], queryFn: dashboardApi.trainer });
+  // Scoped to the college in the header, so an operations lead switching
+  // between colleges sees the batches of the one they are looking at.
+  const { org } = useActiveOrg();
+  const q = useQuery({
+    queryKey: ['dashboard', 'trainer', org?.id],
+    queryFn: () => dashboardApi.trainer(org?.id),
+    enabled: Boolean(org?.id),
+  });
 
   if (q.isLoading) return <Spinner />;
   if (q.error || !q.data) return <Alert tone="error">Could not load your dashboard.</Alert>;

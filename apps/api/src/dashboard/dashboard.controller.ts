@@ -22,9 +22,13 @@ export class DashboardController {
   }
 
   @Get('trainer')
-  @ApiOperation({ summary: "Aggregated trainer dashboard for the current user's batches" })
-  trainer(@CurrentUser() user: AuthUser) {
-    return this.dashboard.trainer(user.userId);
+  @ApiOperation({
+    summary:
+      'The batches this person is responsible for — the ones a trainer is on, ' +
+      "or the college's, for whoever runs it. Defaults to their primary college.",
+  })
+  trainer(@CurrentUser() user: AuthUser, @Query('organizationId') organizationId?: string) {
+    return this.dashboard.trainer(user.userId, organizationId);
   }
 
   @Get('placement')

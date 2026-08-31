@@ -311,6 +311,30 @@ run('Student visibility (e2e)', () => {
     expect(reset.body.password).toBeTruthy();
   });
 
+  it('gives a batch manager the college’s batches on their dashboard', async () => {
+    // "My batches" is a different question for the two roles at rank 50: the
+    // trainer's are the ones they were put on, the batch manager's are the
+    // college's. Asking only who teaches what left every batch manager staring
+    // at an empty board.
+    const res = await get(`/api/v1/dashboard/trainer?organizationId=${orgId}`, managerToken).expect(
+      200,
+    );
+    const ids = res.body.batches.map((b: { id: string }) => b.id);
+    expect(ids).toEqual(expect.arrayContaining([batchA, batchB]));
+    // They run the batch rather than teach it, so no borrowed title.
+    expect(res.body.batches.every((b: { role: string | null }) => b.role === null)).toBe(true);
+  });
+
+  it('keeps the trainer’s dashboard to the batches they teach', async () => {
+    const res = await get(`/api/v1/dashboard/trainer?organizationId=${orgId}`, trainerToken).expect(
+      200,
+    );
+    const ids = res.body.batches.map((b: { id: string }) => b.id);
+    expect(ids).toContain(batchA);
+    expect(ids).not.toContain(batchB);
+    expect(res.body.batches[0].role).toBe('LEAD');
+  });
+
   it('will not let anybody hand out a role above their own', async () => {
     // The longer route to the same place: creating the stronger account rather
     // than acting on one. Whoever makes an account is shown its password.

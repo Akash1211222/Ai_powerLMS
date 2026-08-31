@@ -69,7 +69,8 @@ export interface TrainerDashboard {
     name: string;
     code: string;
     status: string;
-    role: string;
+    /** LEAD or ASSISTANT when they teach it; null for whoever merely runs it. */
+    role: string | null;
     courseTitle: string;
     studentCount: number;
     avgProgress: number;
@@ -118,7 +119,13 @@ export interface AdminDashboard {
 
 export const dashboardApi = {
   student: () => apiRequest<StudentDashboard>('/dashboard/student', { auth: true }),
-  trainer: () => apiRequest<TrainerDashboard>('/dashboard/trainer', { auth: true }),
+  trainer: (organizationId?: string) =>
+    apiRequest<TrainerDashboard>(
+      organizationId
+        ? `/dashboard/trainer?organizationId=${encodeURIComponent(organizationId)}`
+        : '/dashboard/trainer',
+      { auth: true },
+    ),
   placement: (organizationId: string) =>
     apiRequest<PlacementDashboard>(
       `/dashboard/placement?organizationId=${encodeURIComponent(organizationId)}`,
