@@ -4,6 +4,9 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import type { AuthUser } from '../auth/auth-user';
 import { PrismaService } from '../prisma/prisma.service';
+import { UserContextService } from '../authz/user-context.service';
+import { hasPermission } from '../authz/principal';
+import { PERMISSIONS } from '@fca/shared';
 import { AssignmentsService } from '../assignments/assignments.service';
 import { AssessmentsService } from '../assessments/assessments.service';
 
@@ -18,6 +21,7 @@ import { AssessmentsService } from '../assessments/assessments.service';
 export class MeController {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly userContext: UserContextService,
     private readonly assignments: AssignmentsService,
     private readonly assessments: AssessmentsService,
   ) {}
@@ -47,28 +51,49 @@ export class MeController {
   }
 
   @Get('organizations')
-  @ApiOperation({ summary: 'Organizations the current user belongs to' })
+  @ApiOperation({
+    summary:
+      'Colleges the current user can work in — the ones they belong to, or ' +
+      'every college for whoever manages the platform.',
+  })
   async organizations(@CurrentUser() user: AuthUser) {
+    const select = {
+      id: true,
+      name: true,
+      slug: true,
+      type: true,
+      // Branding travels with the organisation so the shell can theme
+      // itself the moment the active college is known.
+      displayName: true,
+      logoUrl: true,
+      primaryColor: true,
+    };
+
     const memberships = await this.prisma.organizationMember.findMany({
       where: { userId: user.userId },
-      include: {
-        organization: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-            type: true,
-            // Branding travels with the organisation so the shell can theme
-            // itself the moment the active college is known.
-            displayName: true,
-            logoUrl: true,
-            primaryColor: true,
-          },
-        },
-      },
+      include: { organization: { select } },
       orderBy: { isPrimary: 'desc' },
     });
-    return memberships.map((m) => ({ ...m.organization, isPrimary: m.isPrimary }));
+    const mine = memberships.map((m) => ({ ...m.organization, isPrimary: m.isPrimary }));
+
+    /*
+     * Whoever holds organization:manage opened these colleges and can already
+     * act inside any of them — every org-scoped check waves a platform owner
+     * through. Listing only their memberships was the one thing stopping them:
+     * a college they created a minute ago was unreachable from the app, so
+     * there was no way to add its first member from the screen that made it.
+     */
+    const principal = await this.userContext.getPrincipal(user.userId);
+    if (!hasPermission(principal, PERMISSIONS.ORG_MANAGE, null)) return mine;
+
+    const held = new Set(mine.map((o) => o.id));
+    const rest = await this.prisma.organization.findMany({
+      where: { id: { notIn: [...held] }, status: 'ACTIVE' },
+      select,
+      orderBy: { name: 'asc' },
+    });
+    // Their own colleges stay at the top; the rest are places they administer.
+    return [...mine, ...rest.map((o) => ({ ...o, isPrimary: false }))];
   }
 
   @Get('portfolio')

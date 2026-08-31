@@ -26,6 +26,15 @@ vi.mock('next/image', () => ({
   default: ({ src, alt }: { src: string; alt: string }) => <img src={src} alt={alt} />,
 }));
 
+const push = vi.fn();
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push }) }));
+
+const setOrg = vi.fn();
+let activeOrgId = 'other';
+vi.mock('@/lib/use-active-org', () => ({
+  useActiveOrg: () => ({ org: { id: activeOrgId }, setOrg }),
+}));
+
 const college = (over: Record<string, unknown> = {}) => ({
   id: 'c1',
   name: "St. Xavier's College, Mumbai",
@@ -62,6 +71,7 @@ beforeEach(() => {
 afterEach(() => {
   cleanup();
   vi.clearAllMocks();
+  activeOrgId = 'other';
 });
 
 describe('CollegesPanel', () => {
@@ -223,5 +233,25 @@ describe('putting somebody in charge', () => {
     operationalLeads.mockResolvedValue([]);
     renderPanel();
     expect(await screen.findByText(/no operations leads yet/i)).toBeTruthy();
+  });
+});
+
+describe('working inside a college', () => {
+  it('opens the college you picked and takes you where the work happens', async () => {
+    // Adding staff and students *is* the rest of the app pointed at one
+    // college, so this switches to it rather than growing a second, thinner
+    // copy of those screens here.
+    renderPanel();
+    fireEvent.click(await screen.findByRole('button', { name: /open/i }));
+
+    expect(setOrg).toHaveBeenCalledWith('c1');
+    expect(push).toHaveBeenCalledWith('/admin');
+  });
+
+  it('says where you already are instead of offering to go there', async () => {
+    activeOrgId = 'c1';
+    renderPanel();
+    expect(await screen.findByText(/you are here/i)).toBeTruthy();
+    expect(screen.queryByRole('button', { name: /^open$/i })).toBeNull();
   });
 });

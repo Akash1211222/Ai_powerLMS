@@ -335,6 +335,23 @@ run('Student visibility (e2e)', () => {
     expect(res.body.batches[0].role).toBe('LEAD');
   });
 
+  it('lets the platform owner reach a college they just opened', async () => {
+    // They are not a member of it — nobody is, a moment after it is created —
+    // and every org-scoped check already waves them through. Listing only
+    // memberships was the one thing making a brand-new college unreachable
+    // from the screen that made it.
+    const res = await get('/api/v1/me/organizations', adminToken).expect(200);
+    const ids = res.body.map((o: { id: string }) => o.id);
+    expect(ids).toContain(otherOrgId);
+  });
+
+  it('shows everybody else only the colleges they belong to', async () => {
+    const res = await get('/api/v1/me/organizations', trainerToken).expect(200);
+    const ids = res.body.map((o: { id: string }) => o.id);
+    expect(ids).toContain(orgId);
+    expect(ids).not.toContain(otherOrgId);
+  });
+
   it('will not let anybody hand out a role above their own', async () => {
     // The longer route to the same place: creating the stronger account rather
     // than acting on one. Whoever makes an account is shown its password.

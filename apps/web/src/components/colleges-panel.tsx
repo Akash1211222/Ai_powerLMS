@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Card, Button, Badge, Spinner, Alert, Field, Input } from '@fca/ui';
 import Image from 'next/image';
 import { adminApi } from '@/lib/lms-learning-api';
 import { contrast, parseHex } from '@/lib/brand-theme';
+import { useActiveOrg } from '@/lib/use-active-org';
 
 /**
  * Opening a college.
@@ -25,6 +27,8 @@ const BLANK = { name: '', displayName: '', logoUrl: '', primaryColor: '' };
 
 export function CollegesPanel() {
   const qc = useQueryClient();
+  const router = useRouter();
+  const { org: activeOrg, setOrg } = useActiveOrg();
   const [form, setForm] = useState(BLANK);
   const [leadIds, setLeadIds] = useState<string[]>([]);
   const [opened, setOpened] = useState<string | null>(null);
@@ -70,8 +74,9 @@ export function CollegesPanel() {
     <Card>
       <h2 className="mb-1 font-bold">Colleges</h2>
       <p className="mb-3 text-sm text-faint">
-        Add a college here first. Once it exists you can add its batch manager, and when they sign
-        in the LMS carries the college&rsquo;s own name, logo and colour.
+        Add a college here first, then open it to add its people. Everything you do inside a college
+        &mdash; staff, students, batches &mdash; is the rest of the LMS pointed at that college, and
+        it carries their own name, logo and colour while you are there.
       </p>
 
       {opened && (
@@ -79,8 +84,8 @@ export function CollegesPanel() {
           <div className="font-semibold">{opened} added</div>
           <div className="mt-1 text-sm">
             {openedWithLead
-              ? 'Their operations lead can reach it now — switch to it with the picker in the header to add its batch manager.'
-              : 'Nobody runs it yet. Give it an operations lead above, or switch to it with the picker in the header to add staff directly.'}
+              ? 'Their operations lead can reach it now. Open it below to add its batch manager, students and teachers.'
+              : 'Nobody runs it yet. Open it below to add its staff and students, or give it an operations lead above.'}
           </div>
         </Alert>
       )}
@@ -219,6 +224,26 @@ export function CollegesPanel() {
               </div>
               {c.type !== 'COLLEGE' && <Badge tone="neutral">{c.type.toLowerCase()}</Badge>}
               {c.status !== 'ACTIVE' && <Badge tone="warning">{c.status.toLowerCase()}</Badge>}
+              {/*
+                Everything you do *to* a college — add its staff, enrol its
+                students, open a batch — is the rest of the app, scoped to that
+                college. So this switches to it rather than building a second,
+                thinner set of the same screens.
+              */}
+              {c.id === activeOrg?.id ? (
+                <Badge tone="brand">you are here</Badge>
+              ) : (
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setOrg(c.id);
+                    router.push('/admin');
+                  }}
+                >
+                  Open
+                </Button>
+              )}
             </li>
           ))}
         </ul>
