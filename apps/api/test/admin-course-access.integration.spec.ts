@@ -58,7 +58,11 @@ run('createMember — course access', () => {
     ids.org = org.id;
     ids.otherOrg = otherOrg.id;
 
-    // The admin doing the creating must belong to the org they create into.
+    // The admin doing the creating must belong to the org they create into, and
+    // must hold a role: permissions come only from roles, so an actor without
+    // one could never reach this service in production — and cannot hand out a
+    // role of its own either.
+    const collegeAdmin = await prisma.role.findFirstOrThrow({ where: { name: 'COLLEGE_ADMIN' } });
     const actor = await prisma.user.create({
       data: {
         email: `${tag}-actor@example.test`,
@@ -66,6 +70,7 @@ run('createMember — course access', () => {
         status: 'ACTIVE',
         emailVerifiedAt: new Date(),
         orgMemberships: { create: { organizationId: org.id, isPrimary: true } },
+        roles: { create: { roleId: collegeAdmin.id, organizationId: org.id } },
       },
     });
     ids.actor = actor.id;

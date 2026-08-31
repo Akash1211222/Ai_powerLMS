@@ -5,7 +5,13 @@ import {
   ConflictException,
   ForbiddenException,
 } from '@nestjs/common';
-import { buildPaginationMeta, type Paginated, outranks, type RoleName } from '@fca/shared';
+import {
+  buildPaginationMeta,
+  type Paginated,
+  highestRank,
+  outranks,
+  type RoleName,
+} from '@fca/shared';
 import { PrismaService } from '../prisma/prisma.service';
 import { AuditService } from '../audit/audit.service';
 import { UserContextService } from '../authz/user-context.service';
@@ -42,6 +48,7 @@ export class AdminService {
     if (dto.role === 'SUPER_ADMIN') {
       throw new BadRequestException('Cannot create a SUPER_ADMIN via this API');
     }
+    await this.assertMayAssignRole(actorId, dto.role);
 
     const existing = await this.prisma.user.findUnique({ where: { email: dto.email } });
     if (existing) throw new ConflictException('An account with this email already exists');
@@ -160,6 +167,32 @@ export class AdminService {
    * nobody reaches a super admin. Permissions alone answer neither: they say
    * what somebody may do, never to whom.
    */
+  /**
+   * Refuses handing out a role stronger than your own.
+   *
+   * `assertCanActOnMember` guards acting on somebody who already exists. This
+   * guards the other direction — creating or promoting somebody *into* a role
+   * above you, which reaches the same place by a longer route: the issued
+   * password is shown to whoever made the account.
+   *
+   * Equal rank is allowed on purpose. A college admin adding a second college
+   * admin is ordinary onboarding; what must not happen is a college admin
+   * minting an operations lead, whose remit is every college they are given.
+   */
+  private async assertMayAssignRole(actorId: string, role: RoleName) {
+    const principal = await this.userContext.getPrincipal(actorId);
+    if (principal.isSuperAdmin) return;
+
+    const actorRoles = await this.prisma.userRole.findMany({
+      where: { userId: actorId },
+      include: { role: true },
+    });
+    const mine = highestRank(actorRoles.map((r) => r.role.name as RoleName));
+    if (highestRank([role]) > mine) {
+      throw new ForbiddenException(`You cannot give somebody the ${role} role`);
+    }
+  }
+
   private async assertCanActOnMember(actorId: string, targetUserId: string) {
     if (actorId === targetUserId) {
       throw new BadRequestException('Use the change-password endpoint for your own account');
@@ -321,6 +354,40 @@ export class AdminService {
   }
 
   /**
+   * The people who can be put in charge of a college.
+   *
+   * Anyone who already holds OPERATIONAL_LEAD somewhere — running colleges is
+   * the job, and the second college is the same job as the first. Reads across
+   * tenants, so it sits behind ORG_MANAGE like the rest of this group.
+   */
+  async listOperationalLeads() {
+    const rows = await this.prisma.userRole.findMany({
+      where: { role: { name: 'OPERATIONAL_LEAD' }, user: { status: 'ACTIVE' } },
+      select: {
+        userId: true,
+        user: { select: { email: true, profile: { select: { firstName: true, lastName: true } } } },
+      },
+    });
+
+    const byUser = new Map<string, { id: string; email: string; name: string; colleges: number }>();
+    for (const r of rows) {
+      const seen = byUser.get(r.userId);
+      if (seen) {
+        seen.colleges += 1;
+        continue;
+      }
+      const p = r.user.profile;
+      byUser.set(r.userId, {
+        id: r.userId,
+        email: r.user.email,
+        name: [p?.firstName, p?.lastName].filter(Boolean).join(' ') || r.user.email,
+        colleges: 1,
+      });
+    }
+    return [...byUser.values()].sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  /**
    * Opens a college. Everything else about onboarding hangs off this: staff are
    * created inside an organisation, batches belong to one, and the branding
    * that makes the LMS feel like theirs is stored on it.
@@ -346,6 +413,39 @@ export class AdminService {
         primaryColor: dto.primaryColor ?? null,
       },
     });
+
+    // Attach the people who will run it, in the same step. Membership *and*
+    // the role: grantRole deliberately refuses a non-member, and a college
+    // created a moment ago has no members at all — so the two rows are written
+    // together here rather than leaving the caller to discover the order.
+    const leadIds = [...new Set(dto.operationalLeadIds ?? [])];
+    if (leadIds.length > 0) {
+      const role = await this.prisma.role.findUnique({ where: { name: 'OPERATIONAL_LEAD' } });
+      if (!role) throw new NotFoundException('Role not found');
+
+      const users = await this.prisma.user.findMany({
+        where: { id: { in: leadIds }, status: 'ACTIVE' },
+        select: { id: true },
+      });
+      if (users.length !== leadIds.length) {
+        throw new BadRequestException('One of those people no longer has an active account');
+      }
+
+      for (const { id: userId } of users) {
+        await this.prisma.organizationMember.create({
+          data: {
+            organizationId: org.id,
+            userId,
+            // Their home college is wherever they started; a college they have
+            // been given to run is an addition, not a move.
+            isPrimary: false,
+          },
+        });
+        await this.prisma.userRole.create({
+          data: { userId, roleId: role.id, organizationId: org.id },
+        });
+      }
+    }
 
     await this.audit.record({
       action: 'admin.organization.created',
@@ -430,6 +530,7 @@ export class AdminService {
     if (dto.role === 'SUPER_ADMIN') {
       throw new BadRequestException('Cannot grant SUPER_ADMIN via org admin API');
     }
+    await this.assertMayAssignRole(actorId, dto.role);
     const role = await this.prisma.role.findUnique({ where: { name: dto.role } });
     if (!role) throw new NotFoundException('Role not found');
 

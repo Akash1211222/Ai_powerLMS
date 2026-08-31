@@ -123,6 +123,69 @@ export interface BrandTokens {
   dark: Record<string, string>;
 }
 
+/**
+ * The shape of the platform's own ramps, as saturation and lightness per stop.
+ *
+ * Taken from the blue and orange scales the product ships with, which were
+ * tuned by eye — a college's colour is dropped into this shape rather than a
+ * ramp being generated from scratch, so their palette inherits work that has
+ * already been done rather than coming out evenly-spaced and lifeless.
+ */
+const BRAND_SHAPE: Array<[stop: number, s: number, l: number]> = [
+  [50, 1.0, 0.97],
+  [100, 0.94, 0.93],
+  [200, 0.93, 0.87],
+  [300, 0.93, 0.78],
+  [400, 0.93, 0.68],
+  [500, 0.83, 0.53],
+  [600, 0.76, 0.48],
+  [700, 0.81, 0.44],
+  [800, 0.64, 0.33],
+  [900, 0.6, 0.15],
+];
+
+const ACCENT_SHAPE: Array<[stop: number, s: number, l: number]> = [
+  [50, 1.0, 0.96],
+  [100, 1.0, 0.92],
+  [300, 0.97, 0.72],
+  [400, 0.96, 0.61],
+  [500, 0.95, 0.53],
+  [600, 0.9, 0.48],
+  [700, 0.88, 0.4],
+];
+
+/**
+ * How far the call-to-action hue sits from the brand hue.
+ *
+ * The platform's own palette puts them almost opposite — a blue product with
+ * orange buttons. Applying that split to a customer's colour would hand a
+ * maroon college green buttons, which is not what "our colour" means to
+ * anybody. A short step keeps the button a sibling of the brand: clearly the
+ * same family, still distinct enough to be the thing you press.
+ */
+const ACCENT_HUE_SHIFT = 24;
+
+const channels = ({ r, g, b }: Rgb) => `${r} ${g} ${b}`;
+
+function ramp(
+  name: string,
+  shape: Array<[number, number, number]>,
+  h: number,
+  saturation: number,
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const [stop, s, l] of shape) {
+    // The college's own saturation scales the shape's, so a muted brand stays
+    // muted across the whole ramp instead of being forced bright.
+    out[`--fca-${name}-${stop}`] = channels(hslToRgb(h, Math.min(1, s * saturation), l));
+  }
+  return out;
+}
+
+/** A surface: the hue at a fixed lightness, barely saturated. */
+const surface = (h: number, s: number, l: number, tint: number) =>
+  channels(hslToRgb(h, Math.min(s, tint), l));
+
 /** Text-sized accents need AA. */
 const TEXT_CONTRAST = 4.5;
 
@@ -136,21 +199,56 @@ export function brandTokens(input: string | null | undefined): BrandTokens | nul
   // invent a colour the college did not choose.
   const s = Math.max(rawS, rawS > 0.05 ? 0.35 : rawS);
 
-  const lightLink = readable(h, s, l, LIGHT_BG, TEXT_CONTRAST, 0);
-  const darkLink = readable(h, s, l, DARK_BG, TEXT_CONTRAST, 1);
+  // Relative to the platform's own blue, whose 500 sits at 83% saturation.
+  const saturation = s / 0.83;
+  const accentHue = (h + ACCENT_HUE_SHIFT) % 360;
 
-  // Surfaces are washes of the same hue, so they read as related rather than
-  // as a second colour. Alpha keeps them working over either ground.
+  const ramps = {
+    ...ramp('brand', BRAND_SHAPE, h, saturation),
+    ...ramp('accent', ACCENT_SHAPE, accentHue, saturation),
+    // The secondary cool accent trails the brand the other way, so the three
+    // scales read as one family fanned out rather than three decisions.
+    ...ramp('aqua', ACCENT_SHAPE, (h - ACCENT_HUE_SHIFT + 360) % 360, saturation),
+  };
+
+  // The page itself. A wash of the college's hue rather than a flat neutral —
+  // this is the largest area on screen, and leaving it grey is what made
+  // branding read as a tint on somebody else's product. The lightness is
+  // pinned, so the tint can never darken the page into unreadability; only the
+  // hue moves.
+  const lightBg = { h, l: 0.975, tint: 0.55 };
+  const darkBg = { h, l: 0.055, tint: 0.45 };
+
+  const lightLink = readable(h, s, l, hslToRgb(h, Math.min(s, lightBg.tint), lightBg.l), TEXT_CONTRAST, 0);
+  const darkLink = readable(h, s, l, hslToRgb(h, Math.min(s, darkBg.tint), darkBg.l), TEXT_CONTRAST, 1);
+
   const wash = (a: number) => `hsl(${h.toFixed(0)} ${Math.round(s * 100)}% 55% / ${a})`;
 
   return {
     light: {
+      ...ramps,
+      '--fca-bg': `rgb(${surface(h, s, lightBg.l, lightBg.tint)})`,
+      '--fca-panel': `hsl(${h.toFixed(0)} ${Math.round(Math.min(s, 0.5) * 100)}% 99% / 0.92)`,
+      '--fca-card': `hsl(${h.toFixed(0)} ${Math.round(Math.min(s, 0.5) * 100)}% 100% / 0.96)`,
+      // Ink and hairlines carry the hue too, but only just — text is read, not
+      // admired, and a strongly coloured body copy is tiring before it is
+      // branded.
+      '--fca-ink': `rgb(${surface(h, s, 0.14, 0.62)})`,
+      '--fca-faint': `rgb(${surface(h, s, 0.4, 0.28)})`,
+      '--fca-hair': `rgb(${surface(h, s, 0.9, 0.5)})`,
       '--fca-link': hex(lightLink),
       '--fca-chip': wash(0.1),
       '--fca-soft': wash(0.06),
       '--fca-track': wash(0.14),
     },
     dark: {
+      ...ramps,
+      '--fca-bg': `rgb(${surface(h, s, darkBg.l, darkBg.tint)})`,
+      '--fca-panel': `hsl(${h.toFixed(0)} ${Math.round(Math.min(s, 0.45) * 100)}% 17% / 0.94)`,
+      '--fca-card': `hsl(${h.toFixed(0)} ${Math.round(Math.min(s, 0.45) * 100)}% 20% / 0.96)`,
+      '--fca-ink': `rgb(${surface(h, s, 0.97, 0.5)})`,
+      '--fca-faint': `rgb(${surface(h, s, 0.84, 0.3)})`,
+      '--fca-hair': `hsl(${h.toFixed(0)} ${Math.round(Math.min(s, 0.6) * 100)}% 70% / 0.22)`,
       '--fca-link': hex(darkLink),
       '--fca-chip': wash(0.2),
       '--fca-soft': wash(0.12),

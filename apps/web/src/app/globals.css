@@ -9,6 +9,47 @@
  * preset maps bg/panel/card/ink/... to these variables.
  */
 :root {
+  /*
+   * The colour ramps, as red/green/blue channels.
+   *
+   * They live here rather than in the Tailwind preset so a college's own
+   * colour can replace them at runtime — every `brand-*` and `accent-*` class
+   * in the app reads through these, which is what lets one hex from a college
+   * repaint the product without touching ninety files.
+   *
+   * Channels rather than hex because Tailwind composes opacity onto them:
+   * `bg-brand-400/15` becomes `rgb(96 165 250 / 0.15)`.
+   *
+   * These defaults are the platform's own palette, unchanged: electric blue
+   * brand, orange CTAs, sky-blue secondary.
+   */
+  --fca-brand-50: 239 246 255;
+  --fca-brand-100: 219 234 254;
+  --fca-brand-200: 191 219 254;
+  --fca-brand-300: 147 197 253;
+  --fca-brand-400: 96 165 250;
+  --fca-brand-500: 37 99 235;
+  --fca-brand-600: 29 78 216;
+  --fca-brand-700: 21 82 201;
+  --fca-brand-800: 30 58 138;
+  --fca-brand-900: 15 30 61;
+
+  --fca-accent-50: 255 247 237;
+  --fca-accent-100: 255 237 213;
+  --fca-accent-300: 253 186 116;
+  --fca-accent-400: 251 146 60;
+  --fca-accent-500: 249 115 22;
+  --fca-accent-600: 234 88 12;
+  --fca-accent-700: 194 65 12;
+
+  --fca-aqua-50: 240 249 255;
+  --fca-aqua-100: 224 242 254;
+  --fca-aqua-300: 125 211 252;
+  --fca-aqua-400: 56 189 248;
+  --fca-aqua-500: 14 165 233;
+  --fca-aqua-600: 2 132 199;
+  --fca-aqua-700: 3 105 161;
+
   --fca-bg: #f5f8fd;
   --fca-panel: rgba(255, 255, 255, 0.92);
   --fca-card: rgba(255, 255, 255, 0.96);
@@ -211,7 +252,7 @@ body {
   height: 46vw;
   bottom: -20vw;
   right: -10vw;
-  background: linear-gradient(135deg, #fb923c 0%, #f97316 100%);
+  background: linear-gradient(135deg, rgb(var(--fca-accent-400)) 0%, rgb(var(--fca-accent-500)) 100%);
   opacity: 0.1;
   animation: aurora 28s ease-in-out infinite reverse;
 }
@@ -384,7 +425,12 @@ body {
 
 /* Orange highlight text — mirrors the site's hero accent words. */
 .gradient-text {
-  background: linear-gradient(120deg, #fb923c 0%, #f97316 55%, #ea580c 100%);
+  background: linear-gradient(
+    120deg,
+    rgb(var(--fca-accent-400)) 0%,
+    rgb(var(--fca-accent-500)) 55%,
+    rgb(var(--fca-accent-600)) 100%
+  );
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -392,7 +438,7 @@ body {
 
 /* Orange eyebrow labels used above section headings on the site. */
 .eyebrow {
-  color: #f97316;
+  color: rgb(var(--fca-accent-500));
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 2px;
@@ -653,7 +699,12 @@ body {
  * Notification signal inbox
  * ------------------------------------------------------------------------- */
 .notif-panel-head {
-  background: linear-gradient(135deg, #0b1b3a 0%, #1d4ed8 55%, #ea580c 130%);
+  background: linear-gradient(
+    135deg,
+    rgb(var(--fca-brand-900)) 0%,
+    rgb(var(--fca-brand-600)) 55%,
+    rgb(var(--fca-accent-600)) 130%
+  );
 }
 
 .notif-bell-live {

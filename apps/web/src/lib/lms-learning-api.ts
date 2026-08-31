@@ -577,6 +577,13 @@ export const adminApi = {
       }>
     >('/admin/organizations', { auth: true }),
 
+  /** People who can be put in charge of a college. */
+  operationalLeads: () =>
+    apiRequest<Array<{ id: string; email: string; name: string; colleges: number }>>(
+      '/admin/operational-leads',
+      { auth: true },
+    ),
+
   /** Open a college. Its staff and batches are created inside it afterwards. */
   createOrganization: (input: {
     name: string;
@@ -584,6 +591,7 @@ export const adminApi = {
     type?: string;
     logoUrl?: string;
     primaryColor?: string;
+    operationalLeadIds?: string[];
   }) =>
     apiRequest<{ id: string; name: string; slug: string }>('/admin/organizations', {
       method: 'POST',

@@ -61,6 +61,16 @@ const logoUrl = z
   .max(2048)
   .refine((u) => u.startsWith('https://'), 'The logo address must start with https://');
 
+/**
+ * The people who will run this college.
+ *
+ * Offered at creation because a college with nobody attached is inert — you
+ * cannot add its staff until somebody can reach it, and the operations lead is
+ * who does that. Ids rather than emails: these are existing people being given
+ * another college, not new accounts.
+ */
+const operationalLeadIds = z.array(z.string().min(1)).max(20).optional();
+
 export const createOrganizationSchema = z.object({
   name: z.string().min(2).max(120).trim(),
   /** What it calls itself on screen, when shorter than the legal name. */
@@ -68,6 +78,7 @@ export const createOrganizationSchema = z.object({
   type: z.enum(['COLLEGE', 'COMPANY', 'INTERNAL']).default('COLLEGE'),
   logoUrl: logoUrl.optional(),
   primaryColor: hexColour.optional(),
+  operationalLeadIds,
 });
 export type CreateOrganizationDto = z.infer<typeof createOrganizationSchema>;
 

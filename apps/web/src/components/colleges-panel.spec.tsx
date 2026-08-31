@@ -12,10 +12,12 @@ import { CollegesPanel } from './colleges-panel';
 
 const organizations = vi.fn();
 const createOrganization = vi.fn();
+const operationalLeads = vi.fn();
 
 vi.mock('@/lib/lms-learning-api', () => ({
   adminApi: {
     organizations: () => organizations(),
+    operationalLeads: () => operationalLeads(),
     createOrganization: (input: unknown) => createOrganization(input),
   },
 }));
@@ -52,6 +54,9 @@ function renderPanel() {
 
 beforeEach(() => {
   organizations.mockResolvedValue([college()]);
+  operationalLeads.mockResolvedValue([
+    { id: 'lead-1', email: 'ravi@example.test', name: 'Ravi Kulkarni', colleges: 2 },
+  ]);
   createOrganization.mockResolvedValue({ id: 'c2', name: 'New College', slug: 'new-college' });
 });
 afterEach(() => {
@@ -82,6 +87,7 @@ describe('CollegesPanel', () => {
         displayName: 'NC',
         logoUrl: 'https://nc.test/logo.png',
         primaryColor: '#1e3a8a',
+        operationalLeadIds: undefined,
       }),
     );
   });
@@ -101,6 +107,7 @@ describe('CollegesPanel', () => {
         displayName: undefined,
         logoUrl: undefined,
         primaryColor: undefined,
+        operationalLeadIds: undefined,
       }),
     );
   });
@@ -110,10 +117,11 @@ describe('CollegesPanel', () => {
     await screen.findByText("St. Xavier's");
 
     fill(/college name/i, 'New College');
+    fireEvent.click(screen.getByLabelText(/ravi kulkarni/i));
     fireEvent.click(screen.getByRole('button', { name: /add college/i }));
 
     expect(await screen.findByText(/New College added/)).toBeTruthy();
-    expect(screen.getByText(/add a batch manager/i)).toBeTruthy();
+    expect(screen.getByText(/operations lead can reach it now/i)).toBeTruthy();
   });
 
   it('will not submit a name too short to be a college', async () => {
@@ -175,5 +183,45 @@ describe('the initial shown for an unbranded college', () => {
     renderPanel();
     const mark = await screen.findByText('D');
     expect((mark as HTMLElement).style.color).toBe('rgb(255, 255, 255)');
+  });
+});
+
+describe('putting somebody in charge', () => {
+  it('hands the college to the operations lead who was ticked', async () => {
+    renderPanel();
+    await screen.findByText("St. Xavier's");
+
+    fill(/college name/i, 'Handed College');
+    fireEvent.click(screen.getByLabelText(/ravi kulkarni/i));
+    fireEvent.click(screen.getByRole('button', { name: /add college/i }));
+
+    await waitFor(() =>
+      expect(createOrganization).toHaveBeenCalledWith(
+        expect.objectContaining({ operationalLeadIds: ['lead-1'] }),
+      ),
+    );
+  });
+
+  it('says how many colleges each one already runs', async () => {
+    // The question being answered is "who has room", not "who exists".
+    renderPanel();
+    expect(await screen.findByText(/runs 2 colleges/i)).toBeTruthy();
+  });
+
+  it('tells you what is still missing when nobody was chosen', async () => {
+    // A college with nobody attached is inert, and saying so beats letting
+    // somebody discover it later from an empty screen.
+    renderPanel();
+    await screen.findByText("St. Xavier's");
+    fill(/college name/i, 'Unled College');
+    fireEvent.click(screen.getByRole('button', { name: /add college/i }));
+
+    expect(await screen.findByText(/nobody runs it yet/i)).toBeTruthy();
+  });
+
+  it('explains how to get a first operations lead when there are none', async () => {
+    operationalLeads.mockResolvedValue([]);
+    renderPanel();
+    expect(await screen.findByText(/no operations leads yet/i)).toBeTruthy();
   });
 });

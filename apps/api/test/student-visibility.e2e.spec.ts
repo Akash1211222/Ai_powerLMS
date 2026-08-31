@@ -311,6 +311,39 @@ run('Student visibility (e2e)', () => {
     expect(reset.body.password).toBeTruthy();
   });
 
+  it('will not let anybody hand out a role above their own', async () => {
+    // The longer route to the same place: creating the stronger account rather
+    // than acting on one. Whoever makes an account is shown its password.
+    const collegeAdmin = await person('college-admin', 'COLLEGE_ADMIN', orgId);
+    const caToken = await login(collegeAdmin.email);
+
+    const promote = await request(app.getHttpServer())
+      .post('/api/v1/admin/members')
+      .set(auth(caToken))
+      .send({
+        organizationId: orgId,
+        email: `${tag}-escalate@example.test`,
+        firstName: 'Esc',
+        lastName: 'Alate',
+        role: 'OPERATIONAL_LEAD',
+      });
+    expect(promote.status).toBe(403);
+
+    // A peer is fine: adding a second college admin is ordinary onboarding.
+    const peer = await request(app.getHttpServer())
+      .post('/api/v1/admin/members')
+      .set(auth(caToken))
+      .send({
+        organizationId: orgId,
+        email: `${tag}-peer@example.test`,
+        firstName: 'Peer',
+        lastName: 'Admin',
+        role: 'COLLEGE_ADMIN',
+      });
+    expect(peer.status, peer.text).toBeLessThan(400);
+    made.push(peer.body.id);
+  });
+
   it('does not let a super admin be reset by a batch manager', async () => {
     // Rank still decides who you may act on; this change did not touch it.
     const sup = await prisma.user.findUniqueOrThrow({

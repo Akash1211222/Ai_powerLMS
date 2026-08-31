@@ -26,11 +26,18 @@ const BLANK = { name: '', displayName: '', logoUrl: '', primaryColor: '' };
 export function CollegesPanel() {
   const qc = useQueryClient();
   const [form, setForm] = useState(BLANK);
+  const [leadIds, setLeadIds] = useState<string[]>([]);
   const [opened, setOpened] = useState<string | null>(null);
+  const [openedWithLead, setOpenedWithLead] = useState(false);
 
   const collegesQ = useQuery({
     queryKey: ['admin', 'organizations'],
     queryFn: () => adminApi.organizations(),
+  });
+
+  const leadsQ = useQuery({
+    queryKey: ['admin', 'operational-leads'],
+    queryFn: () => adminApi.operationalLeads(),
   });
 
   const createCollege = useMutation({
@@ -42,13 +49,20 @@ export function CollegesPanel() {
         displayName: form.displayName.trim() || undefined,
         logoUrl: form.logoUrl.trim() || undefined,
         primaryColor: form.primaryColor.trim() || undefined,
+        operationalLeadIds: leadIds.length ? leadIds : undefined,
       }),
     onSuccess: (org) => {
       setOpened(org.name);
+      setOpenedWithLead(leadIds.length > 0);
       setForm(BLANK);
+      setLeadIds([]);
       void qc.invalidateQueries({ queryKey: ['admin', 'organizations'] });
+      void qc.invalidateQueries({ queryKey: ['admin', 'operational-leads'] });
     },
   });
+
+  const toggleLead = (id: string) =>
+    setLeadIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
 
   const set = (k: keyof typeof BLANK) => (v: string) => setForm((f) => ({ ...f, [k]: v }));
 
@@ -64,8 +78,9 @@ export function CollegesPanel() {
         <Alert tone="success">
           <div className="font-semibold">{opened} added</div>
           <div className="mt-1 text-sm">
-            Next: add a batch manager for it from &ldquo;Add a member&rdquo;, after switching to the
-            college with the picker in the header.
+            {openedWithLead
+              ? 'Their operations lead can reach it now — switch to it with the picker in the header to add its batch manager.'
+              : 'Nobody runs it yet. Give it an operations lead above, or switch to it with the picker in the header to add staff directly.'}
           </div>
         </Alert>
       )}
@@ -140,6 +155,38 @@ export function CollegesPanel() {
             </div>
           )}
         </Field>
+        <div className="sm:col-span-2">
+          <div className="text-sm font-semibold">Who runs it</div>
+          <p className="mb-2 text-sm text-faint">
+            Optional. An operations lead can open the college straight away and add its staff. You
+            can also leave it empty and add people yourself.
+          </p>
+          {leadsQ.isLoading && <Spinner />}
+          {leadsQ.data?.length === 0 && (
+            <p className="text-sm text-faint">
+              No operations leads yet. Create one from &ldquo;Add a member&rdquo; in a college you
+              already have, then they can be given this one too.
+            </p>
+          )}
+          <div className="grid gap-1 sm:grid-cols-2">
+            {leadsQ.data?.map((lead) => (
+              <label key={lead.id} className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={leadIds.includes(lead.id)}
+                  onChange={() => toggleLead(lead.id)}
+                />
+                <span className="truncate">
+                  {lead.name}
+                  <span className="ml-1 text-xs text-faint">
+                    · runs {lead.colleges} college{lead.colleges === 1 ? '' : 's'}
+                  </span>
+                </span>
+              </label>
+            ))}
+          </div>
+        </div>
+
         <div className="sm:col-span-2">
           <Button type="submit" disabled={createCollege.isPending || form.name.trim().length < 2}>
             {createCollege.isPending ? 'Adding…' : 'Add college'}

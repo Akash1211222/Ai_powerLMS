@@ -10,6 +10,14 @@ import { adminApi } from '@/lib/lms-learning-api';
 import { coursesApi, batchesApi } from '@/lib/lms-api';
 import { CollegesPanel } from '@/components/colleges-panel';
 
+/**
+ * Roles that can be handed out from here, strongest last.
+ *
+ * OPERATIONAL_LEAD is on the list because somebody has to be able to create the
+ * first one — the college form offers to put a lead in charge, and without this
+ * there would be nowhere to make one. The API refuses anybody trying to hand
+ * out a role above their own, so a college admin still cannot mint one.
+ */
 const GRANTABLE = [
   'STUDENT',
   'TRAINER',
@@ -17,6 +25,7 @@ const GRANTABLE = [
   'PLACEMENT_OFFICER',
   'MENTOR',
   'COLLEGE_ADMIN',
+  'OPERATIONAL_LEAD',
 ];
 
 export default function AdminPage() {

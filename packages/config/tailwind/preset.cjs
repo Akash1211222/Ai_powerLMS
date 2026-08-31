@@ -9,6 +9,12 @@
  * Surface/ink/hair tokens stay wired to CSS variables (web globals.css) so
  * light/dark theming keeps working.
  */
+/** A colour scale wired to CSS variables, one `--fca-<name>-<stop>` each. */
+const c = (name, stop) => `rgb(var(--fca-${name}-${stop}))`;
+
+const ramp = (name, stops) =>
+  Object.fromEntries(stops.map((stop) => [stop, `rgb(var(--fca-${name}-${stop}) / <alpha-value>)`]));
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
@@ -25,39 +31,19 @@ module.exports = {
         ],
       },
       colors: {
-        // Brand — electric blue ramp (site's platform color)
-        brand: {
-          50: '#eff6ff',
-          100: '#dbeafe',
-          200: '#bfdbfe',
-          300: '#93c5fd',
-          400: '#60a5fa',
-          500: '#2563eb',
-          600: '#1d4ed8',
-          700: '#1552c9',
-          800: '#1e3a8a',
-          900: '#0f1e3d',
-        },
-        // Accent — the site's orange CTA color
-        accent: {
-          50: '#fff7ed',
-          100: '#ffedd5',
-          300: '#fdba74',
-          400: '#fb923c',
-          500: '#f97316',
-          600: '#ea580c',
-          700: '#c2410c',
-        },
-        // Secondary cool accent — sky blue
-        aqua: {
-          50: '#f0f9ff',
-          100: '#e0f2fe',
-          300: '#7dd3fc',
-          400: '#38bdf8',
-          500: '#0ea5e9',
-          600: '#0284c7',
-          700: '#0369a1',
-        },
+        /*
+         * Brand, accent and aqua are variables rather than hex, so a college
+         * can be given its own palette without touching the 90-odd files that
+         * use these classes. Defaults live in web globals.css and are exactly
+         * the values that used to be written here.
+         *
+         * The channel-triplet form is what makes `bg-brand-400/15` keep
+         * working: Tailwind substitutes the opacity into <alpha-value>, which
+         * a plain `var(--x)` holding "#60a5fa" could not accept.
+         */
+        brand: ramp('brand', [50, 100, 200, 300, 400, 500, 600, 700, 800, 900]),
+        accent: ramp('accent', [50, 100, 300, 400, 500, 600, 700]),
+        aqua: ramp('aqua', [50, 100, 300, 400, 500, 600, 700]),
         // Semantic
         success: { DEFAULT: '#10b981', soft: '#34d399' },
         warning: { DEFAULT: '#f59e0b', soft: '#fbbf24' },
@@ -75,12 +61,18 @@ module.exports = {
         track: 'var(--fca-track)',
       },
       backgroundImage: {
-        // Signature gradients (values match the marketing site's CTAs/panels)
-        'grad-brand': 'linear-gradient(180deg, #fb923c 0%, #f97316 100%)', // orange CTA
-        'grad-holo': 'linear-gradient(120deg, #0f1e3d 0%, #1552c9 60%, #2563eb 100%)', // navy hero
-        'grad-aqua': 'linear-gradient(135deg, #1552c9 0%, #2563eb 100%)', // brand blue
-        'grad-sunset': 'linear-gradient(135deg, #f59e0b 0%, #f97316 100%)', // amber-orange
-        'grad-mint': 'linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)', // emerald-sky
+        // Signature gradients. Built from the ramps above rather than repeating
+        // hex, so a college's colour reaches them too — these are the largest
+        // areas of colour on the page and leaving them behind is exactly what
+        // made per-college branding look like a tint on somebody else's app.
+        'grad-brand': `linear-gradient(180deg, ${c('accent', 400)} 0%, ${c('accent', 500)} 100%)`,
+        'grad-holo': `linear-gradient(120deg, ${c('brand', 900)} 0%, ${c('brand', 700)} 60%, ${c('brand', 500)} 100%)`,
+        'grad-aqua': `linear-gradient(135deg, ${c('brand', 700)} 0%, ${c('brand', 500)} 100%)`,
+        'grad-sunset': `linear-gradient(135deg, ${c('accent', 300)} 0%, ${c('accent', 500)} 100%)`,
+        // Deliberately left alone: mint is not the brand, it is one of the
+        // hues that tell stat tiles apart. Recolouring it would flatten a
+        // distinction the design uses to carry meaning.
+        'grad-mint': 'linear-gradient(135deg, #10b981 0%, #0ea5e9 100%)',
       },
       borderRadius: {
         card: '24px',
@@ -89,9 +81,9 @@ module.exports = {
       boxShadow: {
         card: 'var(--fca-shadow-card)',
         'card-hover': 'var(--fca-shadow-card-hover)',
-        glow: '0 14px 34px 0 rgba(249, 115, 22, 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.4)',
-        'glow-pink': '0 8px 20px 0 rgba(249, 115, 22, 0.4)',
-        'glow-aqua': '0 8px 24px -6px rgba(37, 99, 235, 0.45)',
+        glow: `0 14px 34px 0 rgb(var(--fca-accent-500) / 0.5), inset 0 1px 0 0 rgba(255, 255, 255, 0.4)`,
+        'glow-pink': `0 8px 20px 0 rgb(var(--fca-accent-500) / 0.4)`,
+        'glow-aqua': `0 8px 24px -6px rgb(var(--fca-brand-500) / 0.45)`,
       },
       keyframes: {
         floaty: {

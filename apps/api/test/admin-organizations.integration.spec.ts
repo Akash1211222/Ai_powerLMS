@@ -29,6 +29,7 @@ run('createOrganization', () => {
   let admin: AdminService;
   const tag = `org-${Date.now()}`;
   const made: string[] = [];
+  const leads: string[] = [];
   let actorId = '';
 
   beforeAll(async () => {
@@ -55,7 +56,10 @@ run('createOrganization', () => {
   afterAll(async () => {
     if (!prisma) return;
     await prisma.auditLog.deleteMany({ where: { actorUserId: actorId } });
+    await prisma.userRole.deleteMany({ where: { userId: { in: leads } } });
+    await prisma.organizationMember.deleteMany({ where: { userId: { in: leads } } });
     await prisma.organization.deleteMany({ where: { id: { in: made } } });
+    await prisma.user.deleteMany({ where: { id: { in: leads } } });
     await prisma.user.delete({ where: { id: actorId } }).catch(() => undefined);
     await (prisma as unknown as PrismaClient).$disconnect();
   });
@@ -118,6 +122,49 @@ run('createOrganization', () => {
     expect(after.displayName).toBe('Rebranded');
     expect(after.slug).toBe(org.slug);
     expect(after.name).toBe(org.name);
+  });
+
+  it('puts an operations lead in charge as the college is opened', async () => {
+    // grantRole refuses a non-member, and a college created a moment ago has no
+    // members — so if this did not happen here, there would be no order of two
+    // API calls that works.
+    const role = await prisma.role.findFirstOrThrow({ where: { name: 'OPERATIONAL_LEAD' } });
+    const lead = await prisma.user.create({
+      data: {
+        email: `${tag}-lead@example.test`,
+        passwordHash: 'x',
+        status: 'ACTIVE',
+        emailVerifiedAt: new Date(),
+      },
+    });
+    leads.push(lead.id);
+
+    const org = await create(`${tag} Led College`, { operationalLeadIds: [lead.id] });
+
+    const member = await prisma.organizationMember.findFirst({
+      where: { organizationId: org.id, userId: lead.id },
+    });
+    expect(member).toBeTruthy();
+    // A college they were given to run is an addition, not a move.
+    expect(member?.isPrimary).toBe(false);
+
+    const granted = await prisma.userRole.findFirst({
+      where: { organizationId: org.id, userId: lead.id, roleId: role.id },
+    });
+    expect(granted).toBeTruthy();
+  });
+
+  it('opens a college with nobody in charge', async () => {
+    // Perfectly normal: the platform owner can add the staff themselves.
+    const org = await create(`${tag} Unled College`);
+    const members = await prisma.organizationMember.count({ where: { organizationId: org.id } });
+    expect(members).toBe(0);
+  });
+
+  it('refuses to hand a college to somebody who is not there', async () => {
+    await expect(
+      create(`${tag} Ghost College`, { operationalLeadIds: ['no-such-user'] }),
+    ).rejects.toThrow(/active account/i);
   });
 
   it('refuses a college that does not exist', async () => {

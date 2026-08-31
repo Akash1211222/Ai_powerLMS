@@ -75,6 +75,15 @@ export class AdminController {
     return this.admin.listOrganizations();
   }
 
+  @Get('operational-leads')
+  @RequirePermissions(PERMISSIONS.ORG_MANAGE)
+  @ApiOperation({
+    summary: 'People who can be put in charge of a college, with how many they already run.',
+  })
+  listOperationalLeads() {
+    return this.admin.listOperationalLeads();
+  }
+
   @Post('organizations')
   @HttpCode(HttpStatus.CREATED)
   @RequirePermissions(PERMISSIONS.ORG_MANAGE)
