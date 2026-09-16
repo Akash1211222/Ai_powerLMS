@@ -45,7 +45,7 @@ packages/
   analytics/    Analytics helpers
   ui/           Shared UI primitives
   config/       ESLint, Tailwind preset (FutureCorp tokens), tsconfig
-docs/           Architecture overview and ADRs
+docs/           Architecture, ADRs, and plans
 docker-compose.yml   Local Postgres, Redis, MinIO, Mailhog
 ```
 
@@ -162,7 +162,7 @@ Feature flags (seeded): `module.placement`, `module.intelligence`, `module.mento
 - **Web:** App Router under `apps/web` with role-aware shell and FutureCorp-inspired UI (Manrope / Space Grotesk, navy–blue–orange tokens in `packages/config/tailwind`).
 - **Jobs:** BullMQ on Redis via `apps/worker` for async AI evaluation and related work.
 - **Data:** Prisma schema + numbered migrations in `packages/database/prisma`.
-- **Docs:** `docs/architecture/overview.md` and `docs/decisions/` (ADRs).
+- **Docs:** `docs/architecture/overview.md`, `docs/architecture/roles.md` (who can reach what), `docs/decisions/` (ADRs) and `docs/plans/` (design notes, delivered and proposed).
 
 ---
 
