@@ -7,6 +7,7 @@ import type { NestExpressApplication } from '@nestjs/platform-express';
 import helmet from 'helmet';
 import { AppModule } from './app.module';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { IdeProxy } from './ide/ide.proxy';
 import type { Env } from './config/env';
 
 async function bootstrap(): Promise<void> {
@@ -16,6 +17,12 @@ async function bootstrap(): Promise<void> {
 
   const nodeEnv = config.get('NODE_ENV', { infer: true });
   const isProduction = nodeEnv === 'production';
+
+  // Browser VS Code. Ahead of helmet and the body parsers on purpose: the
+  // workbench sets its own headers and streams its own bodies (see IdeProxy).
+  const ideProxy = app.get(IdeProxy);
+  app.use(ideProxy.http);
+  ideProxy.attach(app.getHttpServer());
 
   // Security headers (§39)
   app.use(helmet());

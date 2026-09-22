@@ -38,6 +38,7 @@ import { ReputationModule } from './reputation/reputation.module';
 import { QueueModule } from './queue/queue.module';
 import { IntelligenceModule } from './intelligence/intelligence.module';
 import { CodeModule } from './code/code.module';
+import { IdeModule } from './ide/ide.module';
 import { LiveModule } from './live/live.module';
 import { RequestIdMiddleware } from './common/middleware/request-id.middleware';
 import { AppThrottlerGuard } from './common/guards/app-throttler.guard';
@@ -105,6 +106,7 @@ import { isAuthRoute } from './common/guards/auth-route';
     ReputationModule,
     IntelligenceModule,
     CodeModule,
+    IdeModule,
     LiveModule,
   ],
   providers: [{ provide: APP_GUARD, useClass: AppThrottlerGuard }],

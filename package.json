@@ -2,7 +2,7 @@
   "name": "futurecorp-academy",
   "version": "0.1.0",
   "private": true,
-  "description": "FutureCorp Academy — AI-powered Learning, Intelligence, Career & Community OS",
+  "description": "FutureCorp Academy \u2014 AI-powered Learning, Intelligence, Career & Community OS",
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=22.0.0",
@@ -25,6 +25,7 @@
     "db:seed:demo:data": "pnpm --filter @fca/database exec tsx prisma/demo-seed.ts",
     "db:demo:intelligence": "pnpm --filter @fca/api exec tsx scripts/recompute-intelligence.ts",
     "db:studio": "pnpm --filter @fca/database studio",
+    "ide:setup": "dotenv -e .env -- pnpm --filter @fca/api exec tsx scripts/ide-setup.ts",
     "infra:up": "docker compose up -d",
     "infra:down": "docker compose down",
     "clean": "turbo run clean && rm -rf node_modules"
