@@ -11,6 +11,7 @@ import { IDE_COOKIE_TTL_SECONDS, IdeTokenService } from './ide-token.service';
 const COOKIE = 'fca_ide';
 const TICKET_PARAM = 'fca_ticket';
 const PREFIX = /^\/ide\/([a-f0-9]{24})(\/.*|\?.*)?$/;
+const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
 
 /** Hop-by-hop headers (RFC 7230 §6.1) are for one connection, not the next. */
 const HOP_BY_HOP = new Set([
@@ -36,6 +37,8 @@ export class IdeProxy {
   private readonly logger = new Logger(IdeProxy.name);
   private readonly frameAncestors: string;
   private readonly secureCookie: boolean;
+  /** The workbench's own origin: the API's public URL. */
+  private readonly origin: string;
 
   constructor(
     private readonly ide: IdeService,
@@ -48,7 +51,9 @@ export class IdeProxy {
       .split(',')
       .map((o) => o.trim());
     this.frameAncestors = ["'self'", ...new Set([web, ...origins].filter(Boolean))].join(' ');
-    this.secureCookie = config.get('API_BASE_URL', { infer: true }).startsWith('https://');
+    const api = new URL(config.get('API_BASE_URL', { infer: true }));
+    this.secureCookie = api.protocol === 'https:';
+    this.origin = api.origin;
   }
 
   /** Express middleware: handles /ide/* and passes everything else on. */
@@ -103,6 +108,9 @@ export class IdeProxy {
     if (!(await this.authorised(req, instance))) {
       return this.fail(res, 401, 'Sign in to the LMS and open the Code lab to use this workspace.');
     }
+    if (!SAFE_METHODS.has(req.method ?? 'GET') && !this.sameOrigin(req)) {
+      return this.fail(res, 403, 'Requests to this workspace must come from the workspace itself.');
+    }
     if (!rest || rest.startsWith('?')) {
       // Keep the trailing slash: the workbench resolves its assets relatively.
       res.writeHead(302, { Location: `/ide/${slug}/${rest}` });
@@ -126,6 +134,8 @@ export class IdeProxy {
           `frame-ancestors ${this.frameAncestors}`,
         ];
         delete headers['x-frame-options'];
+        // Workspace paths carry the slug; keep them off other sites' logs.
+        headers['referrer-policy'] = 'same-origin';
         res.writeHead(up.statusCode ?? 502, headers);
         up.pipe(res);
       },
@@ -147,6 +157,12 @@ export class IdeProxy {
     const instance = this.ide.find(slug);
     if (!instance || !(await this.authorised(req, instance))) {
       socket.end('HTTP/1.1 401 Unauthorized\r\nConnection: close\r\n\r\n');
+      return;
+    }
+    // Browsers always send Origin on a websocket handshake. A socket opened
+    // from another page would otherwise drive this learner's terminal.
+    if (!this.sameOrigin(req)) {
+      socket.end('HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n');
       return;
     }
 
@@ -188,6 +204,17 @@ export class IdeProxy {
     return claims?.sub === instance.userId;
   }
 
+  /**
+   * The cookie alone does not prove the request came from the workbench:
+   * SameSite=Lax still lets a same-site page send it. Anything that can change
+   * state must also carry the workbench's own Origin. A missing Origin is not
+   * a browser acting for another page, so it is left to the cookie.
+   */
+  private sameOrigin(req: IncomingMessage): boolean {
+    const origin = req.headers.origin;
+    return origin === undefined || origin === this.origin;
+  }
+
   /** Request headers minus hop-by-hop ones and minus our own credential. */
   private forwardHeaders(req: IncomingMessage): Record<string, string | string[] | undefined> {
     const headers: Record<string, string | string[] | undefined> = {};
@@ -206,11 +233,11 @@ export class IdeProxy {
       `Path=/ide/${slug}`,
       `Max-Age=${IDE_COOKIE_TTL_SECONDS}`,
       'HttpOnly',
-      // The workbench is framed by the web app. Over HTTPS the two may be
-      // different sites, which only SameSite=None survives; over plain HTTP
-      // (local dev) Secure cookies are dropped, and localhost ports are one
-      // site anyway.
-      ...(this.secureCookie ? ['Secure', 'SameSite=None'] : ['SameSite=Lax']),
+      // Lax, never None: the web app and the API are one site (localhost, or
+      // lms / lms-api under the same domain), so the framed workbench still
+      // gets its cookie, and no other site's page can send it along.
+      'SameSite=Lax',
+      ...(this.secureCookie ? ['Secure'] : []),
     ].join('; ');
   }
 

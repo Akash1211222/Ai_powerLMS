@@ -13,6 +13,7 @@ import { cp, mkdir, readdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { request } from 'node:http';
 import { homedir } from 'node:os';
 import { dirname, join } from 'node:path';
+import { SessionEvents } from '../auth/session-events';
 import type { Env } from '../config/env';
 
 /**
@@ -51,7 +52,14 @@ export class IdeService implements OnModuleInit, OnModuleDestroy {
   private readonly byUser = new Map<string, IdeInstance>();
   private reaper?: NodeJS.Timeout;
 
-  constructor(private readonly config: ConfigService<Env, true>) {}
+  constructor(
+    private readonly config: ConfigService<Env, true>,
+    sessionEvents: SessionEvents,
+  ) {
+    // Signing out ends the workspace. Its cookie is bound to the instance, so
+    // a stopped instance leaves the cookie opening nothing.
+    sessionEvents.onLogout((userId) => this.restart(userId));
+  }
 
   get enabled(): boolean {
     return this.config.get('IDE_ENABLED', { infer: true });

@@ -15,6 +15,7 @@ import { MailService } from '../mail/mail.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import type { LoginDto, RefreshDto, LogoutDto } from './dto/auth.schemas';
+import { SessionEvents } from './session-events';
 
 export interface RequestContext {
   ipAddress?: string | null;
@@ -58,6 +59,7 @@ export class AuthService {
     private readonly audit: AuditService,
     private readonly mail: MailService,
     private readonly config: ConfigService,
+    private readonly sessionEvents: SessionEvents,
   ) {
     this.maxAttempts = Number(config.get('LOGIN_MAX_ATTEMPTS') ?? 5);
     this.lockoutMs = Number(config.get('LOGIN_LOCKOUT_MINUTES') ?? 15) * 60 * 1000;
@@ -355,6 +357,7 @@ export class AuthService {
         ipAddress: ctx.ipAddress,
         requestId: ctx.requestId,
       });
+      await this.sessionEvents.loggedOut(session.userId);
     }
     // Idempotent: logging out an unknown/revoked token still succeeds.
     return { success: true };
