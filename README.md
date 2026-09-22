@@ -132,6 +132,21 @@ See `packages/database/prisma/seed.ts` for full seed data (courses, assignments 
 4. **Submit & score** — Submission triggers AI evaluation (Anthropic when configured, otherwise heuristics). High-confidence scores can auto-release to the student; trainers see scores in the assignment detail view.
 5. **Performance** — Scores feed dashboards and student intelligence signals.
 
+### VS Code in the code lab (optional)
+
+Skills → Code lab can give each learner a full browser VS Code
+([code-server](https://github.com/coder/code-server)): extensions from Open VSX,
+a terminal, multi-file Node/React/Python/Java/C++ projects, saved between visits.
+
+```bash
+# 1. Install code-server (macOS: brew install code-server, or the release tarball)
+# 2. In .env:  IDE_ENABLED=true  (and IDE_BINARY=/path/to/code-server if not on PATH)
+pnpm ide:setup   # one-time: default extensions for every language
+```
+
+**Host mode gives every learner a shell as the API's OS user.** Local/dev only —
+see `docs/plans/0005-browser-vscode.md` for why and for the container launcher.
+
 Feature flags (seeded): `module.placement`, `module.intelligence`, `module.mentorship`, and related LMS modules.
 
 ---

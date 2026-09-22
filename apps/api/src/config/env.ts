@@ -85,6 +85,26 @@ export const envSchema = z.object({
   /** Give a cold compile room to finish; the runner caps real CPU itself. */
   CODE_RUNNER_TIMEOUT_MS: z.coerce.number().int().positive().default(20_000),
 
+  /**
+   * Browser VS Code (code-server) per learner, behind /ide/<slug>/. Host mode
+   * runs every instance as this API's OS user — no isolation between learners
+   * — so it stays off unless a host deliberately turns it on.
+   */
+  IDE_ENABLED: z
+    .enum(['true', 'false'])
+    .default('false')
+    .transform((v) => v === 'true'),
+  /** The code-server executable. */
+  IDE_BINARY: z.string().default('code-server'),
+  /** Workspaces, settings and extensions live here. Defaults to ~/.fca-ide. */
+  IDE_DATA_DIR: z.string().optional(),
+  /** Extra PATH entries for learners' terminals (toolchains not on the default PATH). */
+  IDE_EXTRA_PATH: z.string().optional(),
+  /** Each instance is a few hundred MB; this caps them. */
+  IDE_MAX_INSTANCES: z.coerce.number().int().positive().default(5),
+  /** Stop an instance this long after its last tab closed. */
+  IDE_IDLE_MINUTES: z.coerce.number().int().positive().default(30),
+
   MAIL_HOST: z.string().optional(),
   MAIL_PORT: z.coerce.number().int().positive().optional(),
   MAIL_USER: z.string().optional(),

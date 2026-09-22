@@ -28,6 +28,8 @@ import {
 import type { CodeLanguage, RunCodeResult } from '@/lib/lms-learning-api';
 import { DashboardHero, HeroPanel, todayLabel } from '@/components/dashboard-hero';
 import { CodeWorkspace } from '@/components/code-workspace';
+import { IdeWorkspace } from '@/components/ide-workspace';
+import { ideApi } from '@/lib/ide-api';
 import { SectionArtworkPanel } from '@/components/section-artwork';
 import { RadialGauge } from '@/components/charts';
 
@@ -105,10 +107,12 @@ SELECT 'Hello, FutureCorp!' AS greeting;
 export default function SkillsPage() {
   const skillsQ = useQuery({ queryKey: ['me', 'skills'], queryFn: skillsApi.mine });
   const scoreQ = useQuery({ queryKey: ['me', 'score'], queryFn: scoresApi.mine });
+  const ideQ = useQuery({ queryKey: ['ide', 'status'], queryFn: ideApi.status, staleTime: Infinity });
 
   const [tab, setTab] = useState<Tab>('overview');
   const [labLang, setLabLang] = useState<Exclude<CodeLanguage, 'NONE'>>('JAVASCRIPT');
   const [labCode, setLabCode] = useState(STARTERS.JAVASCRIPT);
+  const [labMode, setLabMode] = useState<'ide' | 'quick'>('ide');
   const [activeChallenge, setActiveChallenge] = useState<CodingChallenge | null>(null);
   const [challengeCode, setChallengeCode] = useState('');
   const [challengePass, setChallengePass] = useState<boolean | null>(null);
@@ -477,30 +481,68 @@ export default function SkillsPage() {
 
       {tab === 'lab' && (
         <div id="skills-lab" className="flex flex-col gap-4">
-          <Card className="overflow-hidden">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          {ideQ.data?.enabled && (
+            <div className="flex flex-wrap items-center justify-between gap-3">
               <div>
-                <h2 className="font-display text-lg font-bold">Online coding emulator</h2>
+                <h2 className="font-display text-lg font-bold">
+                  {labMode === 'ide' ? 'VS Code workspace' : 'Quick runner'}
+                </h2>
                 <p className="text-sm text-faint">
-                  Run Python, JS/TS, Java, C/C++, SQL, or Web — same sandbox as assignments.
+                  {labMode === 'ide'
+                    ? 'The full editor: install extensions, open a terminal, build Node and React apps in any language.'
+                    : 'Paste a snippet, pick a language, run it. Nothing is saved.'}
                 </p>
               </div>
-              <label className="flex flex-col gap-1 text-xs font-semibold text-faint">
-                Language
-                <Select
-                  value={labLang}
-                  onChange={(e) => switchLabLang(e.target.value as Exclude<CodeLanguage, 'NONE'>)}
-                >
-                  {LAB_LANGS.map((l) => (
-                    <option key={l.value} value={l.value}>
-                      {l.label}
-                    </option>
-                  ))}
-                </Select>
-              </label>
+              <div className="flex rounded-full bg-chip p-1">
+                {(
+                  [
+                    ['ide', 'VS Code'],
+                    ['quick', 'Quick runner'],
+                  ] as const
+                ).map(([id, label]) => (
+                  <button
+                    key={id}
+                    type="button"
+                    onClick={() => setLabMode(id)}
+                    className={cn(
+                      'rounded-full px-3 py-1.5 text-xs font-bold transition',
+                      labMode === id ? 'bg-grad-holo text-white shadow-glow' : 'text-faint hover:text-ink',
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
             </div>
-            <CodeWorkspace language={labLang} value={labCode} onChange={setLabCode} />
-          </Card>
+          )}
+          {ideQ.data?.enabled && labMode === 'ide' ? (
+            <IdeWorkspace />
+          ) : (
+            <Card className="overflow-hidden">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <h2 className="font-display text-lg font-bold">Online coding emulator</h2>
+                  <p className="text-sm text-faint">
+                    Run Python, JS/TS, Java, C/C++, SQL, or Web — same sandbox as assignments.
+                  </p>
+                </div>
+                <label className="flex flex-col gap-1 text-xs font-semibold text-faint">
+                  Language
+                  <Select
+                    value={labLang}
+                    onChange={(e) => switchLabLang(e.target.value as Exclude<CodeLanguage, 'NONE'>)}
+                  >
+                    {LAB_LANGS.map((l) => (
+                      <option key={l.value} value={l.value}>
+                        {l.label}
+                      </option>
+                    ))}
+                  </Select>
+                </label>
+              </div>
+              <CodeWorkspace language={labLang} value={labCode} onChange={setLabCode} />
+            </Card>
+          )}
         </div>
       )}
 
