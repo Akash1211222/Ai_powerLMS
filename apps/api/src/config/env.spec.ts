@@ -17,13 +17,21 @@ describe('validateEnv', () => {
   });
 
   it('rejects short JWT secrets', () => {
-    expect(() => validateEnv({ ...base, JWT_ACCESS_SECRET: 'short' })).toThrow(
-      /JWT_ACCESS_SECRET/,
-    );
+    expect(() => validateEnv({ ...base, JWT_ACCESS_SECRET: 'short' })).toThrow(/JWT_ACCESS_SECRET/);
   });
 
   it('rejects missing DATABASE_URL', () => {
     const { DATABASE_URL: _omit, ...rest } = base;
     expect(() => validateEnv(rest)).toThrow(/DATABASE_URL/);
+  });
+
+  // Host-mode IDE hands every learner a shell as the API's OS user.
+  it('refuses the host-mode IDE in production', () => {
+    expect(() => validateEnv({ ...base, NODE_ENV: 'production', IDE_ENABLED: 'true' })).toThrow(
+      /IDE_ENABLED/,
+    );
+    expect(validateEnv({ ...base, NODE_ENV: 'development', IDE_ENABLED: 'true' }).IDE_ENABLED).toBe(
+      true,
+    );
   });
 });

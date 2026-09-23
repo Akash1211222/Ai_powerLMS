@@ -128,5 +128,15 @@ export function validateEnv(config: Record<string, unknown>): Env {
       .join('\n');
     throw new Error(`Invalid environment configuration:\n${issues}`);
   }
+  // Host-mode IDE runs every learner's terminal as this process's OS user:
+  // .env, the database and every other learner's files are one `cat` away.
+  // A flag that defaults off is not enough of a guard for that on a real
+  // deployment, so production refuses to boot with it rather than trusting
+  // nobody ever sets it. Hosting it needs the container launcher (plan 0005).
+  if (parsed.data.NODE_ENV === 'production' && parsed.data.IDE_ENABLED) {
+    throw new Error(
+      'Invalid environment configuration:\n  - IDE_ENABLED: host-mode IDE is not allowed in production (see docs/plans/0005-browser-vscode.md)',
+    );
+  }
   return parsed.data;
 }

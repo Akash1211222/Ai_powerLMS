@@ -5,6 +5,7 @@ import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 import { TokenService } from './token.service';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { SessionEvents } from './session-events';
 
 /**
  * Global so JwtAuthGuard + TokenService are injectable in any feature module
@@ -14,7 +15,7 @@ import { JwtAuthGuard } from './guards/jwt-auth.guard';
 @Module({
   imports: [JwtModule.register({})],
   controllers: [AuthController],
-  providers: [AuthService, PasswordService, TokenService, JwtAuthGuard],
-  exports: [TokenService, JwtAuthGuard],
+  providers: [AuthService, PasswordService, TokenService, JwtAuthGuard, SessionEvents],
+  exports: [TokenService, JwtAuthGuard, SessionEvents],
 })
 export class AuthModule {}

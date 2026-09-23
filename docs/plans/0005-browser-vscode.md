@@ -66,9 +66,17 @@ Every instance runs as the API's OS user. A learner's terminal can read other
 learners' workspaces, the repository, and `.env`; `/proxy/<port>` reaches any
 port on the host. Two learners' dev servers also compete for the same ports.
 
-That is acceptable on a developer's own machine and nowhere else, so
-`IDE_ENABLED` defaults to `false` — as `CODE_RUN_ENABLED` does, for the same
-reason.
+That is acceptable on a developer's own machine and nowhere else. A flag that
+defaults off was not judged enough — nothing stops it being set — so
+**`NODE_ENV=production` with `IDE_ENABLED=true` refuses to boot**, and the
+production nginx config has no `/ide/` route. Both change only when the
+container launcher lands.
+
+The cookie is also held to the workbench: it is `SameSite=Lax` (web and API
+are one site), anything but GET/HEAD/OPTIONS and every websocket must carry the
+workbench's own `Origin`, proxied pages send `Referrer-Policy: same-origin` so
+workspace paths do not leak, and signing out stops the instance — the cookie is
+bound to it, so it then opens nothing.
 
 ## Proposed — the container launcher
 
@@ -82,6 +90,10 @@ child process. `IdeService.start` is the only thing that changes:
 - no route from the container to the database, Redis or the API's own port.
 
 The proxy, tokens, web component and data layout are unchanged by that swap.
+Landing it also means lifting the production refusal in `validateEnv` and
+adding an nginx `/ide/` location with websocket upgrade headers — declaring its
+own `add_header` set, since the server-level `X-Frame-Options` would block the
+web app framing the workbench.
 
 **Capacity is the real constraint.** The current 1-vCPU / 4 GB box cannot hold
 more than two or three instances beside the LMS itself. Hosting the IDE for a
