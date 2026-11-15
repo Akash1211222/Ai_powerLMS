@@ -39,6 +39,10 @@ jobs:
       - run: pnpm typecheck
       - run: pnpm lint
       - run: pnpm test
+      # The local delivery console mirrors these stages and parses their
+      # output into file:line. If its parsers rot, every local run quietly
+      # stops pointing at the break — so they are tested here too.
+      - run: pnpm pipeline:test
       - run: pnpm build
 
   integration:

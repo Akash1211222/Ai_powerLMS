@@ -49,3 +49,6 @@ dump.rdb
 # Design source (kept locally as reference, not part of the app build)
 _design_src/
 FutureCorp Academy UI Design.zip
+
+# Local delivery console run history
+.pipeline/

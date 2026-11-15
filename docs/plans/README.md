@@ -14,6 +14,7 @@ is what stops a later change quietly undoing a deliberate one.
 | [0003](0003-per-college-palette.md) | Give a college the whole palette, not a tint | Delivered |
 | [0004](0004-self-hosted-llm.md) | Swapping Gemini for a self-hosted model | Proposed |
 | [0005](0005-browser-vscode.md) | A real VS Code in the code lab | Delivered (host mode) · Proposed (containers) |
+| [0006](0006-delivery-console.md) | Seeing the pipeline, and where it breaks | Delivered |
 
 See also [`../architecture/roles.md`](../architecture/roles.md) — the live
 reference for who can reach what, which plans 0001 and 0002 produced.

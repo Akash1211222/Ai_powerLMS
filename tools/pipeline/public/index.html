@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Delivery Console · FutureCorp</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><text y='14' font-size='14'>🚦</text></svg>"
+    />
+    <link rel="stylesheet" href="/style.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div class="brand">
+        <span class="dot" id="live-dot" title="Live"></span>
+        <strong>Delivery Console</strong>
+        <span class="muted">FutureCorp LMS</span>
+      </div>
+      <div class="topbar-right">
+        <span class="muted mono" id="repo-label"></span>
+        <button class="btn" id="refresh">Refresh</button>
+        <button class="btn primary" id="run">Run pipeline</button>
+        <button
+          class="btn"
+          id="run-full"
+          title="Includes migrations, seed and the API integration suite"
+        >
+          Run full
+        </button>
+      </div>
+    </header>
+
+    <!-- The journey a commit makes. Each lane is a real system, not a label. -->
+    <section class="flow" id="flow" aria-label="Delivery pipeline"></section>
+
+    <main class="grid">
+      <section class="panel" id="detail-panel">
+        <div class="panel-head">
+          <h2 id="detail-title">Pipeline</h2>
+          <span class="muted" id="detail-sub">Select a stage to see what happened</span>
+        </div>
+        <div id="detail"></div>
+      </section>
+
+      <aside class="side">
+        <section class="panel">
+          <div class="panel-head"><h2>Working tree</h2></div>
+          <div id="git"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Production</h2></div>
+          <div id="vps"></div>
+        </section>
+        <section class="panel">
+          <div class="panel-head"><h2>Recent runs</h2></div>
+          <div id="runs"></div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="/app.js" type="module"></script>
+  </body>
+</html>
