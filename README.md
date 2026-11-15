@@ -151,6 +151,27 @@ Feature flags (seeded): `module.placement`, `module.intelligence`, `module.mento
 
 ---
 
+## Delivery console
+
+The same checks CI runs, on this machine, with the failure pointed at:
+
+```bash
+pnpm pipeline        # typecheck · lint · unit · build  (the CI "quality" job)
+pnpm pipeline:full   # + test database, migrations, seed, integration + e2e
+pnpm pipeline:ui     # dashboard at http://localhost:7420
+pnpm hooks:install   # run the gate automatically on `git push`
+```
+
+The dashboard shows one commit's whole journey — this Mac → git → GitHub
+Actions → the VPS — and on a failure opens the exact file and line with the
+broken code in view. It is read-only about everything remote: it never deploys,
+and deployment stays pull-based (`deploy/README.md`).
+
+`pnpm pipeline:full` needs Postgres and Redis running, and uses a **separate**
+`fca_test` database, which it creates, migrates and seeds for you.
+
+Design notes: `docs/plans/0006-delivery-console.md`.
+
 ## Common commands
 
 | Command | Description |
